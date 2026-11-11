@@ -1,0 +1,113 @@
+{% extends 'layout.twig' %}
+
+{% block title %}Shift roster — {{ app_name }}{% endblock %}
+
+{% block body %}
+  <section class="page-head">
+    <span class="kicker">Time &amp; attendance</span>
+    <h1>Shift roster</h1>
+    <p class="muted">The month at a glance: shift days, rest days and approved leave. The timesheet measures clock times against this plan.</p>
+  </section>
+
+  {% include 'partials/attendance_tabs.twig' %}
+
+  <form class="filter-bar" method="get" action="/app/roster">
+    <label class="field inline-field">
+      <span>Employee</span>
+      <select name="employee_id">
+        {% for employee in employees %}
+          <option value="{{ employee.id }}"{% if selected_employee and employee.id == selected_employee.id %} selected{% endif %}>{{ employee.last_name }}, {{ employee.first_name }} ({{ employee.employee_no }})</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="field inline-field">
+      <span>Month</span>
+      <input type="month" name="month" value="{{ month }}">
+    </label>
+    <button class="btn-primary" type="submit">Open roster</button>
+  </form>
+
+  {% if selected_employee %}
+    <section class="panel roster-panel">
+      <div class="roster-toolbar">
+        <div class="roster-person">
+          <strong>{{ selected_employee.first_name }} {{ selected_employee.last_name }}</strong>
+          <span class="muted mono">{{ selected_employee.employee_no }}</span>
+        </div>
+        <div class="roster-nav">
+          <a class="btn-ghost btn-sm" href="/app/roster?month={{ prev_month }}&employee_id={{ selected_employee.id }}" aria-label="Previous month">&lsaquo;</a>
+          <strong>{{ label }}</strong>
+          <a class="btn-ghost btn-sm" href="/app/roster?month={{ next_month }}&employee_id={{ selected_employee.id }}" aria-label="Next month">&rsaquo;</a>
+          <a class="text-link" href="/app/roster?employee_id={{ selected_employee.id }}">Today</a>
+        </div>
+      </div>
+
+      <div class="roster-grid">
+        {% for heading in ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] %}
+          <div class="roster-head">{{ heading }}</div>
+        {% endfor %}
+
+        {% for week in weeks %}
+          {% for day in week %}
+            <div class="roster-day{{ day.in_month ? '' : ' is-outside' }}{{ day.is_today ? ' is-today' : '' }}">
+              <span class="roster-date">{{ day.day_num }}</span>
+              {% if day.leave %}
+                <span class="roster-pill leave">On leave</span>
+              {% elseif day.shift %}
+                <span class="roster-pill shift">
+                  <strong>{{ day.shift.shift_name }}</strong>
+                  <small class="mono">{{ day.shift.start_time|slice(0, 5) }} – {{ day.shift.end_time|slice(0, 5) }}</small>
+                </span>
+              {% elseif day.off %}
+                <span class="roster-pill off">Off</span>
+              {% endif %}
+            </div>
+          {% endfor %}
+        {% endfor %}
+      </div>
+    </section>
+
+    {% if can_edit and shifts %}
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>Set a day</h2>
+            <p class="muted">Assigning a day replaces whatever was there. Choose Rest day to clear the shift.</p>
+          </div>
+        </div>
+        <form class="form-grid form-grid-4" method="post" action="/app/roster">
+          <input type="hidden" name="_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="employee_id" value="{{ selected_employee.id }}">
+          <input type="hidden" name="month" value="{{ month }}">
+
+          <label class="field">
+            <span>Date</span>
+            <input type="date" name="work_date" required value="{{ month == today|date('Y-m') ? today : month ~ '-01' }}">
+          </label>
+
+          <label class="field">
+            <span>Shift</span>
+            <select name="shift_id">
+              <option value="0">Rest day (off)</option>
+              {% for shift in shifts %}
+                <option value="{{ shift.id }}">{{ shift.name }} · {{ shift.start_time|slice(0, 5) }} – {{ shift.end_time|slice(0, 5) }}</option>
+              {% endfor %}
+            </select>
+          </label>
+
+          <div class="form-actions">
+            <button class="btn-primary" type="submit">Save day</button>
+          </div>
+        </form>
+      </section>
+    {% elseif can_edit %}
+      <section class="panel">
+        <p class="muted">No shifts are configured for this company yet.</p>
+      </section>
+    {% endif %}
+  {% else %}
+    <section class="panel">
+      <p class="muted">Add people to the register before planning a roster.</p>
+    </section>
+  {% endif %}
+{% endblock %}

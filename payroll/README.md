@@ -11,6 +11,11 @@ rate limiting. The **employee register** is built on top of it: people,
 employment terms, Kenyan statutory numbers, salary and bank details, departments
 and archiving. **Payroll runs** are built next: a month is prepared from the
 register with the shared statutory engine, then approved by a second person.
+A **dashboard** built from those tables shows headcount, today's attendance,
+pending leave, the latest run and payroll cost. **Leave** requests and balances,
+the **daily attendance** register, a **monthly timesheet**, and a **shift roster**
+are live alongside it. Attendance records carry a source, so a biometric reader
+or face scanner can post clock times into the same rows and audit trail later.
 The `modules` table says exactly what is live.
 
 No framework. Twig + PDO + PHP 8.2, Composer for autoload and Twig only.
@@ -33,6 +38,7 @@ cd payroll
 composer install
 php bin/migrate.php
 php bin/seed.php "Acme Ltd" owner@acme.test
+php bin/seed_demo.php          # optional: departments, staff, leave, attendance, a draft run
 php -S 127.0.0.1:8090 -t public public/index.php
 ```
 
@@ -54,7 +60,7 @@ are stored in MySQL by default (`SESSION_DRIVER=database`); set
 | `GET/POST /forgot` | Request a reset link (same answer for unknown emails) |
 | `GET/POST /reset/{token}` | Choose a new password (single use, one hour) |
 | `GET/POST /invite/{token}` | Accept an invitation, set the first password |
-| `GET /app` | Workspace: company, team, modules for the current role |
+| `GET /app` | Dashboard: headcount, attendance, leave, payroll and quick actions for the current role |
 | `GET /app/access` | Members, roles and pending invitations (`users.manage`/`users.invite`) |
 | `POST /app/access/invite` | Send an invitation with a role |
 | `POST /app/access/members/{id}/role` | Change a member's role |
@@ -72,6 +78,12 @@ are stored in MySQL by default (`SESSION_DRIVER=database`); set
 | `GET /app/payroll/{id}` | Run totals, lines and approval state |
 | `GET /app/payroll/{id}/lines/{line}/payslip` | Printable payslip built from the stored breakdown |
 | `POST /app/payroll/{id}/approve` | Approve a draft run (`payroll.approve`, different person) |
+| `GET /app/attendance` | Daily register with a day picker and summary (`attendance.view`); `?view=timesheet` shows one person's month |
+| `POST /app/attendance` | Mark or correct one person's day, with a clock source (`attendance.edit`) |
+| `GET /app/roster` | Month calendar of shifts, rest days and approved leave (`attendance.view`) |
+| `POST /app/roster` | Assign a shift or a rest day to one person's date (`attendance.edit`) |
+| `GET /app/leave` | Leave requests filtered by status (`leave.view`); `?view=balances` shows entitlement, taken, pending and balance |
+| `POST /app/leave/{id}/decide` | Approve or reject a pending request (`leave.approve.team`) |
 | `POST /me/profile` | Change your own first and last name |
 | `POST /me/password` | Change your password; other sessions are revoked |
 | `GET /me` | The signed-in person's own account (self-service shell) |
@@ -170,8 +182,31 @@ bash tests/http_smoke.sh      # HTTP: CSRF 419, invite, register, payroll, reset
   what was calculated, not what today's rates would calculate. Bank details
   appear only for roles holding `employees.bank.view`.
 
+## Attendance, shifts and leave
+
+- **A shift is planned, a clock is observed.** `shifts` hold start, end and an
+  unpaid break; `roster_entries` say which shift a person works on a date (or
+  that the day is a rest day). The timesheet measures the observed clock against
+  that plan.
+- **Timesheet math is one place.** `TimesheetService` sums only rostered,
+  non-future days: worked is clock-out minus clock-in (wrapping past midnight),
+  target is the shift span less its break, lost is target minus worked (or the
+  full shift for an absence), overtime is worked beyond target. Approved leave
+  overrides the roster and is counted separately, not as lost time. A day with
+  only one clock is flagged, not guessed.
+- **Every record names its source.** `attendance_records.source` is `manual`,
+  `biometric`, `face` or `import`; the register shows it and the audit entry
+  records it. A terminal integration writes the same row through
+  `AttendanceService::mark()` and gets the same validation, tenancy and audit.
+- **Leave balances are derived, never stored.** Entitlement comes from
+  `leave_types.days_per_year`; taken is approved days in the year and pending is
+  requested days, so a decision immediately moves the balance.
+- **Permissions gate the pages.** Viewing a register or timesheet needs
+  `attendance.view`; assigning a shift needs `attendance.edit`; team leave
+  decisions need `leave.approve.team`.
+
 ## Next
 
-Payslips and self-service, then leave and attendance. Contracts and document
-storage follow. The module catalogue lives in the `modules` table; feature code
-lives in `src/Modules/`.
+Self-service payslips, contract and document storage, and an adapter for
+terminal clock files. The module catalogue lives in the `modules` table; feature
+code lives in `src/Modules/`.

@@ -1,0 +1,13 @@
+{% import 'partials/icons.twig' as icons %}
+{% set on_timesheet = current_path == '/app/attendance' and 'view=timesheet' in current_query %}
+<nav class="page-tabs" aria-label="Attendance views">
+  <a class="{{ current_path == '/app/attendance' and not on_timesheet ? 'is-active' : '' }}" href="/app/attendance">
+    {{ icons.svg('clock', 16) }} Register
+  </a>
+  <a class="{{ on_timesheet ? 'is-active' : '' }}" href="/app/attendance?view=timesheet">
+    {{ icons.svg('file', 16) }} Timesheet
+  </a>
+  <a class="{{ current_path starts with '/app/roster' ? 'is-active' : '' }}" href="/app/roster">
+    {{ icons.svg('calendar', 16) }} Shift roster
+  </a>
+</nav>

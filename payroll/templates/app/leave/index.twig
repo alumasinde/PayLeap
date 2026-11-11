@@ -1,0 +1,179 @@
+{% extends 'layout.twig' %}
+
+{% block title %}Leave — {{ app_name }}{% endblock %}
+
+{% block body %}
+  <section class="page-head">
+    <span class="kicker">Leave &amp; absence</span>
+    <h1>Leave</h1>
+    <p class="muted">
+      Requests and balances for the team.
+      {% if pending_count > 0 %}{{ pending_count }} waiting for a decision.{% else %}Nothing is pending.{% endif %}
+    </p>
+  </section>
+
+  <nav class="page-tabs" aria-label="Leave views">
+    <a class="{{ view == 'requests' ? 'is-active' : '' }}" href="/app/leave">Requests</a>
+    <a class="{{ view == 'balances' ? 'is-active' : '' }}" href="/app/leave?view=balances">Balances</a>
+  </nav>
+
+  {% if view == 'balances' %}
+    <form class="filter-bar" method="get" action="/app/leave">
+      <input type="hidden" name="view" value="balances">
+      <label class="field inline-field">
+        <span>Employee</span>
+        <select name="employee_id">
+          {% for employee in employees %}
+            <option value="{{ employee.id }}"{% if selected_employee and employee.id == selected_employee.id %} selected{% endif %}>{{ employee.last_name }}, {{ employee.first_name }} ({{ employee.employee_no }})</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="field inline-field">
+        <span>Year</span>
+        <input type="number" name="year" min="2000" max="2100" step="1" value="{{ year }}">
+      </label>
+      <button class="btn-primary" type="submit">View balances</button>
+    </form>
+
+    <section class="panel">
+      {% if selected_employee %}
+        <div class="panel-head">
+          <div>
+            <h2>{{ selected_employee.first_name }} {{ selected_employee.last_name }}</h2>
+            <p class="muted">{{ selected_employee.employee_no }} · {{ year }}</p>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="list">
+            <thead>
+              <tr>
+                <th>Leave type</th>
+                <th class="num">Entitlement</th>
+                <th class="num">Taken</th>
+                <th class="num">Pending</th>
+                <th class="num">Balance</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for balance in balances %}
+                <tr>
+                  <td>{{ balance.name }}</td>
+                  <td class="num mono">{{ balance.days_per_year == balance.days_per_year|round ? balance.days_per_year|number_format(0) : balance.days_per_year|number_format(1) }}</td>
+                  <td class="num mono">{{ balance.taken == balance.taken|round ? balance.taken|number_format(0) : balance.taken|number_format(1) }}</td>
+                  <td class="num mono">{{ balance.pending == balance.pending|round ? balance.pending|number_format(0) : balance.pending|number_format(1) }}</td>
+                  <td class="num mono">{{ balance.remaining == balance.remaining|round ? balance.remaining|number_format(0) : balance.remaining|number_format(1) }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <p class="hint">Balance is entitlement less approved days for {{ year }}. Pending requests are shown but not deducted.</p>
+      {% else %}
+        <p class="muted">Add people to the register before checking balances.</p>
+      {% endif %}
+    </section>
+  {% else %}
+    <div class="filter-row">
+      <div class="stat-grid">
+        <div class="stat"><span class="stat-label">Pending</span><strong>{{ pending_count }}</strong></div>
+        <div class="stat"><span class="stat-label">Leave types</span><strong>{{ types|length }}</strong></div>
+        <div class="stat"><span class="stat-label">Shown</span><strong>{{ requests|length }}</strong></div>
+        <div class="stat"><span class="stat-label">Your decision</span><strong>{{ can_approve ? 'Allowed' : 'Read only' }}</strong></div>
+      </div>
+      <nav class="filter-bar" aria-label="Leave status">
+        <a class="chip{{ filter_status == 'pending' ? ' on' }}" href="/app/leave?status=pending">Pending</a>
+        <a class="chip{{ filter_status == 'approved' ? ' on' }}" href="/app/leave?status=approved">Approved</a>
+        <a class="chip{{ filter_status == 'rejected' ? ' on' }}" href="/app/leave?status=rejected">Rejected</a>
+        <a class="chip{{ filter_status == 'all' ? ' on' }}" href="/app/leave?status=all">All</a>
+      </nav>
+    </div>
+
+    <section class="panel">
+      {% if requests %}
+        <div class="table-wrap">
+          <table class="list">
+            <thead>
+              <tr>
+                <th>Employee</th>
+                <th>Type</th>
+                <th>Dates</th>
+                <th class="num">Days</th>
+                <th>Status</th>
+                {% if can_approve %}<th>Decision</th>{% endif %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for request in requests %}
+                <tr>
+                  <td>
+                    <a href="/app/employees/{{ request.employee_id }}">{{ request.first_name }} {{ request.last_name }}</a><br>
+                    <span class="muted mono">{{ request.employee_no }}{% if request.department_name %} · {{ request.department_name }}{% endif %}</span>
+                  </td>
+                  <td>{{ request.leave_type }}</td>
+                  <td class="mono">{{ request.start_date|date('j M Y') }} – {{ request.end_date|date('j M Y') }}</td>
+                  <td class="num mono">{{ request.days == request.days|round ? request.days|number_format(0) : request.days|number_format(1) }}</td>
+                  <td>
+                    <span class="status status-{{ request.status }}">{{ request.status|capitalize }}</span>
+                    {% if request.decision_note %}<br><span class="muted">{{ request.decision_note }}</span>{% endif %}
+                  </td>
+                  {% if can_approve %}
+                    <td>
+                      {% if request.status == 'pending' %}
+                        <div class="row-actions">
+                          <form method="post" action="/app/leave/{{ request.id }}/decide">
+                            <input type="hidden" name="_token" value="{{ csrf_token() }}">
+                            <input type="hidden" name="decision" value="approved">
+                            <button class="btn-primary btn-xs" type="submit">Approve</button>
+                          </form>
+                          <form method="post" action="/app/leave/{{ request.id }}/decide">
+                            <input type="hidden" name="_token" value="{{ csrf_token() }}">
+                            <input type="hidden" name="decision" value="rejected">
+                            <button class="btn-ghost btn-xs" type="submit">Reject</button>
+                          </form>
+                        </div>
+                      {% else %}
+                        <span class="muted">
+                          {% if request.decided_at %}{{ request.decided_at|date('j M Y') }}{% else %}Decided{% endif %}
+                        </span>
+                      {% endif %}
+                    </td>
+                  {% endif %}
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="empty-inline">
+          <p class="muted">No {{ filter_status == 'all' ? '' : filter_status }} requests{{ filter_status == 'all' ? ' yet' : '' }}.</p>
+          <p class="hint">Requests raised by the team appear here for approval.</p>
+        </div>
+      {% endif %}
+    </section>
+
+    <section class="panel">
+      <h2>Entitlement by type</h2>
+      {% if types %}
+        <div class="table-wrap">
+          <table class="list">
+            <thead>
+              <tr><th>Type</th><th class="num">Days per year</th><th>Paid</th><th>Document</th></tr>
+            </thead>
+            <tbody>
+              {% for type in types %}
+                <tr>
+                  <td>{{ type.name }}</td>
+                  <td class="num mono">{{ type.days_per_year == type.days_per_year|round ? type.days_per_year|number_format(0) : type.days_per_year|number_format(1) }}</td>
+                  <td>{{ type.paid ? 'Yes' : 'No' }}</td>
+                  <td>{{ type.requires_document ? 'Required' : 'Not required' }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="muted">No leave types are configured for this company.</p>
+      {% endif %}
+    </section>
+  {% endif %}
+{% endblock %}

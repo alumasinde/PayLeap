@@ -20,11 +20,106 @@ final class WorkspaceController
     public function home(): void
     {
         $company = $this->app->requireCompany();
+        $companyId = (int) $company['company_id'];
+
+        $canEmployees = $this->app->can('employees.view');
+        $canSalary = $this->app->can('employees.salary.view');
+        $canPayroll = $this->app->can('payroll.view');
+        $canLeave = $this->app->can('leave.view') || $this->app->can('leave.approve.team');
+        $canAttendance = $this->app->can('attendance.view');
+        $canApproveLeave = $this->app->can('leave.approve.team');
+
+        $hasWorkspace = $canEmployees || $canPayroll || $canLeave || $canAttendance
+            || $this->app->can('users.manage') || $this->app->can('users.invite')
+            || $this->app->can('roles.manage') || $this->app->can('audit.view');
+
+        if (!$hasWorkspace) {
+            $this->app->redirect('/me');
+        }
+
+        $today = date('Y-m-d');
+        $headcount = $this->app->dashboard->headcount($companyId, date('Y-m-01'), $canSalary);
+        $attendance = $canAttendance ? $this->app->dashboard->attendanceOn($companyId, $today) : null;
+        $onLeave = $canLeave ? $this->app->dashboard->onLeaveOn($companyId, $today) : 0;
+        $pendingLeave = $canLeave ? $this->app->dashboard->pendingLeaveCount($companyId) : 0;
+        $draftRuns = $canPayroll ? $this->app->dashboard->draftRunCount($companyId) : 0;
+
+        $present = $attendance === null ? 0 : $attendance['present'] + $attendance['late'];
+        $attendancePercent = $headcount['active'] > 0
+            ? (int) round($present / $headcount['active'] * 100)
+            : 0;
+        $unmarked = $attendance === null
+            ? 0
+            : max(0, $headcount['active'] - $present - $attendance['absent'] - $onLeave);
+
+        $run = $canPayroll ? $this->app->dashboard->latestRun($companyId) : null;
+        $statutory = $run === null ? null : $this->app->dashboard->statutoryForRun((int) $run['id']);
+
+        $hour = (int) date('G');
+        $greeting = $hour < 12 ? 'Good morning' : ($hour < 17 ? 'Good afternoon' : 'Good evening');
 
         echo $this->app->render('app/home.twig', [
-            'members' => $this->app->companyRepository->members((int) $company['company_id']),
-            'role_label' => $this->app->roleLabel(),
+            'greeting' => $greeting,
+            'headcount' => $headcount,
+            'attendance' => $attendance,
+            'present' => $present,
+            'attendance_percent' => $attendancePercent,
+            'on_leave' => $onLeave,
+            'unmarked' => $unmarked,
+            'pending_leave' => $pendingLeave,
+            'draft_runs' => $draftRuns,
+            'pending_total' => $pendingLeave + $draftRuns,
+            'run' => $run,
+            'statutory' => $statutory,
+            'departments' => $canEmployees ? $this->app->dashboard->departments($companyId, 6) : [],
+            'recent_employees' => $canEmployees ? $this->app->dashboard->recentEmployees($companyId, 4) : [],
+            'pending_requests' => $canLeave ? $this->app->dashboard->pendingLeaveList($companyId, 3) : [],
+            'actions' => $this->quickActions($canApproveLeave),
+            'can_employees' => $canEmployees,
+            'can_salary' => $canSalary,
+            'can_payroll' => $canPayroll,
+            'can_leave' => $canLeave,
+            'can_attendance' => $canAttendance,
+            'can_approve_leave' => $canApproveLeave,
+            'can_run_payroll' => $this->app->can('payroll.run'),
+            'can_edit_employees' => $this->app->can('employees.edit'),
         ]);
+    }
+
+    /**
+     * Only the actions this role can actually complete.
+     *
+     * @return list<array{label:string,href:string,icon:string,note:string}>
+     */
+    private function quickActions(bool $canApproveLeave): array
+    {
+        $actions = [];
+
+        if ($this->app->can('employees.edit')) {
+            $actions[] = ['label' => 'Add employee', 'href' => '/app/employees/new', 'icon' => 'user-plus', 'note' => 'Grow the register'];
+        }
+
+        if ($this->app->can('payroll.run')) {
+            $actions[] = ['label' => 'Prepare payroll', 'href' => '/app/payroll', 'icon' => 'wallet', 'note' => 'Start this month'];
+        }
+
+        if ($this->app->can('attendance.edit')) {
+            $actions[] = ['label' => 'Mark attendance', 'href' => '/app/attendance', 'icon' => 'clock', 'note' => 'Today\'s register'];
+        }
+
+        if ($canApproveLeave) {
+            $actions[] = ['label' => 'Review leave', 'href' => '/app/leave', 'icon' => 'calendar', 'note' => 'Pending requests'];
+        }
+
+        if ($this->app->can('users.invite')) {
+            $actions[] = ['label' => 'Invite user', 'href' => '/app/access', 'icon' => 'user-plus', 'note' => 'Give someone access'];
+        }
+
+        if ($this->app->can('payroll.view')) {
+            $actions[] = ['label' => 'View payroll', 'href' => '/app/payroll', 'icon' => 'chart', 'note' => 'Runs and payslips'];
+        }
+
+        return array_slice($actions, 0, 4);
     }
 
     public function me(): void

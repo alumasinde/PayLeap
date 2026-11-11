@@ -1,68 +1,329 @@
 {% extends 'layout.twig' %}
+{% import 'partials/icons.twig' as icons %}
 
-{% block title %}{{ current_company.company_name }} — {{ app_name }}{% endblock %}
+{% block title %}Dashboard — {{ app_name }}{% endblock %}
 
 {% block body %}
-  <section class="page-head">
-    <span class="kicker">Workspace</span>
-    <h1>{{ current_company.company_name }}</h1>
-    <p class="muted">{{ current_user.email }} · {{ role_label }}</p>
-  </section>
-
-  <div class="grid-2">
-    <section class="panel">
-      <h2>Company</h2>
-      <dl class="facts">
-        <div><dt>Name</dt><dd>{{ current_company.company_name }}</dd></div>
-        <div><dt>Workspace</dt><dd class="mono">{{ current_company.slug }}</dd></div>
-        <div><dt>Your role</dt><dd>{{ role_label }}</dd></div>
-      </dl>
-    </section>
-
-    <section class="panel">
-      <h2>Team</h2>
-      <table class="list">
-        <thead>
-          <tr><th>Name</th><th>Email</th><th>Role</th></tr>
-        </thead>
-        <tbody>
-          {% for member in members %}
-            <tr>
-              <td>{{ member.first_name }} {{ member.last_name }}</td>
-              <td class="muted">{{ member.email }}</td>
-              <td>{{ member.role_names }}</td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </section>
-  </div>
-
-  <section class="panel">
-    <h2>Modules</h2>
-    <div class="module-grid">
-      {% for key, module in modules %}
-        <div class="module-tile">
-          <span class="module-status">{{ module.status }}</span>
-          <h3>{{ module.name }}</h3>
-          <p class="muted">{{ module.note }}</p>
-          {% if can(module.permission) %}
-            <span class="chip on">In your role</span>
-            {% if module.key == 'employees' %}
-              <a class="tile-link" href="/app/employees">Open register</a>
-            {% elseif module.key == 'payroll' %}
-              <a class="tile-link" href="/app/payroll">Open payroll</a>
-            {% endif %}
-          {% else %}
-            <span class="chip">Not in your role</span>
-          {% endif %}
-        </div>
-      {% endfor %}
+  <section class="dash-head">
+    <div>
+      <span class="kicker">Dashboard</span>
+      <h1>{{ greeting }}, {{ current_user.first_name }}</h1>
+      <p class="muted">
+        {{ current_company.company_name }} · {{ today|date('l, j F Y') }}
+        {% if headcount.active > 0 %} · {{ headcount.active }} people on the register{% endif %}
+      </p>
+    </div>
+    <div class="row-actions">
+      {% if can_edit_employees %}
+        <a class="btn-ghost" href="/app/employees/new">{{ icons.svg('user-plus', 16) }} Add employee</a>
+      {% endif %}
+      {% if can_run_payroll %}
+        <a class="btn-primary" href="/app/payroll">{{ icons.svg('wallet', 16) }} Prepare payroll</a>
+      {% endif %}
     </div>
   </section>
 
-  <section class="panel">
-    <h2>What this build is</h2>
-    <p class="muted">Identity, invitations, company access, audit, the employee register and monthly payroll runs with two-person approval.</p>
-  </section>
+  <div class="stat-cards">
+    <article class="stat-card">
+      <div class="stat-top">
+        <span class="stat-icon green">{{ icons.svg('users', 18) }}</span>
+        <span class="stat-trend">{{ headcount.active }} active</span>
+      </div>
+      <span class="stat-value">{{ headcount.active }}</span>
+      <span class="stat-label">Employees</span>
+      <span class="stat-foot">
+        {% if headcount.new_this_month > 0 %}
+          {{ headcount.new_this_month }} joined this month
+        {% elseif headcount.exited > 0 %}
+          {{ headcount.exited }} archived
+        {% else %}
+          No changes this month
+        {% endif %}
+      </span>
+    </article>
+
+    <article class="stat-card">
+      <div class="stat-top">
+        <span class="stat-icon blue">{{ icons.svg('clock', 18) }}</span>
+        {% if can_attendance and attendance %}
+          <span class="stat-trend">{{ attendance_percent }}%</span>
+        {% endif %}
+      </div>
+      <span class="stat-value">{{ can_attendance ? present : '—' }}</span>
+      <span class="stat-label">Present today</span>
+      <span class="stat-foot">
+        {% if can_attendance %}
+          {% if attendance and attendance.marked > 0 %}
+            {% if attendance.late > 0 %}
+              {{ attendance.late }} arrived late today
+            {% else %}
+              {{ present }} of {{ headcount.active }} marked present
+            {% endif %}
+          {% else %}
+            Register not marked yet
+          {% endif %}
+        {% else %}
+          Attendance is not in your role
+        {% endif %}
+      </span>
+    </article>
+
+    <article class="stat-card">
+      <div class="stat-top">
+        <span class="stat-icon amber">{{ icons.svg('calendar', 18) }}</span>
+        {% if can_leave and pending_leave > 0 %}
+          <span class="stat-trend">{{ pending_leave }} pending</span>
+        {% endif %}
+      </div>
+      <span class="stat-value">{{ can_leave ? on_leave : headcount.exited }}</span>
+      <span class="stat-label">{{ can_leave ? 'On leave today' : 'Archived employees' }}</span>
+      <span class="stat-foot">
+        {% if can_leave %}
+          {{ pending_leave }} request{{ pending_leave == 1 ? '' : 's' }} awaiting a decision
+        {% else %}
+          Kept for history, outside payroll
+        {% endif %}
+      </span>
+    </article>
+
+    <article class="stat-card">
+      <div class="stat-top">
+        <span class="stat-icon clay">{{ icons.svg('alert-circle', 18) }}</span>
+      </div>
+      <span class="stat-value">{{ pending_total }}</span>
+      <span class="stat-label">Pending approvals</span>
+      <span class="stat-foot">
+        {% if can_leave %}{{ pending_leave }} leave{% endif %}
+        {% if can_leave and can_payroll %} · {% endif %}
+        {% if can_payroll %}{{ draft_runs }} payroll draft{{ draft_runs == 1 ? '' : 's' }}{% endif %}
+        {% if not can_leave and not can_payroll %}Nothing needs your decision{% endif %}
+      </span>
+    </article>
+  </div>
+
+  <div class="dash-grid">
+    <section class="panel dash-span-2">
+      <div class="panel-head">
+        <div>
+          <h2>Payroll overview</h2>
+          {% if run %}
+            <p class="muted">{{ run.period|date('F Y') }} · {{ run.label }}</p>
+          {% else %}
+            <p class="muted">The most recent run for {{ current_company.company_name }}</p>
+          {% endif %}
+        </div>
+        <span class="chip{{ run and run.status == 'approved' ? ' on' : '' }}">
+          {{ run ? (run.status == 'approved' ? 'Approved' : 'Draft') : 'No runs yet' }}
+        </span>
+      </div>
+
+      {% if not can_payroll %}
+        <p class="muted">Payroll figures are not in your role.</p>
+      {% elseif run %}
+        <div class="payroll-figures">
+          <div class="figure">
+            <span>Gross</span>
+            <strong class="mono">KES {{ run.gross_cents|money }}</strong>
+          </div>
+          <div class="figure">
+            <span>Net pay</span>
+            <strong class="mono">KES {{ run.net_cents|money }}</strong>
+          </div>
+          <div class="figure">
+            <span>Deductions</span>
+            <strong class="mono">KES {{ run.deductions_cents|money }}</strong>
+          </div>
+          <div class="figure">
+            <span>Employer cost</span>
+            <strong class="mono">KES {{ run.employer_cost_cents|money }}</strong>
+          </div>
+        </div>
+
+        <div class="payroll-split">
+          <div>
+            <span class="sub-label">Statutory contributions</span>
+            <dl class="facts compact">
+              <div><dt>PAYE</dt><dd class="mono">{{ statutory.paye|money }}</dd></div>
+              <div><dt>NSSF</dt><dd class="mono">{{ statutory.nssf|money }}</dd></div>
+              <div><dt>SHIF</dt><dd class="mono">{{ statutory.shif|money }}</dd></div>
+              <div><dt>Housing levy</dt><dd class="mono">{{ statutory.housing|money }}</dd></div>
+            </dl>
+          </div>
+          <div class="payroll-meta">
+            <dl class="facts compact">
+              <div><dt>People paid</dt><dd>{{ run.employee_count }}</dd></div>
+              <div><dt>Rate version</dt><dd class="mono">{{ run.rate_version_id }}</dd></div>
+              <div><dt>{{ run.approved_at ? 'Approved' : 'Approval' }}</dt><dd class="mono">{{ run.approved_at ? run.approved_at|date('j M Y') : 'Awaiting check' }}</dd></div>
+            </dl>
+            <a class="text-link" href="/app/payroll/{{ run.id }}">Open run {{ icons.svg('arrow-right', 14) }}</a>
+          </div>
+        </div>
+      {% else %}
+        <div class="empty-inline">
+          <p class="muted">No payroll run has been prepared yet. The monthly salary bill on the register is a starting point, not a final figure.</p>
+          {% if can_run_payroll %}
+            <a class="btn-primary btn-sm" href="/app/payroll">Prepare the first run</a>
+          {% endif %}
+        </div>
+      {% endif %}
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Attendance summary</h2>
+        {% if can_attendance %}<a class="text-link" href="/app/attendance">Register {{ icons.svg('arrow-right', 14) }}</a>{% endif %}
+      </div>
+
+      {% if not can_attendance %}
+        <p class="muted">Attendance is not in your role.</p>
+      {% elseif headcount.active == 0 %}
+        <p class="muted">Add people to the register to track attendance.</p>
+      {% else %}
+        {% set total = headcount.active %}
+        {% set present_total = attendance ? attendance.present + attendance.late : 0 %}
+        {% set absent_total = attendance ? attendance.absent : 0 %}
+        <div class="meters">
+          <div class="meter">
+            <div class="meter-head"><span>Present</span><strong class="mono">{{ present_total }}</strong></div>
+            <progress value="{{ present_total }}" max="{{ total }}">{{ present_total }} of {{ total }}</progress>
+          </div>
+          <div class="meter">
+            <div class="meter-head"><span>Late</span><strong class="mono">{{ attendance ? attendance.late : 0 }}</strong></div>
+            <progress value="{{ attendance ? attendance.late : 0 }}" max="{{ total }}">{{ attendance ? attendance.late : 0 }} of {{ total }}</progress>
+          </div>
+          <div class="meter">
+            <div class="meter-head"><span>Absent</span><strong class="mono">{{ absent_total }}</strong></div>
+            <progress value="{{ absent_total }}" max="{{ total }}">{{ absent_total }} of {{ total }}</progress>
+          </div>
+          <div class="meter">
+            <div class="meter-head"><span>On leave</span><strong class="mono">{{ on_leave }}</strong></div>
+            <progress value="{{ on_leave }}" max="{{ total }}">{{ on_leave }} of {{ total }}</progress>
+          </div>
+          <div class="meter">
+            <div class="meter-head"><span>Not marked</span><strong class="mono">{{ unmarked }}</strong></div>
+            <progress value="{{ unmarked }}" max="{{ total }}">{{ unmarked }} of {{ total }}</progress>
+          </div>
+        </div>
+        <p class="hint">
+          {% if attendance and attendance.marked > 0 %}
+            {{ attendance.marked }} record{{ attendance.marked == 1 ? '' : 's' }} marked for {{ today|date('j M') }}.
+          {% else %}
+            Nothing marked for {{ today|date('j M') }} yet.
+          {% endif %}
+        </p>
+      {% endif %}
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Headcount by department</h2>
+        {% if can_employees %}<a class="text-link" href="/app/employees">People {{ icons.svg('arrow-right', 14) }}</a>{% endif %}
+      </div>
+
+      {% if departments %}
+        <div class="meters">
+          {% for department in departments %}
+            <div class="meter">
+              <div class="meter-head">
+                <span>{{ department.name }}</span>
+                <strong class="mono">{{ department.employee_count }}</strong>
+              </div>
+              <progress value="{{ department.employee_count }}" max="{{ headcount.active }}">{{ department.employee_count }} of {{ headcount.active }}</progress>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="muted">No departments yet. Add people to see the split.</p>
+      {% endif %}
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Recent employees</h2>
+        {% if can_employees %}<a class="text-link" href="/app/employees">View all {{ icons.svg('arrow-right', 14) }}</a>{% endif %}
+      </div>
+
+      {% if recent_employees %}
+        <ul class="person-list">
+          {% for employee in recent_employees %}
+            <li>
+              <span class="avatar small">{{ (employee.first_name|first ~ employee.last_name|first)|upper }}</span>
+              <div class="person-meta">
+                <a href="/app/employees/{{ employee.id }}">{{ employee.first_name }} {{ employee.last_name }}</a>
+                <small>
+                  {{ employee.job_title ?: 'No job title' }}
+                  {% if employee.department_name %} · {{ employee.department_name }}{% endif %}
+                </small>
+              </div>
+              <span class="person-when">{{ employee.start_date|date('j M Y') }}</span>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="muted">No employees on the register yet.</p>
+        {% if can_edit_employees %}<a class="btn-primary btn-sm" href="/app/employees/new">Add the first employee</a>{% endif %}
+      {% endif %}
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Pending leave</h2>
+        {% if can_leave %}<a class="text-link" href="/app/leave">All requests {{ icons.svg('arrow-right', 14) }}</a>{% endif %}
+      </div>
+
+      {% if not can_leave %}
+        <p class="muted">Leave is not in your role.</p>
+      {% elseif pending_requests %}
+        <ul class="request-list">
+          {% for request in pending_requests %}
+            <li>
+              <div class="request-main">
+                <strong>{{ request.first_name }} {{ request.last_name }}</strong>
+                <small>{{ request.leave_type }} · {{ request.days|round }} day{{ request.days == 1 ? '' : 's' }}</small>
+                <small class="mono">{{ request.start_date|date('j M') }} – {{ request.end_date|date('j M Y') }}</small>
+              </div>
+              {% if can_approve_leave %}
+                <div class="request-actions">
+                  <form method="post" action="/app/leave/{{ request.id }}/decide">
+                    <input type="hidden" name="_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="decision" value="approved">
+                    <button class="btn-primary btn-xs" type="submit">Approve</button>
+                  </form>
+                  <form method="post" action="/app/leave/{{ request.id }}/decide">
+                    <input type="hidden" name="_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="decision" value="rejected">
+                    <button class="btn-ghost btn-xs" type="submit">Reject</button>
+                  </form>
+                </div>
+              {% else %}
+                <span class="chip">Pending</span>
+              {% endif %}
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="muted">Nothing is waiting for a decision.</p>
+      {% endif %}
+    </section>
+
+    {% if actions %}
+      <section class="panel dash-span-2">
+        <div class="panel-head">
+          <h2>Quick actions</h2>
+        </div>
+        <div class="action-grid">
+          {% for action in actions %}
+            <a class="action-card" href="{{ action.href }}">
+              <span class="action-icon">{{ icons.svg(action.icon, 18) }}</span>
+              <span>
+                <strong>{{ action.label }}</strong>
+                <small>{{ action.note }}</small>
+              </span>
+              {{ icons.svg('arrow-up-right', 15) }}
+            </a>
+          {% endfor %}
+        </div>
+      </section>
+    {% endif %}
+  </div>
 {% endblock %}

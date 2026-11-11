@@ -80,6 +80,25 @@ final class EmployeeRepository
         return $row === false ? null : $row;
     }
 
+    /**
+     * The employee record linked to a login, if HR has linked one.
+     *
+     * @return array<string,mixed>|null
+     */
+    public function forUser(int $companyId, int $userId): ?array
+    {
+        $statement = $this->db->prepare(
+            'SELECT id, employee_no, first_name, last_name
+             FROM employees
+             WHERE company_id = ? AND user_id = ?
+             LIMIT 1',
+        );
+        $statement->execute([$companyId, $userId]);
+        $row = $statement->fetch();
+
+        return $row === false ? null : $row;
+    }
+
     public function exists(int $companyId, string $employeeNo, ?int $exceptId = null): bool
     {
         $sql = 'SELECT 1 FROM employees WHERE company_id = ? AND employee_no = ?';
@@ -112,6 +131,24 @@ final class EmployeeRepository
         } while ($this->exists($companyId, $candidate) && $attempt < 1000);
 
         return $candidate;
+    }
+
+    /**
+     * Minimal active list for pickers (attendance, leave, payments).
+     *
+     * @return list<array<string,mixed>>
+     */
+    public function activeForSelect(int $companyId): array
+    {
+        $statement = $this->db->prepare(
+            'SELECT id, employee_no, first_name, last_name
+             FROM employees
+             WHERE company_id = ? AND status = \'active\'
+             ORDER BY last_name, first_name',
+        );
+        $statement->execute([$companyId]);
+
+        return $statement->fetchAll();
     }
 
     /**

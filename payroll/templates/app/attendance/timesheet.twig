@@ -1,0 +1,129 @@
+{% extends 'layout.twig' %}
+{% import 'partials/icons.twig' as icons %}
+
+{% block title %}Timesheet — {{ app_name }}{% endblock %}
+
+{% block body %}
+  <section class="page-head">
+    <span class="kicker">Time &amp; attendance</span>
+    <h1>Timesheet</h1>
+    <p class="muted">One person's month: rostered shift, clock times and the hours won or lost against the roster.</p>
+  </section>
+
+  {% include 'partials/attendance_tabs.twig' %}
+
+  <form class="filter-bar" method="get" action="/app/attendance">
+    <input type="hidden" name="view" value="timesheet">
+    <label class="field inline-field">
+      <span>Employee</span>
+      <select name="employee_id">
+        {% for employee in employees %}
+          <option value="{{ employee.id }}"{% if selected_employee and employee.id == selected_employee.id %} selected{% endif %}>{{ employee.last_name }}, {{ employee.first_name }} ({{ employee.employee_no }})</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="field inline-field">
+      <span>Month</span>
+      <input type="month" name="month" value="{{ month }}">
+    </label>
+    <button class="btn-primary" type="submit">View timesheet</button>
+  </form>
+
+  {% if selected_employee and timesheet %}
+    <div class="ts-layout">
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>{{ selected_employee.first_name }} {{ selected_employee.last_name }}</h2>
+            <p class="muted">{{ selected_employee.employee_no }} · {{ timesheet.label }} · {{ timesheet.scheduled_days }} rostered day{{ timesheet.scheduled_days == 1 ? '' : 's' }}</p>
+          </div>
+          {% if can_edit %}
+            <a class="btn-ghost btn-sm" href="/app/roster?month={{ month }}&employee_id={{ selected_employee.id }}">{{ icons.svg('calendar', 15) }} Open roster</a>
+          {% endif %}
+        </div>
+
+        {% if not timesheet.has_roster %}
+          <p class="notice">No shifts are rostered for this month, so there are no target hours. Set the roster to measure late, lost and overtime hours.</p>
+        {% endif %}
+
+        <div class="table-wrap">
+          <table class="list timesheet">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Day</th>
+                <th>Shift</th>
+                <th>In</th>
+                <th>Out</th>
+                <th class="num">Worked hrs</th>
+                <th class="num">Lost hrs</th>
+                <th class="num">OT hrs</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in timesheet.rows %}
+                <tr class="{{ row.row_class }}">
+                  <td class="mono">{{ row.date|date('d/m/Y') }}</td>
+                  <td>{{ row.day }}</td>
+                  <td>
+                    {% if row.status == 'leave' %}
+                      <span class="shift-tag leave">{{ row.shift }}</span>
+                    {% elseif row.status == 'off' %}
+                      <span class="shift-tag off">{{ row.shift }}</span>
+                    {% elseif row.shift != '—' %}
+                      <span class="shift-tag">{{ row.shift }}</span>
+                      <small class="mono muted">{{ row.shift_label }}</small>
+                    {% else %}
+                      <span class="muted">—</span>
+                    {% endif %}
+                  </td>
+                  <td class="mono">{{ row.clock_in ?: '' }}</td>
+                  <td class="mono">{{ row.clock_out ?: '' }}</td>
+                  <td class="num mono">{{ row.worked }}</td>
+                  <td class="num mono">{{ row.lost }}</td>
+                  <td class="num mono">{{ row.ot }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <aside class="ts-side">
+        <section class="panel">
+          <h2>Summary</h2>
+          <table class="list summary-table">
+            <tbody>
+              <tr><td>Present</td><td class="num mono">{{ timesheet.summary.days.present }}</td></tr>
+              <tr><td>Absent</td><td class="num mono">{{ timesheet.summary.days.absent }}</td></tr>
+              <tr><td>Off days</td><td class="num mono">{{ timesheet.summary.days.off }}</td></tr>
+              <tr><td>On leave</td><td class="num mono">{{ timesheet.summary.days.on_leave }}</td></tr>
+              <tr><td>Single clock</td><td class="num mono">{{ timesheet.summary.days.single_clock }}</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section class="panel">
+          <h2>Hour summary</h2>
+          <table class="list summary-table">
+            <tbody>
+              <tr><td>Target hrs</td><td class="num mono">{{ timesheet.summary.target }}</td></tr>
+              <tr><td>Worked hrs</td><td class="num mono">{{ timesheet.summary.worked }}</td></tr>
+              <tr><td>Lost hrs</td><td class="num mono">{{ timesheet.summary.lost }}</td></tr>
+              <tr><td>Worked OT</td><td class="num mono">{{ timesheet.summary.ot }}</td></tr>
+            </tbody>
+          </table>
+          <p class="hint">Target is shift length less the break, summed over rostered days. Leave is counted separately, not as lost time.</p>
+        </section>
+      </aside>
+    </div>
+  {% elseif selected_employee %}
+    <section class="panel">
+      <p class="muted">No timesheet data for this month.</p>
+    </section>
+  {% else %}
+    <section class="panel">
+      <p class="muted">Add people to the register before opening a timesheet.</p>
+    </section>
+  {% endif %}
+{% endblock %}

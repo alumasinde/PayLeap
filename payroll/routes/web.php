@@ -4,13 +4,16 @@ declare(strict_types=1);
 
 use Mshahara\Payroll\Http\Controllers\AccessController;
 use Mshahara\Payroll\Http\Controllers\AccountController;
+use Mshahara\Payroll\Http\Controllers\AttendanceController;
 use Mshahara\Payroll\Http\Controllers\AuthController;
 use Mshahara\Payroll\Http\Controllers\EmployeeController;
 use Mshahara\Payroll\Http\Controllers\EmployeeDepartmentController;
 use Mshahara\Payroll\Http\Controllers\InviteController;
+use Mshahara\Payroll\Http\Controllers\LeaveController;
 use Mshahara\Payroll\Http\Controllers\PasswordController;
 use Mshahara\Payroll\Http\Controllers\PayrollController;
 use Mshahara\Payroll\Http\Controllers\RoleController;
+use Mshahara\Payroll\Http\Controllers\RosterController;
 use Mshahara\Payroll\Http\Controllers\WorkspaceController;
 
 /**
@@ -58,6 +61,14 @@ return [
     ['GET', '/app/payroll/{id}', [PayrollController::class, 'show']],
     ['GET', '/app/payroll/{id}/lines/{lineId}/payslip', [PayrollController::class, 'payslip']],
     ['POST', '/app/payroll/{id}/approve', [PayrollController::class, 'approve']],
+
+    ['GET', '/app/attendance', [AttendanceController::class, 'index']],
+    ['POST', '/app/attendance', [AttendanceController::class, 'mark']],
+    ['GET', '/app/roster', [RosterController::class, 'index']],
+    ['POST', '/app/roster', [RosterController::class, 'assign']],
+    ['GET', '/app/leave', [LeaveController::class, 'index']],
+    ['POST', '/app/leave/{id}/decide', [LeaveController::class, 'decide']],
+
     ['GET', '/me', [WorkspaceController::class, 'me']],
     ['POST', '/me/profile', [AccountController::class, 'updateProfile']],
     ['POST', '/me/password', [AccountController::class, 'changePassword']],

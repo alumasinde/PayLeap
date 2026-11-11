@@ -8,6 +8,7 @@ use Mshahara\Payroll\App;
 use Mshahara\Payroll\Modules\Employees\EmployeeService;
 use Mshahara\Payroll\Support\HttpException;
 use Mshahara\Payroll\Support\Money;
+use DateTimeImmutable;
 
 /**
  * The employee register. Salary and bank fields are only read from the POST
@@ -76,6 +77,7 @@ final class EmployeeController
         echo $this->app->render('app/employees/show.twig', [
             'employee' => $employee,
             'types' => EmployeeService::TYPES,
+            'service_years' => $this->serviceYears($employee),
             'can_edit' => $this->app->can('employees.edit'),
             'can_salary' => $this->app->can('employees.salary.view'),
             'can_bank' => $this->app->can('employees.bank.view'),
@@ -210,6 +212,24 @@ final class EmployeeController
         }
 
         return $employee;
+    }
+
+    /** @param array<string,mixed> $employee */
+    private function serviceYears(array $employee): string
+    {
+        $start = DateTimeImmutable::createFromFormat('!Y-m-d', (string) $employee['start_date']);
+
+        if ($start === false) {
+            return '—';
+        }
+
+        $end = $employee['exit_date']
+            ? DateTimeImmutable::createFromFormat('!Y-m-d', (string) $employee['exit_date'])
+            : new DateTimeImmutable('today');
+        $end = $end === false ? new DateTimeImmutable('today') : $end;
+        $span = $start->diff($end);
+
+        return $span->y . ' yrs ' . $span->m . ' mos';
     }
 
     /**

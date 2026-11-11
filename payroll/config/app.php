@@ -10,6 +10,7 @@ return [
     'debug' => Env::get('APP_DEBUG', '0') === '1',
     'url' => rtrim((string) Env::get('APP_URL', 'http://127.0.0.1:8090'), '/'),
     'key' => (string) Env::get('APP_KEY', ''),
+    'timezone' => (string) Env::get('APP_TIMEZONE', 'Africa/Nairobi'),
 
     'session' => [
         'driver' => Env::get('SESSION_DRIVER', 'database'),

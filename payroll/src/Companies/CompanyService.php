@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Mshahara\Payroll\Companies;
 
 use Mshahara\Payroll\Authz\RoleRepository;
+use Mshahara\Payroll\Modules\Attendance\ShiftRepository;
+use Mshahara\Payroll\Modules\Leave\LeaveRepository;
 use PDO;
 use Throwable;
 
@@ -18,6 +20,8 @@ final class CompanyService
         private readonly PDO $db,
         private readonly CompanyRepository $companyRepository,
         private readonly RoleRepository $roleRepository,
+        private readonly LeaveRepository $leaveRepository,
+        private readonly ShiftRepository $shiftRepository,
     ) {
     }
 
@@ -28,6 +32,8 @@ final class CompanyService
         try {
             $companyId = $this->companyRepository->create($name, $slug);
             $this->roleRepository->provision($companyId);
+            $this->leaveRepository->provisionDefaults($companyId);
+            $this->shiftRepository->provisionDefaults($companyId);
             $this->db->commit();
 
             return $companyId;

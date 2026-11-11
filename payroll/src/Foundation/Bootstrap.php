@@ -23,6 +23,16 @@ use Mshahara\Payroll\Modules\Employees\EmployeeModule;
 use Mshahara\Payroll\Modules\Employees\EmployeeRepository;
 use Mshahara\Payroll\Modules\Employees\EmployeeService;
 use Mshahara\Payroll\Modules\ModuleRepository;
+use Mshahara\Payroll\Modules\Attendance\AttendanceModule;
+use Mshahara\Payroll\Modules\Attendance\AttendanceRepository;
+use Mshahara\Payroll\Modules\Attendance\AttendanceService;
+use Mshahara\Payroll\Modules\Attendance\ShiftRepository;
+use Mshahara\Payroll\Modules\Attendance\ShiftService;
+use Mshahara\Payroll\Modules\Attendance\TimesheetService;
+use Mshahara\Payroll\Modules\Dashboard\DashboardRepository;
+use Mshahara\Payroll\Modules\Leave\LeaveModule;
+use Mshahara\Payroll\Modules\Leave\LeaveRepository;
+use Mshahara\Payroll\Modules\Leave\LeaveService;
 use Mshahara\Payroll\Modules\Payroll\PayrollModule;
 use Mshahara\Payroll\Modules\Payroll\PayrollRepository;
 use Mshahara\Payroll\Modules\Payroll\PayrollService;
@@ -57,6 +67,7 @@ final class Bootstrap
 
         $config = require $root . '/config/app.php';
         $config['mail']['path'] = $root . '/storage/mail';
+        date_default_timezone_set((string) $config['timezone']);
 
         $app = new App();
         $app->root = $root;
@@ -88,15 +99,30 @@ final class Bootstrap
         $app->userRepository = new UserRepository($app->db);
         $app->accountService = new AccountService($app->userRepository, $app->auditLogger);
         $app->permissionGate = new PermissionGate($app->db);
-        $app->companyService = new CompanyService($app->db, $app->companyRepository, $app->roleRepository);
+        $leaveRepository = new LeaveRepository($app->db);
+        $shiftRepository = new ShiftRepository($app->db);
+        $app->companyService = new CompanyService($app->db, $app->companyRepository, $app->roleRepository, $leaveRepository, $shiftRepository);
         $app->membershipService = new MembershipService($app->db, $app->companyRepository, $app->roleRepository, $app->auditLogger);
         $app->moduleRepository = new ModuleRepository($app->db);
+        $app->dashboard = new DashboardRepository($app->db);
         $employeeRepository = new EmployeeRepository($app->db);
         $departmentRepository = new DepartmentRepository($app->db);
         $app->employees = new EmployeeModule(
             $employeeRepository,
             $departmentRepository,
             new EmployeeService($app->db, $employeeRepository, $departmentRepository, $app->auditLogger),
+        );
+        $app->leave = new LeaveModule(
+            $leaveRepository,
+            new LeaveService($leaveRepository, $app->auditLogger),
+        );
+        $attendanceRepository = new AttendanceRepository($app->db);
+        $app->attendance = new AttendanceModule(
+            $attendanceRepository,
+            new AttendanceService($attendanceRepository, $employeeRepository, $app->auditLogger),
+            $shiftRepository,
+            new ShiftService($shiftRepository, $employeeRepository, $app->auditLogger),
+            new TimesheetService($attendanceRepository, $shiftRepository, $leaveRepository),
         );
         $payrollRepository = new PayrollRepository($app->db);
         $rateVersionRepository = new RateVersionRepository($app->db);
@@ -132,6 +158,17 @@ final class Bootstrap
         ]);
         $twig->addFunction(new TwigFunction('csrf_token', static fn (): string => $app->csrf->token()));
         $twig->addFunction(new TwigFunction('can', static fn (string $permission): bool => $app->can($permission)));
+        $twig->addFunction(new TwigFunction('pending_approvals', static function () use ($app): int {
+            if ($app->company === null) {
+                return 0;
+            }
+
+            return $app->dashboard->pendingApprovalCount(
+                (int) $app->company['company_id'],
+                $app->can('leave.view') || $app->can('leave.approve.team'),
+                $app->can('payroll.view'),
+            );
+        }));
         $twig->addFilter(new TwigFilter('money', static function (mixed $cents): string {
             return Money::format(is_numeric($cents) ? (int) $cents : null);
         }));

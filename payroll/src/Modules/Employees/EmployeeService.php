@@ -124,7 +124,7 @@ final class EmployeeService
             throw new HttpException(409, 'That employee is already archived.');
         }
 
-        $date = trim($exitDate) === '' ? gmdate('Y-m-d') : $this->date($exitDate, 'Exit date');
+        $date = trim($exitDate) === '' ? date('Y-m-d') : $this->date($exitDate, 'Exit date');
         $this->checkDates((string) $existing['start_date'], $date);
 
         $this->employees->update($companyId, $employeeId, [

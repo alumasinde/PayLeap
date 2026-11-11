@@ -1,34 +1,75 @@
 {% extends 'layout.twig' %}
+{% import 'partials/icons.twig' as icons %}
 
 {% block title %}{{ employee.first_name }} {{ employee.last_name }} — {{ app_name }}{% endblock %}
 
 {% block body %}
-  <section class="page-head">
-    <span class="kicker">Employee {{ employee.employee_no }}</span>
-    <h1>
-      {{ employee.first_name }}
-      {% if employee.middle_name %}{{ employee.middle_name }} {% endif %}
-      {{ employee.last_name }}
-    </h1>
-    <p class="muted">
-      {{ types[employee.employment_type] ?? employee.employment_type }}
-      {% if employee.job_title %} · {{ employee.job_title }}{% endif %}
-      {% if employee.department_name %} · {{ employee.department_name }}{% endif %}
-    </p>
-
-    <div class="row-actions">
-      <span class="chip{% if employee.status == 'active' %} on{% endif %}">
-        {{ employee.status == 'active' ? 'Active' : 'Archived' }}
-      </span>
-
+  <section class="profile-hero">
+    <span class="profile-avatar" aria-hidden="true">{{ (employee.first_name|first ~ employee.last_name|first)|upper }}</span>
+    <div class="profile-id">
+      <span class="kicker">Staff no. {{ employee.employee_no }}</span>
+      <h1>{{ employee.first_name }}{% if employee.middle_name %} {{ employee.middle_name }}{% endif %} {{ employee.last_name }}</h1>
+      <p class="profile-role">{{ employee.job_title ?: (types[employee.employment_type] ?? employee.employment_type) }}</p>
+      <div class="profile-meta">
+        <span>Hired <strong class="mono">{{ employee.start_date|date('d/m/Y') }}</strong></span>
+        <span>Service <strong>{{ service_years }}</strong></span>
+        <span>Department <strong>{{ employee.department_name ?: '—' }}</strong></span>
+        <span>Type <strong>{{ types[employee.employment_type] ?? employee.employment_type }}</strong></span>
+      </div>
+    </div>
+    <div class="profile-actions">
+      <span class="status status-{{ employee.status }}">{{ employee.status == 'active' ? 'Active' : 'Archived' }}</span>
       {% if can_edit %}
-        <a class="btn-ghost btn-sm" href="/app/employees/{{ employee.id }}/edit">Edit</a>
+        <a class="btn-primary btn-sm" href="/app/employees/{{ employee.id }}/edit">{{ icons.svg('file', 15) }} Edit</a>
+      {% endif %}
+    </div>
+  </section>
 
+  <nav class="profile-tabs" data-tabs aria-label="Employee record">
+    <button class="profile-tab is-active" type="button" data-tab="personal">
+      {{ icons.svg('user', 16) }} Personal
+    </button>
+    <button class="profile-tab" type="button" data-tab="statutory">
+      {{ icons.svg('shield', 16) }} Statutory
+    </button>
+    {% if can_salary or can_bank %}
+      <button class="profile-tab" type="button" data-tab="payment">
+        {{ icons.svg('wallet', 16) }} Payment
+      </button>
+    {% endif %}
+  </nav>
+
+  <section class="profile-panel" data-tab-panel="personal">
+    <div class="section-bar">{{ icons.svg('user', 15) }} Personal</div>
+    <div class="detail-grid">
+      <div class="detail"><span>First name</span><strong>{{ employee.first_name }}</strong></div>
+      <div class="detail"><span>Middle name</span><strong>{{ employee.middle_name ?: '—' }}</strong></div>
+      <div class="detail"><span>Last name</span><strong>{{ employee.last_name }}</strong></div>
+      <div class="detail"><span>Email</span><strong>{{ employee.email ?: '—' }}</strong></div>
+      <div class="detail"><span>Phone</span><strong class="mono">{{ employee.phone ?: '—' }}</strong></div>
+      <div class="detail"><span>Status</span><strong>{{ employee.status == 'active' ? 'Active' : 'Archived' }}</strong></div>
+    </div>
+
+    <div class="section-bar">{{ icons.svg('briefcase', 15) }} Employment</div>
+    <div class="detail-grid">
+      <div class="detail"><span>Employee number</span><strong class="mono">{{ employee.employee_no }}</strong></div>
+      <div class="detail"><span>Department</span><strong>{{ employee.department_name ?: '—' }}</strong></div>
+      <div class="detail"><span>Job title</span><strong>{{ employee.job_title ?: '—' }}</strong></div>
+      <div class="detail"><span>Employment type</span><strong>{{ types[employee.employment_type] ?? employee.employment_type }}</strong></div>
+      <div class="detail"><span>Start date</span><strong class="mono">{{ employee.start_date|date('d/m/Y') }}</strong></div>
+      <div class="detail"><span>Exit date</span><strong class="mono">{{ employee.exit_date ? employee.exit_date|date('d/m/Y') : '—' }}</strong></div>
+      <div class="detail"><span>Years of service</span><strong>{{ service_years }}</strong></div>
+    </div>
+
+    {% if can_edit %}
+      <div class="section-bar">{{ icons.svg('settings', 15) }} Record</div>
+      <div class="row-actions">
         {% if employee.status == 'active' %}
           <form class="row-actions" method="post" action="/app/employees/{{ employee.id }}/archive">
             <input type="hidden" name="_token" value="{{ csrf_token() }}">
-            <input type="date" name="exit_date" aria-label="Exit date" value="{{ 'now'|date('Y-m-d') }}">
-            <button class="btn-ghost btn-sm" type="submit">Archive</button>
+            <label class="inline-label" for="exit-date">Last working day</label>
+            <input id="exit-date" type="date" name="exit_date" value="{{ today }}">
+            <button class="btn-ghost btn-sm" type="submit">Archive employee</button>
           </form>
         {% else %}
           <form method="post" action="/app/employees/{{ employee.id }}/reinstate">
@@ -36,72 +77,49 @@
             <button class="btn-ghost btn-sm" type="submit">Reinstate</button>
           </form>
         {% endif %}
-      {% endif %}
-    </div>
+      </div>
+    {% endif %}
   </section>
 
-  <div class="grid-2">
-    <section class="panel">
-      <h2>Employment</h2>
-      <dl class="facts">
-        <div><dt>Employee number</dt><dd class="mono">{{ employee.employee_no }}</dd></div>
-        <div><dt>Department</dt><dd>{{ employee.department_name ?: '—' }}</dd></div>
-        <div><dt>Job title</dt><dd>{{ employee.job_title ?: '—' }}</dd></div>
-        <div><dt>Type</dt><dd>{{ types[employee.employment_type] ?? employee.employment_type }}</dd></div>
-        <div><dt>Started</dt><dd class="mono">{{ employee.start_date }}</dd></div>
-        <div><dt>Exited</dt><dd class="mono">{{ employee.exit_date ?: '—' }}</dd></div>
-      </dl>
-    </section>
+  <section class="profile-panel" data-tab-panel="statutory" hidden>
+    <div class="section-bar">{{ icons.svg('shield', 15) }} Statutory</div>
+    <div class="detail-grid">
+      <div class="detail"><span>National ID</span><strong class="mono">{{ employee.national_id ?: '—' }}</strong></div>
+      <div class="detail"><span>KRA PIN</span><strong class="mono">{{ employee.kra_pin ?: '—' }}</strong></div>
+      <div class="detail"><span>NSSF number</span><strong class="mono">{{ employee.nssf_number ?: '—' }}</strong></div>
+      <div class="detail"><span>SHIF number</span><strong class="mono">{{ employee.shif_number ?: '—' }}</strong></div>
+    </div>
+    <p class="hint">Statutory numbers feed PAYE, NSSF, SHIF and Housing Levy returns. They are shown to roles that may view the register.</p>
+  </section>
 
-    <section class="panel">
-      <h2>Contact</h2>
-      <dl class="facts">
-        <div><dt>Email</dt><dd>{{ employee.email ?: '—' }}</dd></div>
-        <div><dt>Phone</dt><dd class="mono">{{ employee.phone ?: '—' }}</dd></div>
-      </dl>
-    </section>
-  </div>
-
-  <div class="grid-2">
-    <section class="panel">
-      <h2>Statutory</h2>
-      <dl class="facts">
-        <div><dt>National ID</dt><dd class="mono">{{ employee.national_id ?: '—' }}</dd></div>
-        <div><dt>KRA PIN</dt><dd class="mono">{{ employee.kra_pin ?: '—' }}</dd></div>
-        <div><dt>NSSF</dt><dd class="mono">{{ employee.nssf_number ?: '—' }}</dd></div>
-        <div><dt>SHIF</dt><dd class="mono">{{ employee.shif_number ?: '—' }}</dd></div>
-      </dl>
-    </section>
-
-    {% if can_salary %}
-      <section class="panel">
-        <h2>Pay</h2>
-        <dl class="facts">
-          <div>
-            <dt>Monthly salary</dt>
-            <dd class="mono">
+  {% if can_salary or can_bank %}
+    <section class="profile-panel" data-tab-panel="payment" hidden>
+      {% if can_salary %}
+        <div class="section-bar">{{ icons.svg('wallet', 15) }} Pay</div>
+        <div class="detail-grid">
+          <div class="detail">
+            <span>Monthly salary</span>
+            <strong class="mono">
               {% if employee.monthly_salary_cents is not null %}
                 KES {{ (employee.monthly_salary_cents / 100)|number_format(2) }}
               {% else %}
                 —
               {% endif %}
-            </dd>
+            </strong>
           </div>
-        </dl>
-      </section>
-    {% endif %}
-  </div>
+        </div>
+      {% endif %}
 
-  {% if can_bank %}
-    <section class="panel">
-      <h2>Bank</h2>
-      <dl class="facts">
-        <div><dt>Bank</dt><dd>{{ employee.bank_name ?: '—' }}</dd></div>
-        <div><dt>Branch</dt><dd>{{ employee.bank_branch ?: '—' }}</dd></div>
-        <div><dt>Account</dt><dd class="mono">{{ employee.bank_account ?: '—' }}</dd></div>
-      </dl>
+      {% if can_bank %}
+        <div class="section-bar">{{ icons.svg('banknote', 15) }} Bank</div>
+        <div class="detail-grid">
+          <div class="detail"><span>Bank</span><strong>{{ employee.bank_name ?: '—' }}</strong></div>
+          <div class="detail"><span>Branch</span><strong>{{ employee.bank_branch ?: '—' }}</strong></div>
+          <div class="detail"><span>Account number</span><strong class="mono">{{ employee.bank_account ?: '—' }}</strong></div>
+        </div>
+      {% endif %}
     </section>
   {% endif %}
 
-  <p class="muted"><a href="/app/employees">Back to the register</a></p>
+  <p class="muted back-link"><a href="/app/employees">Back to the register</a></p>
 {% endblock %}

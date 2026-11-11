@@ -1,56 +1,315 @@
-## Easy to use payroll management system:
-Produce professional branded pay slips with your company logo.
-Multi-Currency payroll processing with editable currency exchange rates
-Password-Protected PDF payslips
-Multiple Employment Types:
-Permanent Employees
-Casual Employees
-Consultants/Independent Contractors
-Interns
-Pre-set and editable statutory deductions for SHIF, NSSF and PAYE (Income Tax) Calculator
-Support for both basic salary and net salary inputs
-Automated Loans monitor (Supports Low Interest Tax)
-Dedicated Advance Pay section (Supports installments)
-Mass Email pay slips to all employees with one click
-Attendance Management: Overtime, Absenteeism management and hourly calculations as per Kenyan labour laws
-Commissions – Advanced commission formula or simple percentage (%) calculations
-Accepts all types of allowances/benefits, both cash and non-cash
-Incorporate employee earnings (e.g. commission, bonus)
-Preset Relief deductions on HOSP, Insurance, Owner Occupied Interest, Retirement Fund,
-Pay slip sample Wingubox payroll software 01
-Pay slip sample Wingubox payroll software 02
-Pay slip sample Wingubox payroll software 03
-Intuitive Payroll Reports:
-Generates KRA reports P9,P10,P10A for KRA ITAX portal online returns, Fringe Benefit Tax, Gratuity and Severance, Housing Levy, Central Bureau of Statistics
-Mass Email KRA P9 Reports to employees
-Single click KRA online returns itax export format for P10_Returns.xlsm filing
-Generates SHIF byproduct reports in required format for SHIF rates and Online Returns
-Generates NSSF reports in required format for NSSF rates and Self Service Portal returns
-Generates Muster Roll report for every month
-Generates Loan repayment reports for saccos, banks, student loans (HELB) and company loans
-Generates custom reports for any item (e.g. basic pay, net pay, gross pay, user-defined deductions) for specified time ranges
-Generate Payroll General Ledger for Journal Entries
-Generate assorted salary payment formats:
-Bank Payroll Processing file
-XML file for MPESA bulk payment processing
-Cheque Payment List
-Signature list for cash payments
+# Mshahara HR & Payroll: Module and Table Guide (Kenya)
 
+What a Kenyan HR + payroll system needs, mapped against what `payroll/` already has and what the market (Wingubox-style products) offers. Use it as the build order and the schema checklist.
 
+Conventions carried over from the README, applied to every table below:
 
-## Leave Management Features
-Manage multiple user-defined leave (Annual Leave, Sick Leave, Maternity Leave, Paternity Leave, Academic Leave)
-User-defined approval workflow process
-Email-based leave notifications
+- Every business table has `company_id`; every query is scoped by it.
+- Money is **integer cents**. Never float.
+- **Archive, never delete** people or history (`archived_at`, `exit_date`).
+- Approved or closed records are **immutable**; fixes are new adjustment records.
+- Code checks **permissions**, never role names.
+- Statutory rules live in `engine/`. Rates are **data** (`rate_versions`), never code.
+- Repository (SQL) → Service (use case) → Controller (HTTP).
+- Audit every sensitive change (`audit_log`).
 
-## Employee self-service
-Comprehensive leave reports
-Employee Self-Service for payroll and leave:
-Create and monitor employee self-service accounts
-Employees can:
-- Fill in their overtime hours and submit for approval
-- Print/view their own pay slips and P9A and P9B tax deduction cards
-- Submit applications for advance pay for approval
-- Submit expense claims for approval
-- Submit losses/damages for approval
-- Submit leave application for approval
+---
+
+## 1. Status at a glance
+
+| Module | Status | Notes |
+| --- | --- | --- |
+| Auth, invites, sessions, rate limits | Built | Invite-only, MySQL sessions, `session_epoch` |
+| Roles and permissions | Built | Per-company role copies, permission-driven |
+| Employee register | Built | Salary and bank gated by permission |
+| Payroll runs (PAYE, NSSF, SHIF, Housing Levy) | Built | Two-person approval, stored breakdown |
+| Dashboard | Built | Live company headcount, attendance, leave and payroll aggregates |
+| Payslips (printable) | Built | Reads stored breakdown |
+| Payslip PDF, branding, email, password-protected | Next | See section 5 |
+| Self-service portal | Next | `/me` shell exists |
+| Leave | Built | Types, requests, approval decision, and derived balances (entitlement, taken, pending, remaining) |
+| Attendance, overtime | Built | Daily register, monthly timesheet against the roster, source-tagged capture; overtime is still a gap |
+| Loans, advances | Gap | Needed before payroll is usable for real clients |
+| Allowances, earnings, deductions (recurring + one-off) | Gap | Critical: payroll is incomplete without it |
+| Statutory returns and exports | Gap | The main reason Kenyan employers pay |
+| Payment files (bank, M-Pesa) | Gap | |
+| Contracts and documents | Later | |
+| Recruitment, performance, training | Optional | Skip for v1 |
+
+---
+
+## 2. Module catalogue
+
+### Core (platform)
+1. **Identity and access**: users, invitations, resets, sessions, MFA (add TOTP later).
+2. **Companies and settings**: legal name, KRA PIN, NSSF number, SHIF/SHA employer number, NITA number, logo, pay day, currency, payslip template.
+3. **Roles and permissions**: owner, HR, finance, HOD, auditor, employee.
+4. **Audit trail** and **notifications** (email queue, in-app).
+5. **Billing and plans** (if SaaS): plans, module entitlements, invoices. Hospitality-first pricing by headcount.
+
+### HR
+6. **Employee register**: personal, statutory numbers, employment, bank, next of kin, dependants.
+7. **Organisation**: departments, branches/outlets, job titles, grades, reporting lines.
+8. **Employment types**: permanent, fixed-term, casual, consultant (withholding tax, no NSSF), intern.
+9. **Contracts and documents**: templates, generated contracts, uploads (ID, KRA PIN cert, certificates), expiry alerts.
+10. **Onboarding and exit**: checklists, exit interview, final dues, certificate of service.
+11. **Discipline and grievance**: warnings, hearings, outcomes (Employment Act process).
+12. **Asset and uniform issue** (hospitality-relevant): items issued, returned, recoverable value.
+
+### Time
+13. **Leave**: types, entitlements, accrual, requests, approval workflow, balances, carry-over, public holidays.
+14. **Attendance**: clock-in sources (manual, CSV import, biometric, face scan), shifts, rosters, rest days.
+15. **Overtime**: rates by day type, approval, feeds payroll.
+
+### Payroll
+16. **Pay structure**: basic, allowances (cash and non-cash), benefits, earnings, deductions, reliefs.
+17. **Payroll runs**: prepare, review, approve (different person), lock, adjustment runs.
+18. **Loans and advances**: schedules, installments, interest, low-interest fringe benefit.
+19. **Commissions and bonuses**: percent or formula, per period.
+20. **Service charge and tips** (hospitality): pool, distribution rules, per employee.
+21. **Final dues**: leave pay-out, notice, severance, service pay, pro-rata.
+22. **Multi-currency** (optional): per-run exchange rates, editable and stored.
+
+### Output
+23. **Payslips**: PDF, branded, password-protected, bulk email.
+24. **Statutory returns**: PAYE (P9A/P10), NSSF, SHIF, Housing Levy, NITA, WIBA.
+25. **Bank and mobile money files**: bank CSV, M-Pesa B2C bulk, cheque list, cash signature list.
+26. **Accounting export**: payroll journal / general ledger.
+27. **Reports**: muster roll, headcount, cost by department, variance month on month, leave liability, loan balances.
+
+### Self-service
+28. **Employee portal** (`/me`): payslips, P9A, leave, overtime, advances, claims, profile and bank change requests (approved by HR).
+29. **Expense claims** and **loss/damage claims** with approval.
+
+---
+
+## 3. Tables by module
+
+Names are suggestions. Prefix is not needed; `company_id` on all unless marked global.
+
+### Platform
+| Table | Key columns / purpose |
+| --- | --- |
+| `companies` | name, KRA PIN, NSSF no., SHA no., NITA no., logo path, pay_day, default_currency, status |
+| `users` (global) | email, password_hash, name, session_epoch, mfa_secret, status |
+| `memberships` | user_id, company_id, status |
+| `invitations` | company_id, email, role_id, token_hash, expires_at, accepted_at |
+| `password_resets` | user_id, token_hash, expires_at, used_at |
+| `sessions` | id, user_id, payload, last_activity |
+| `modules` (global) | key, name, status, sort |
+| `company_modules` | company_id, module_key, enabled (plan entitlement) |
+| `permissions` (global) | key (`employees.view`, `payroll.approve`, …), module_key |
+| `roles` | company_id, name, is_system |
+| `role_permissions` | role_id, permission_id |
+| `user_roles` | membership_id, role_id |
+| `audit_log` | company_id, user_id, action, entity, entity_id, before/after JSON, ip, at |
+| `notifications` | company_id, user_id, type, payload, read_at |
+| `mail_queue` | to, subject, body, attachment_ref, status, attempts |
+| `rate_limits` | key, hits, window_start |
+| `settings` | company_id, key, value (typed) |
+
+### Organisation and employees
+| Table | Key columns / purpose |
+| --- | --- |
+| `branches` | company_id, name, address |
+| `departments` | company_id, name, head_employee_id (unique name per company) |
+| `job_titles` | company_id, name, grade_id |
+| `grades` | company_id, name, min_salary_cents, max_salary_cents |
+| `employees` | employee_no, names, national_id, dob, gender, phone, email, address, marital_status, status, archived_at, exit_date, user_id (nullable link to portal) |
+| `employee_statutory` | employee_id, kra_pin, nssf_no, sha_no, is_resident, has_disability_exemption, is_primary_employee |
+| `employments` | employee_id, type (permanent/casual/consultant/intern), start_date, end_date, dept_id, branch_id, title_id, manager_id, probation_end, pay_basis (monthly/daily/hourly), salary_cents, salary_input (basic/net) |
+| `employment_history` | employee_id, change_type, from/to values, effective_date (promotions, transfers, pay changes) |
+| `employee_bank_accounts` | employee_id, bank, branch, account_no, mpesa_no, is_primary, change_status |
+| `dependants` | employee_id, name, relationship, dob |
+| `next_of_kin` | employee_id, name, relationship, phone |
+| `employee_documents` | employee_id, type, file_ref, issued, expires_at, uploaded_by |
+| `contract_templates` | company_id, name, body, variables |
+| `contracts` | employee_id, template_id, rendered_file, signed_at, start, end |
+| `onboarding_tasks` / `exit_checklists` | employee_id, task, done_by, done_at |
+| `disciplinary_cases` | employee_id, type, date, outcome, document_ref |
+| `asset_issues` | employee_id, item, issued_on, returned_on, value_cents |
+
+### Time
+| Table | Key columns / purpose |
+| --- | --- |
+| `leave_types` | company_id, name, days_per_year, accrual_rule, paid, gender_restriction, carry_over_max, requires_document |
+| `leave_policies` | leave_type_id, applies_to (employment type/grade), entitlement |
+| `leave_balances` (later) | employee_id, leave_type_id, year, entitled, taken, carried_over; today balances are derived from `leave_types` and approved requests |
+| `leave_requests` | employee_id, leave_type_id, start, end, days, reason, status, decided_by, decided_at |
+| `approval_workflows` | company_id, entity_type, step_no, approver (role or manager) |
+| `approvals` | entity_type, entity_id, step_no, approver_id, decision, at, note |
+| `public_holidays` (global + company) | date, name |
+| `shifts` | company_id, name, start, end, break_minutes |
+| `rosters` → `roster_entries` | employee_id, work_date, shift_id, status (shift/off), note; unique per person per day |
+| `attendance_records` | employee_id, date, clock_in, clock_out, source (manual/biometric/face/import), status |
+| `overtime_claims` | employee_id, date, hours, day_type (normal/rest/holiday), rate_multiplier, status |
+
+### Pay structure and payroll
+| Table | Key columns / purpose |
+| --- | --- |
+| `rate_versions` (global) | effective_from, payload JSON (PAYE bands, reliefs, NSSF, SHIF, Housing Levy, NITA) |
+| `pay_items` | company_id, name, kind (earning/allowance/benefit/deduction/relief), taxable, pensionable, cash/non-cash, calc_type (fixed/percent/formula) |
+| `employee_pay_items` | employee_id, pay_item_id, amount_cents or percent, start, end |
+| `payroll_runs` | company_id, period (YYYY-MM, unique per company), rate_version_id, status, prepared_by, approved_by, approved_at, locked_at, parent_run_id (adjustments) |
+| `payroll_lines` | run_id, employee_id, gross_cents, taxable_cents, paye_cents, nssf_employee_cents, nssf_employer_cents, shif_cents, housing_levy_employee_cents, housing_levy_employer_cents, nita_cents, net_cents, breakdown JSON |
+| `payroll_line_items` | line_id, pay_item_id, label, amount_cents (every earning and deduction on the payslip) |
+| `payroll_exports` | run_id, type, file_ref, generated_by, at |
+| `payslip_deliveries` | line_id, channel, sent_at, status |
+| `loans` | employee_id, type (company/sacco/HELB/advance), principal_cents, rate_bp, installments, start, status |
+| `loan_schedule` | loan_id, due_period, principal_cents, interest_cents, paid |
+| `advance_requests` | employee_id, amount_cents, installments, status |
+| `commission_rules` | company_id, name, type (percent/formula), definition JSON |
+| `commission_entries` | employee_id, period, base_cents, amount_cents |
+| `service_charge_pools` | company_id, period, total_cents, rule JSON |
+| `service_charge_shares` | pool_id, employee_id, points, amount_cents |
+| `final_dues` | employee_id, leave_payout, notice, severance, service_pay, other, total, status |
+| `currencies` / `exchange_rates` | code, rate, effective_date, run_id (stored per run) |
+| `expense_claims` | employee_id, category, amount_cents, receipt_ref, status |
+| `loss_damage_claims` | employee_id, description, amount_cents, recover_via_payroll, status |
+
+### Returns and accounting
+| Table | Key columns / purpose |
+| --- | --- |
+| `statutory_returns` | company_id, type (PAYE/NSSF/SHIF/HLV/NITA), period, run_id, file_ref, filed_at, reference_no |
+| `gl_accounts` | company_id, code, name |
+| `gl_mappings` | pay_item_key, debit_account, credit_account, department_split |
+| `report_definitions` | company_id, key, filters JSON (custom reports) |
+
+---
+
+## 4. Kenya statutory checklist
+
+Keep every figure in `rate_versions`. Verify current rates and thresholds against KRA, NSSF, SHA and the Finance Act before each release. Values below are for orientation only.
+
+| Item | What the system must do |
+| --- | --- |
+| **PAYE** | Progressive bands on taxable pay; personal relief; insurance relief; owner-occupied interest; pension/retirement contribution; post-retirement medical; disability exemption; consultants at withholding rates |
+| **NSSF** | Tier I and II, employee and employer, lower/upper earnings limits that step up by year; exempt/contracted-out cases |
+| **SHIF (SHA)** | Percentage of gross with a minimum; employee only; deductible from taxable pay |
+| **Affordable Housing Levy** | Employee and employer percentage of gross; deductible from taxable pay; remit via iTax |
+| **NITA** | Flat monthly amount per employee, employer-paid |
+| **WIBA** | Employer insurance cover; keep policy details per company |
+| **Fringe benefits** | Low-interest loans, company car, housing; taxable benefit computed per rules |
+| **Overtime** | Normal-day and rest/holiday-day multipliers per Employment Act and wage orders |
+| **Leave** | Annual, sick (full then half pay), maternity, paternity, compassionate; carry-over by policy |
+| **Termination** | Notice, service pay (per completed year where no NSSF/pension), severance on redundancy, certificate of service |
+| **Regulation of Wages orders** | Minimum wage by sector and location: hospitality-first product should warn when basic is below minimum |
+| **Service charge** | Hotels/restaurants: pooled and distributed per employment rules, shown on payslip |
+| **Data Protection Act 2019** | Consent and purpose for personal data; access/correction by employee; ODPC registration for the controller; retention rules; no salary or ID data in logs |
+| **Records** | Keep payroll records at least 7 years (KRA); 3 years minimum under Employment Act; archive, never delete |
+
+---
+
+## 5. Reports and exports
+
+| Output | Format / destination |
+| --- | --- |
+| Payslip | PDF, company logo, optional password (ID number), bulk email |
+| P9A | Per employee, per year; employee can print from portal |
+| P10 / P10A | KRA iTax return template (xlsx/csv), one-click export |
+| NSSF return | NSSF portal upload format |
+| SHIF return | SHA portal upload format |
+| Housing Levy return | iTax format |
+| NITA | Monthly schedule |
+| Bank payment file | Per bank CSV layout (start with the top 3 banks your clients use) |
+| M-Pesa bulk | B2C bulk payment file |
+| Cheque list, cash signature sheet | PDF |
+| Payroll journal | CSV or direct to accounting package |
+| Muster roll, headcount, cost by department | PDF/CSV |
+| Loan repayment report | Per lender: sacco, bank, HELB, company |
+| Leave balances and liability | CSV/PDF |
+| Variance report | Month on month: new joiners, leavers, pay changes, flagged anomalies |
+
+---
+
+## 6. Permissions (starting set)
+
+```
+employees.view, employees.edit, employees.salary.view, employees.bank.view, employees.archive
+contracts.view, contracts.manage
+leave.view, leave.approve, leave.manage_types
+attendance.view, attendance.edit, overtime.approve
+payroll.view, payroll.run, payroll.approve, payroll.export
+loans.view, loans.manage
+returns.view, returns.generate
+reports.view, reports.export
+users.invite, users.manage, roles.manage
+company.settings
+audit.view
+```
+
+Default roles: Owner, HR Manager, Payroll Officer, Finance (bank details, no editing people), HOD (team only, no money), Auditor (read-only), Employee (`/me` only).
+
+---
+
+## 7. Suggested build order
+
+1. **Pay items engine**: recurring allowances, deductions, one-off earnings, non-cash benefits. Without it payroll only handles basic salary.
+2. **Payslip PDF** with logo, bulk email, password protection.
+3. **Statutory returns**: P10, NSSF, SHIF, Housing Levy, NITA, P9A. This is the selling point.
+4. **Payment files**: bank CSV and M-Pesa bulk.
+5. **Loans and advances** with installments and fringe benefit tax.
+6. **Leave** with approval workflow and balances.
+7. **Self-service portal**: payslips, P9A, leave, overtime, advances, claims.
+8. **Attendance and overtime** feeding payroll.
+9. **Final dues** and certificate of service.
+10. **Contracts and documents**, expiry alerts.
+11. **Hospitality extras**: service charge, rosters, minimum wage check.
+12. **Accounting export**, multi-currency, custom reports.
+13. Optional later: recruitment, performance, training, biometric integration.
+
+---
+
+## 8. Open decisions
+
+**Short version:** keep it simple, protect the numbers, and sell trust rather than architecture.
+
+### 1. Tenancy: stay on one database with `company_id`
+
+**Engineer:** Per-company databases multiply migrations, backups and monitoring by N, and at your stage you'd spend your time on ops instead of features. The real risk in a shared database is a missing `company_id` filter. You can reduce it:
+- Route every query through repositories that require `company_id`, and have a test fail if one doesn't.
+- Add a cross-tenant test: log in as company A and request B's run, employee and payslip ids, expecting 404 each time.
+- Keep a per-company export (full data as CSV or SQL) so you can offer isolation later without redesigning.
+
+Only move a client to a dedicated database if a large buyer demands it in writing and pays for it. Skip customer-hosted installs entirely. You can't ship rate changes or fixes to them, and wrong statutory numbers on someone else's server become your reputation problem.
+
+**Buyer:** I don't care how it's built. I care that my staff salaries aren't visible to other companies, that I can get my data out, and that backups exist and have actually been restored. Show me a one-page security summary, a Data Protection Act position, and an export button.
+
+### 2. Custom domains: don't build them yet
+
+**Engineer:** Use `app.yourdomain.co.ke` with company from membership, as you have now. Branded subdomains (`acme.yourdomain.co.ke`) are cheap later if you scope cookies to the host and build email links from a configured base URL, never from the current request. Full custom domains (`payroll.acme.co.ke`) mean per-tenant TLS and DNS support, which is a sales burden. Skip them until someone pays for it.
+
+**Buyer:** A domain is irrelevant to me. Branded payslips with my logo matter far more.
+
+### 3. Consultants: separate by default
+
+**Engineer:** Consultants and contractors aren't payroll in the PAYE sense. Withholding tax replaces PAYE, there's no NSSF, and no SHIF or housing levy as an employee. Model them as a different payee type on a separate "payments" run (or a clearly separate section of the same run), with their own withholding certificate output. Mixing them into employee payslips tends to produce wrong PAYE and wrong NSSF totals. Resident professional or consultancy fees have a lower withholding rate than non-residents, and I'd verify the current rates and thresholds with KRA or a tax advisor before coding them. Keep them in `rate_versions`.
+
+**Buyer:** I want one screen for "everyone I pay this month," but with separate totals so my P10 and withholding returns come out right.
+
+### 4. Rate updates: you own them, with a review gate
+
+**Engineer:**
+- Only a platform super-admin (not company users) can insert `rate_versions`.
+- Enforce two-person entry: one enters, another approves, with an effective date.
+- Show a diff against the previous version, then run a regression test against a fixed sample payroll with known expected figures.
+- Keep a rate-change log and a published "what changed" note per release. Clients should see that you track KRA, NSSF and SHA updates.
+- Statutory changes in Kenya often land close to their effective date, so budget time every Feb, Jul and after each Finance Act.
+
+**Buyer:** I'm paying you to track the law. If your rates are late or wrong, I'm liable for penalties. Tell me how fast you'll ship changes and what happens if you're wrong.
+
+### 5. Parallel testing: non-negotiable
+
+Run two months alongside the client's existing payroll (spreadsheet or Wingubox) before they switch.
+- Compare gross, PAYE, NSSF, SHIF, levy and net per employee. Investigate every difference, even a few shillings; rounding rules are a common cause.
+- Expect edge cases: mid-month joiners and leavers, arrears, loan recoveries, and non-cash benefits.
+- Offer the first client a discount or free months in exchange for this, a reference, and a case study.
+- Start with one **hospitality** company where you already know the operations. Don't take several at once.
+
+### What I'd do in your position
+
+1. Ship pay items, payslip PDF and statutory returns first (see section 7 of the guide).
+2. Get one hotel or SME to run in parallel.
+3. Only then spend time on tenancy variants, domains or consultants.
+
+The most common way payroll products fail is one wrong figure that nobody caught. Your edge is accuracy, a clear audit trail and good support, so invest in tests for those rather than infrastructure.

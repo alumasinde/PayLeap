@@ -19,6 +19,9 @@ use Mshahara\Payroll\Http\Request;
 use Mshahara\Payroll\Http\Router;
 use Mshahara\Payroll\Modules\Employees\EmployeeModule;
 use Mshahara\Payroll\Modules\ModuleRepository;
+use Mshahara\Payroll\Modules\Attendance\AttendanceModule;
+use Mshahara\Payroll\Modules\Dashboard\DashboardRepository;
+use Mshahara\Payroll\Modules\Leave\LeaveModule;
 use Mshahara\Payroll\Modules\Payroll\PayrollModule;
 use Mshahara\Payroll\Users\AccountService;
 use Mshahara\Payroll\Users\UserRepository;
@@ -54,6 +57,9 @@ final class App
     public ModuleRepository $moduleRepository;
     public EmployeeModule $employees;
     public PayrollModule $payroll;
+    public LeaveModule $leave;
+    public AttendanceModule $attendance;
+    public DashboardRepository $dashboard;
     public AuditLogger $auditLogger;
     public RateLimiter $limiter;
     public Mailer $mailer;
@@ -175,6 +181,10 @@ final class App
             'memberships' => $this->memberships,
             'flashes' => $this->flash->pull(),
             'modules' => $this->modules,
+            'role_label' => $this->roleLabel(),
+            'current_path' => $this->request->path(),
+            'current_query' => $this->request->queryString(),
+            'today' => date('Y-m-d'),
         ];
 
         return $this->twig->render($template, $data + $defaults);

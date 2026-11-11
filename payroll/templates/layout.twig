@@ -1,56 +1,187 @@
+{% import 'partials/icons.twig' as icons %}
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}{{ app_name }}{% endblock %}</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/app.css">
 </head>
-<body class="{% block body_class %}{% endblock %}">
+<body class="{% block body_class %}app-body{% endblock %}">
+<a class="skip-link" href="#main">Skip to content</a>
 {% if current_user %}
-  <header class="app-header">
-    <div class="header-inner">
-      <a class="brand" href="/app"><span class="brand-mark">M</span>{{ app_name }}</a>
-      {% if current_company %}<span class="company-chip">{{ current_company.company_name }}</span>{% endif %}
+  {% set on_timesheet = 'view=timesheet' in current_query %}
+  {% set on_balances = 'view=balances' in current_query %}
+  <div class="app-layout">
+    <aside class="sidebar" id="sidebar" aria-label="Sidebar">
+      <div class="sidebar-top">
+        <a class="side-brand" href="/app">
+          <span class="side-logo">{{ icons.svg('briefcase', 18) }}</span>
+          <span class="side-brand-text">
+            <strong>{{ app_name }}</strong>
+            <small>HR &amp; payroll</small>
+          </span>
+        </a>
+        <button class="side-close" type="button" data-sidebar-close aria-label="Close menu">{{ icons.svg('x', 18) }}</button>
+      </div>
 
-      <nav class="app-nav">
-        <a href="/app">Workspace</a>
-        {% if can('employees.view') %}<a href="/app/employees">Employees</a>{% endif %}
-        {% if can('payroll.view') %}<a href="/app/payroll">Payroll</a>{% endif %}
-        {% if can('users.manage') or can('users.invite') %}<a href="/app/access">Access</a>{% endif %}
-        <a href="/me">My account</a>
+      <div class="side-user">
+        <span class="avatar">{{ (current_user.first_name|first ~ current_user.last_name|first)|upper }}</span>
+        <span class="side-user-meta">
+          <strong>{{ current_user.first_name }} {{ current_user.last_name }}</strong>
+          <small>{{ role_label }}</small>
+        </span>
+        <span class="presence" title="Signed in"></span>
+      </div>
+
+      <nav class="side-nav" aria-label="Main">
+        <a class="side-link{{ current_path == '/app' ? ' is-active' : '' }}" href="/app">
+          {{ icons.svg('grid', 18) }}<span>Dashboard</span>
+        </a>
+
+        {% if can('employees.view') %}
+          <details class="side-group"{{ current_path starts with '/app/employees' ? ' open' }}>
+            <summary class="side-group-head">
+              {{ icons.svg('users', 18) }}<span>HR services</span>{{ icons.svg('chevron-down', 14) }}
+            </summary>
+            <div class="side-group-body">
+              <a class="side-sub{{ current_path starts with '/app/employees' ? ' is-active' : '' }}" href="/app/employees">Employees</a>
+            </div>
+          </details>
+        {% endif %}
+
+        {% if can('leave.view') %}
+          <details class="side-group"{{ current_path starts with '/app/leave' ? ' open' }}>
+            <summary class="side-group-head">
+              {{ icons.svg('calendar', 18) }}<span>Leave &amp; absence</span>{{ icons.svg('chevron-down', 14) }}
+            </summary>
+            <div class="side-group-body">
+              <a class="side-sub{{ current_path == '/app/leave' and not on_balances ? ' is-active' : '' }}" href="/app/leave">Leave requests</a>
+              <a class="side-sub{{ current_path == '/app/leave' and on_balances ? ' is-active' : '' }}" href="/app/leave?view=balances">Balances</a>
+            </div>
+          </details>
+        {% endif %}
+
+        {% if can('attendance.view') %}
+          <details class="side-group"{{ current_path starts with '/app/attendance' or current_path starts with '/app/roster' ? ' open' }}>
+            <summary class="side-group-head">
+              {{ icons.svg('clock', 18) }}<span>Time &amp; attendance</span>{{ icons.svg('chevron-down', 14) }}
+            </summary>
+            <div class="side-group-body">
+              <a class="side-sub{{ current_path == '/app/attendance' and not on_timesheet ? ' is-active' : '' }}" href="/app/attendance">Register</a>
+              <a class="side-sub{{ current_path == '/app/attendance' and on_timesheet ? ' is-active' : '' }}" href="/app/attendance?view=timesheet">Timesheet</a>
+              <a class="side-sub{{ current_path starts with '/app/roster' ? ' is-active' : '' }}" href="/app/roster">Shift roster</a>
+            </div>
+          </details>
+        {% endif %}
+
+        {% if can('payroll.view') %}
+          <a class="side-link{{ current_path starts with '/app/payroll' ? ' is-active' : '' }}" href="/app/payroll">
+            {{ icons.svg('wallet', 18) }}<span>Payroll</span>
+          </a>
+        {% endif %}
+
+        {% if can('users.manage') or can('users.invite') %}
+          <details class="side-group"{{ current_path starts with '/app/access' ? ' open' }}>
+            <summary class="side-group-head">
+              {{ icons.svg('shield', 18) }}<span>Organisation</span>{{ icons.svg('chevron-down', 14) }}
+            </summary>
+            <div class="side-group-body">
+              <a class="side-sub{{ current_path starts with '/app/access' ? ' is-active' : '' }}" href="/app/access">Users &amp; access</a>
+            </div>
+          </details>
+        {% endif %}
+
+        <a class="side-link{{ current_path starts with '/me' ? ' is-active' : '' }}" href="/me">
+          {{ icons.svg('user', 18) }}<span>My account</span>
+        </a>
       </nav>
 
-      {% if memberships|length > 1 %}
-        <form class="company-switch" method="post" action="/app/company">
-          <input type="hidden" name="_token" value="{{ csrf_token() }}">
-          <select name="company_id" aria-label="Company">
-            {% for membership in memberships %}
-              <option value="{{ membership.company_id }}"{% if current_company and membership.company_id == current_company.company_id %} selected{% endif %}>{{ membership.company_name }}</option>
-            {% endfor %}
-          </select>
-          <button class="btn-ghost btn-sm" type="submit">Switch</button>
-        </form>
-      {% endif %}
-
-      <div class="header-user">
-        <span class="user-email">{{ current_user.email }}</span>
-        <form method="post" action="/logout">
-          <input type="hidden" name="_token" value="{{ csrf_token() }}">
-          <button class="btn-ghost btn-sm" type="submit">Sign out</button>
-        </form>
+      <div class="side-foot">
+        <span>Mshahara HR</span>
+        <span>v1.0</span>
       </div>
-    </div>
-  </header>
+    </aside>
+
+    <div class="sidebar-scrim" data-sidebar-close hidden></div>
+
+    <div class="app-main">
+      <header class="topbar">
+        <button class="menu-btn" type="button" data-sidebar-toggle aria-label="Open menu">{{ icons.svg('menu', 20) }}</button>
+
+        {% if memberships|length > 1 and current_company %}
+          <form class="company-picker" method="post" action="/app/company" data-company-form>
+            <input type="hidden" name="_token" value="{{ csrf_token() }}">
+            {{ icons.svg('building', 16) }}
+            <select name="company_id" data-company-select aria-label="Active company">
+              {% for membership in memberships %}
+                <option value="{{ membership.company_id }}"{% if current_company and membership.company_id == current_company.company_id %} selected{% endif %}>{{ membership.company_name }}</option>
+              {% endfor %}
+            </select>
+            {{ icons.svg('chevron-down', 14) }}
+            <button class="sr-only" type="submit">Switch company</button>
+          </form>
+        {% elseif current_company %}
+          <span class="company-pill">{{ icons.svg('building', 16) }}{{ current_company.company_name }}</span>
+        {% endif %}
+
+        {% if can('employees.view') %}
+          <form class="topbar-search" method="get" action="/app/employees" role="search">
+            {{ icons.svg('search', 17) }}
+            <input type="search" name="search" placeholder="Search employees" aria-label="Search employees">
+          </form>
+        {% endif %}
+
+        <div class="topbar-actions">
+          {% set approvals = pending_approvals() %}
+          {% set bell_href = can('leave.view') ? '/app/leave' : (can('payroll.view') ? '/app/payroll' : '/me') %}
+          <a class="icon-btn" href="{{ bell_href }}" aria-label="Pending approvals{% if approvals > 0 %} ({{ approvals }}){% endif %}">
+            {{ icons.svg('bell', 19) }}
+            {% if approvals > 0 %}<span class="icon-badge">{{ approvals }}</span>{% endif %}
+          </a>
+
+          <details class="user-menu">
+            <summary class="user-summary">
+              <span class="avatar">{{ (current_user.first_name|first ~ current_user.last_name|first)|upper }}</span>
+              <span class="user-meta">
+                <strong>{{ current_user.first_name }} {{ current_user.last_name }}</strong>
+                <small>{{ role_label }}</small>
+              </span>
+              {{ icons.svg('chevron-down', 14) }}
+            </summary>
+            <div class="user-pop">
+              <div class="user-pop-head">
+                <strong>{{ current_user.first_name }} {{ current_user.last_name }}</strong>
+                <span>{{ current_user.email }}</span>
+                <span class="chip on">{{ role_label }}</span>
+              </div>
+              {% if current_company %}
+                <span class="pop-company">{{ icons.svg('building', 16) }}{{ current_company.company_name }}</span>
+              {% endif %}
+              <a class="pop-link" href="/me">{{ icons.svg('user', 16) }}My account</a>
+              <form method="post" action="/logout">
+                <input type="hidden" name="_token" value="{{ csrf_token() }}">
+                <button class="pop-link pop-button" type="submit">{{ icons.svg('log-out', 16) }}Sign out</button>
+              </form>
+            </div>
+          </details>
+        </div>
+      </header>
 {% endif %}
 
-{% for flash in flashes %}
-  <div class="flash {{ flash.type }}">{{ flash.message }}</div>
-{% endfor %}
-
-<main class="shell">
+<main class="{{ current_user ? 'content' : 'auth-shell' }}" id="main">
+  {% for flash in flashes %}
+    <div class="flash {{ flash.type }}">{{ flash.message }}</div>
+  {% endfor %}
   {% block body %}{% endblock %}
 </main>
+
+{% if current_user %}
+    </div>
+  </div>
+{% endif %}
+<script src="/app.js" defer></script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

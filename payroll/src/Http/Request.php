@@ -75,6 +75,11 @@ final class Request
         return $this->path;
     }
 
+    public function queryString(): string
+    {
+        return http_build_query($this->query);
+    }
+
     public function isPost(): bool
     {
         return $this->method === 'POST';
