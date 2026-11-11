@@ -1,4 +1,3 @@
 /vendor/
 .env
-/.mysql-data/
 *.log

@@ -3,22 +3,78 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}Mshahara Check{% endblock %}</title>
+  <title>{% block title %}Mshahara Check — Kenyan take-home pay{% endblock %}</title>
+  <meta name="description" content="Gross to net under Kenyan statutory rules: NSSF, SHIF, Housing Levy and PAYE.">
   <link rel="stylesheet" href="/app.css">
   <script src="/vendor/htmx.min.js" defer></script>
 </head>
 <body>
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="brand" href="/"><span class="brand-mark">M</span> Mshahara Check</a>
+      <nav class="nav" aria-label="Sections">
+        {% if rules is defined %}
+          <button type="button" class="nav-btn" data-open="dialog-method">Method</button>
+          <button type="button" class="nav-btn" data-open="dialog-rates">Rates</button>
+        {% endif %}
+        <a class="nav-btn api" href="/api">API</a>
+      </nav>
+    </div>
+  </header>
+
   <main class="shell">
     {% block body %}{% endblock %}
   </main>
+
+  <footer class="site-footer">
+    <span>Estimates only — not tax advice.</span>
+    <span>Kenya · resident employees · monthly pay</span>
+  </footer>
+
   <script>
-    document.querySelectorAll('[data-preset]').forEach(function (button) {
-      button.addEventListener('click', function () {
-        var input = document.getElementById('gross');
-        input.value = button.dataset.preset;
-        input.dispatchEvent(new Event('input', { bubbles: true }));
+    (function () {
+      document.addEventListener('click', function (event) {
+        var opener = event.target.closest('[data-open]');
+        if (opener) {
+          var dialog = document.getElementById(opener.getAttribute('data-open'));
+          if (dialog && typeof dialog.showModal === 'function') {
+            dialog.showModal();
+          }
+          return;
+        }
+
+        var copy = event.target.closest('[data-copy]');
+        if (copy) {
+          var value = copy.getAttribute('data-copy');
+          navigator.clipboard.writeText(value).then(function () {
+            var label = copy.textContent;
+            copy.textContent = 'Copied';
+            setTimeout(function () { copy.textContent = label; }, 1600);
+          });
+          return;
+        }
+
+        if (event.target.tagName === 'DIALOG') {
+          event.target.close();
+        }
       });
-    });
+
+      document.body.addEventListener('htmx:afterSwap', function (event) {
+        var target = event.detail.target;
+        if (!target || target.id !== 'result') return;
+        if (window.matchMedia('(max-width: 999px)').matches) {
+          target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      });
+
+      document.querySelectorAll('[data-preset]').forEach(function (button) {
+        button.addEventListener('click', function () {
+          var input = document.getElementById('gross');
+          input.value = button.getAttribute('data-preset');
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+      });
+    })();
   </script>
 </body>
 </html>

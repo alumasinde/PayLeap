@@ -1,0 +1,75 @@
+{% extends 'layout.twig' %}
+
+{% block title %}API — Mshahara Check{% endblock %}
+
+{% block body %}
+  <div class="saved-head">
+    <h1>API</h1>
+    <p>JSON over HTTP. Same engine as the calculator. No key needed.</p>
+  </div>
+
+  <p class="base-url">Base URL <span class="mono">{{ base_url }}</span></p>
+
+  <div class="api-doc">
+    <article class="endpoint">
+      <div class="endpoint-head">
+        <span class="method">GET</span>
+        <span class="path">/api/v1/rates</span>
+        <a class="open-link" href="/api/v1/rates">Open JSON</a>
+      </div>
+      <div class="endpoint-body">
+        <p>Every ruleset plus the months each one covers.</p>
+        <pre class="code">{{ rates_json }}</pre>
+      </div>
+    </article>
+
+    <article class="endpoint">
+      <div class="endpoint-head">
+        <span class="method post">POST</span>
+        <span class="path">/api/v1/payslip</span>
+      </div>
+      <div class="endpoint-body">
+        <p>Gross to net for one employee, with the employer cost alongside.</p>
+
+        <table class="params">
+          <thead>
+            <tr><th>Field</th><th>Type</th><th>Required</th><th>Notes</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="mono">gross</td><td>number</td><td>yes</td><td>Monthly cash pay</td></tr>
+            <tr><td class="mono">year</td><td>number</td><td>no</td><td>Defaults to the current period</td></tr>
+            <tr><td class="mono">month</td><td>number</td><td>no</td><td>1–12</td></tr>
+            <tr><td class="mono">pension</td><td>number</td><td>no</td><td>Capped by the ruleset</td></tr>
+            <tr><td class="mono">mortgage_interest</td><td>number</td><td>no</td><td>Owner-occupied only</td></tr>
+            <tr><td class="mono">insurance_premium</td><td>number</td><td>no</td><td>Earns insurance relief</td></tr>
+            <tr><td class="mono">benefits_in_kind</td><td>number</td><td>no</td><td>Taxed above the threshold</td></tr>
+            <tr><td class="mono">helb</td><td>number</td><td>no</td><td>After tax</td></tr>
+            <tr><td class="mono">sacco</td><td>number</td><td>no</td><td>After tax</td></tr>
+          </tbody>
+        </table>
+
+        <p class="code-label">Request</p>
+        <pre class="code">{{ request_json }}</pre>
+
+        <p class="code-label">Response</p>
+        <pre class="code">{{ payslip_json }}</pre>
+
+        <p class="code-label">cURL</p>
+        <pre class="code">curl -X POST {{ base_url }}/payslip \
+  -H "Content-Type: application/json" \
+  -d '{"gross": 100000}'</pre>
+      </div>
+    </article>
+
+    <article class="endpoint">
+      <div class="endpoint-head">
+        <span class="method">GET</span>
+        <span class="path">/api/v1</span>
+        <a class="open-link" href="/api/v1">Open JSON</a>
+      </div>
+      <div class="endpoint-body">
+        <p>Index of endpoints.</p>
+      </div>
+    </article>
+  </div>
+{% endblock %}

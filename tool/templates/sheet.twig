@@ -1,7 +1,8 @@
-<section class="sheet">
-  <div class="sheet-head">
-    <h2>Results: (Payslip for {{ rules.label }})</h2>
-  </div>
+<article class="sheet">
+  <header class="sheet-head">
+    <span class="eyebrow">Payslip</span>
+    <span class="sheet-period">{% if month is defined and year is defined %}{{ month|month_name }} {{ year }}{% else %}{{ rules.label }}{% endif %}</span>
+  </header>
 
   <div class="rows">
     {% for row in rows %}
@@ -10,7 +11,7 @@
           <span{% if row.subtotal %} class="strong"{% endif %}>{{ row.label }}</span>
           {% if row.note %}<span class="note mono">{{ row.note }}</span>{% endif %}
         </div>
-        <div class="value mono{% if row.subtotal %} deep{% endif %}">
+        <div class="value{% if row.subtotal %} deep{% endif %}">
           {%- if row.negative %}−{% endif -%}
           {{ row.value|money }}
         </div>
@@ -18,20 +19,21 @@
     {% endfor %}
   </div>
 
-  <div class="row net">
-    <div class="label eyebrow">Net pay</div>
-    <div class="value mono">{{ slip.net|money }}</div>
+  <div class="net-row">
+    <span class="eyebrow">Net pay</span>
+    <strong>{{ slip.net|money }}</strong>
   </div>
 
-  <div class="bar-wrap">
-    <div class="bar" role="img"
+  <div class="sheet-foot">
+    <div class="bar"
+         role="img"
          aria-label="{{ slip.take_home_share|pct }} take-home, {{ slip.total_deductions|money }} deducted">
       <span class="net-part" style="width: {{ slip.take_home_share * 100 }}%"></span>
       <span class="deduct-part" style="width: {{ (1 - slip.take_home_share) * 100 }}%"></span>
     </div>
     <div class="bar-labels">
       <span class="deep">Yours <span class="mono">{{ slip.take_home_share|pct }}</span></span>
-      <span class="soft">Deducted <span class="mono">{{ slip.total_deductions|money }}</span></span>
+      <span>Deducted <span class="mono">{{ slip.total_deductions|money }}</span></span>
     </div>
   </div>
-</section>
+</article>

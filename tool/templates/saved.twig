@@ -1,21 +1,33 @@
 {% extends 'layout.twig' %}
 
-{% block title %}Saved payslip {{ id }} — Mshahara Check{% endblock %}
+{% block title %}Saved payslip — Mshahara Check{% endblock %}
 
 {% block body %}
-  <header class="topbar">
-    <span class="brand">Mshahara Check</span>
-    <span class="where"><a href="/">New calculation</a></span>
-  </header>
+  <div class="saved-head">
+    <h1>Saved payslip</h1>
+    <p>Snapshot taken with the {{ rules.id }} rules. It keeps those figures even after rates change.</p>
+  </div>
 
-  <p class="hint saved-note">
-    Saved with the {{ rules.id }} rules. This is a snapshot: it keeps the figures
-    that applied when it was saved, even after rates change.
-  </p>
+  <div class="workspace">
+    <aside class="form-col">
+      <div class="panel panel-light">
+        <div class="panel-head">
+          <h2>Share</h2>
+          <span class="chip-mono">{{ id }}</span>
+        </div>
+        <p class="dialog-sub">Anyone with the link can open this payslip.</p>
+        <button class="btn-ghost" type="button" data-copy="{{ origin }}/p/{{ id }}">Copy link</button>
+        <p style="margin:16px 0 0"><a class="btn-primary" href="/" style="text-decoration:none">New calculation</a></p>
+      </div>
+    </aside>
 
-  {% include 'sheet.twig' %}
-
-  <footer class="foot">
-    Estimates only, not tax advice.
-  </footer>
+    <section class="result-col">
+      {% include 'sheet.twig' %}
+      <div class="meta-row">
+        <span class="mono">{{ rules.id }} · {{ rules.label }}</span>
+        <button type="button" class="link-btn" data-open="dialog-rates">Rates</button>
+      </div>
+      {% include 'dialogs.twig' %}
+    </section>
+  </div>
 {% endblock %}

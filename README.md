@@ -21,7 +21,7 @@ php -S 127.0.0.1:8080 -t public public/index.php
 ```
 
 Rates come from MySQL (`rate_versions.payload`). See `tool/README.md` for the
-database setup, the local instance on port 3307, and the API.
+database setup and the API.
 
 ## Test
 

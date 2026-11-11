@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Dompdf\Dompdf;
 use Mshahara\Db;
 use Mshahara\Paye\Calculator;
 use Mshahara\RateSet;
@@ -11,8 +12,24 @@ use Twig\TwigFilter;
 
 require dirname(__DIR__) . '/vendor/autoload.php';
 
+$debug = getenv('APP_DEBUG') === '1';
+ini_set('display_errors', $debug ? '1' : '0');
+error_reporting(E_ALL);
+set_exception_handler(static function (Throwable $error) use ($debug): void {
+    error_log((string) $error);
+    http_response_code(500);
+    header('Content-Type: text/html; charset=utf-8');
+    echo $debug
+        ? '<pre style="padding:20px;font:12px/1.5 monospace">' . htmlspecialchars((string) $error) . '</pre>'
+        : '<div style="font:16px/1.6 system-ui;padding:48px 20px;max-width:34rem;margin:auto">'
+            . '<h1 style="font-size:22px;margin:0 0 8px">Could not render this page</h1>'
+            . '<p style="margin:0;color:#566674">Reload and try again.</p></div>';
+});
+
 $root = dirname(__DIR__);
 $path = rtrim((string) (parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/'), '/') ?: '/';
+$scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+$origin = $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost:8080');
 
 // The built-in server hands static files straight back.
 if ($path !== '/' && is_file(__DIR__ . $path)) {
@@ -50,8 +67,8 @@ $twig->addFilter(new TwigFilter('month_name', static fn ($m): string => [
 ][(int) $m] ?? ''));
 
 $calculator = new Calculator();
-$defaultPeriod = $rateSet->defaultPeriod();
 $periods = $rateSet->periods();
+$defaultPeriod = $rateSet->todayPeriod();
 
 $num = static function (array $input, string $key): float {
     $raw = preg_replace('/[^0-9.]/', '', (string) ($input[$key] ?? '0'));
@@ -59,12 +76,7 @@ $num = static function (array $input, string $key): float {
     return $raw === '' ? 0.0 : max(0.0, (float) $raw);
 };
 
-/**
- * Everything the form submitted, validated.
- *
- * @param array<string,mixed> $input
- * @return array{year:int,month:int,gross:float,options:array<string,float>,rules:array<string,mixed>}
- */
+/** @param array<string,mixed> $input */
 $readInput = static function (array $input) use ($rateSet, $defaultPeriod, $num): array {
     $year = (int) ($input['year'] ?? $defaultPeriod['year']);
     $month = (int) ($input['month'] ?? $defaultPeriod['month']);
@@ -77,7 +89,6 @@ $readInput = static function (array $input) use ($rateSet, $defaultPeriod, $num)
     return [
         'year' => $year,
         'month' => $month,
-        // A first visit opens on the headline example; a cleared field is zero.
         'gross' => min(array_key_exists('gross', $input) ? $num($input, 'gross') : 100_000.0, 100_000_000),
         'options' => [
             'pension' => $num($input, 'pension'),
@@ -91,13 +102,7 @@ $readInput = static function (array $input) use ($rateSet, $defaultPeriod, $num)
     ];
 };
 
-/**
- * The rows of the results sheet, in the order payroll applies them.
- *
- * @param array<string,mixed> $slip
- * @param array<string,mixed> $rules
- * @return list<array{label:string,note:?string,value:float,negative?:bool,subtotal?:bool}>
- */
+/** @return list<array{label:string,note:?string,value:float,negative?:bool,subtotal?:bool}> */
 $rowsFor = static function (array $slip, array $rules): array {
     $rows = [['label' => 'Basic pay', 'note' => null, 'value' => $slip['gross']]];
 
@@ -156,12 +161,71 @@ $rowsFor = static function (array $slip, array $rules): array {
     return $rows;
 };
 
-// ------------------------------------------------------------------ api/v1
+$shortNames = [
+    'pension' => 'pension',
+    'mortgage_interest' => 'mortgage',
+    'insurance_premium' => 'insurance',
+    'benefits_in_kind' => 'benefits',
+    'helb' => 'helb',
+    'sacco' => 'sacco',
+];
 
-if (str_starts_with($path, '/api/v1/')) {
+$pdfUrl = static function (array $input, float $gross) use ($shortNames): string {
+    $query = [
+        'gross' => (string) $gross,
+        'month' => (string) $input['month'],
+        'year' => (string) $input['year'],
+    ];
+
+    foreach ($shortNames as $option => $param) {
+        if (($input['options'][$option] ?? 0) > 0) {
+            $query[$param] = (string) $input['options'][$option];
+        }
+    }
+
+    return '/payslip.pdf?' . http_build_query($query);
+};
+
+$monthsFor = static function (int $year) use ($periods): array {
+    foreach ($periods as $period) {
+        if ($period['year'] === $year) {
+            return $period['months'];
+        }
+    }
+
+    return $periods[0]['months'];
+};
+
+$periodPayload = static function (array $input) use ($periods, $monthsFor, $rateSet): array {
+    return [
+        'year' => $input['year'],
+        'month' => $input['month'],
+        'years' => array_column($periods, 'year'),
+        'month_options' => $monthsFor($input['year']),
+        'rules' => $input['rules'],
+        'source' => $rateSet->source(),
+    ];
+};
+
+// ------------------------------------------------------------------- api/v1
+
+if (str_starts_with($path, '/api/v1')) {
     header('Content-Type: application/json; charset=utf-8');
 
     try {
+        if ($path === '/api/v1' && $_SERVER['REQUEST_METHOD'] === 'GET') {
+            echo json_encode([
+                'name' => 'Mshahara Check API',
+                'version' => 'v1',
+                'documentation' => '/api',
+                'endpoints' => [
+                    ['method' => 'GET', 'path' => '/api/v1/rates', 'description' => 'Rate versions and selectable periods'],
+                    ['method' => 'POST', 'path' => '/api/v1/payslip', 'description' => 'Gross to net plus employer cost'],
+                ],
+            ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+            exit;
+        }
+
         if ($path === '/api/v1/rates' && $_SERVER['REQUEST_METHOD'] === 'GET') {
             echo json_encode([
                 'source' => $rateSet->source(),
@@ -198,6 +262,57 @@ if (str_starts_with($path, '/api/v1/')) {
     exit;
 }
 
+// ---------------------------------------------------------------- api docs
+
+if ($path === '/api' && $_SERVER['REQUEST_METHOD'] === 'GET') {
+    $sampleRules = $rateSet->forPeriod($defaultPeriod['year'], $defaultPeriod['month']);
+    $sampleSlip = $calculator->payslip(100_000, $sampleRules);
+
+    echo $twig->render('api.twig', [
+        'base_url' => $origin . '/api/v1',
+        'rates_json' => json_encode([
+            'source' => $rateSet->source(),
+            'periods' => $periods,
+            'versions' => [$rateSet->current()],
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES),
+        'request_json' => json_encode([
+            'gross' => 100_000,
+            'year' => $defaultPeriod['year'],
+            'month' => $defaultPeriod['month'],
+            'pension' => 0,
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES),
+        'payslip_json' => json_encode([
+            'rate_version' => $sampleRules['id'],
+            'period' => ['year' => $defaultPeriod['year'], 'month' => $defaultPeriod['month']],
+            'payslip' => $sampleSlip,
+            'employer_cost' => $calculator->employerCost(100_000, $sampleRules),
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES),
+    ]);
+    exit;
+}
+
+// --------------------------------------------------------------------- pdf
+
+if ($path === '/payslip.pdf' && $_SERVER['REQUEST_METHOD'] === 'GET') {
+    $input = $readInput($_GET);
+    $slip = $calculator->payslip($input['gross'], $input['rules'], $input['options']);
+
+    $html = $twig->render('pdf.twig', [
+        'slip' => $slip,
+        'rows' => $rowsFor($slip, $input['rules']),
+        'rules' => $input['rules'],
+        'year' => $input['year'],
+        'month' => $input['month'],
+    ]);
+
+    $dompdf = new Dompdf(['defaultFont' => 'DejaVu Sans', 'tempDir' => sys_get_temp_dir()]);
+    $dompdf->loadHtml($html);
+    $dompdf->setPaper('A4', 'portrait');
+    $dompdf->render();
+    $dompdf->stream(sprintf('payslip-%04d-%02d.pdf', $input['year'], $input['month']), ['Attachment' => true]);
+    exit;
+}
+
 // ------------------------------------------------------------ saved payslip
 
 if (preg_match('#^/p/([a-f0-9]{12})$#', $path, $match) && $_SERVER['REQUEST_METHOD'] === 'GET') {
@@ -222,74 +337,184 @@ if (preg_match('#^/p/([a-f0-9]{12})$#', $path, $match) && $_SERVER['REQUEST_METH
         'slip' => $record['slip'],
         'rules' => $record['rules'],
         'rows' => $rowsFor($record['slip'], $record['rules']),
+        'year' => (int) ($record['year'] ?? substr((string) $record['rules']['effective_from'], 0, 4)),
+        'month' => (int) ($record['month'] ?? substr((string) $record['rules']['effective_from'], 5, 2)),
         'id' => $match[1],
+        'origin' => $origin,
     ]);
     exit;
 }
 
-// -------------------------------------------------------------- calculator
+// ---------------------------------------------------------------- calculators
 
-$input = $readInput($_POST !== [] ? $_POST : $_GET);
-$slip = $calculator->payslip($input['gross'], $input['rules'], $input['options']);
-$rows = $rowsFor($slip, $input['rules']);
+/** @return array<string,mixed> */
+$toolContext = static function (array $source) use ($readInput, $calculator, $rowsFor, $periodPayload, $pdfUrl): array {
+    $input = $readInput($source);
+    $slip = $calculator->payslip($input['gross'], $input['rules'], $input['options']);
 
-$monthOptions = $periods[array_search($input['year'], array_column($periods, 'year'), true)]['months']
-    ?? array_column($periods, 'months')[0];
+    return $periodPayload($input) + [
+        'mode' => 'tool',
+        'gross' => $input['gross'],
+        'options' => $input['options'],
+        'slip' => $slip,
+        'rows' => $rowsFor($slip, $input['rules']),
+        'pdf_url' => $pdfUrl($input, $slip['gross']),
+    ];
+};
 
-$context = [
-    'year' => $input['year'],
-    'month' => $input['month'],
-    'years' => array_column($periods, 'year'),
-    'month_options' => $monthOptions,
-    'gross' => $input['gross'],
-    'options' => $input['options'],
-    'rules' => $input['rules'],
-    'slip' => $slip,
-    'rows' => $rows,
-    'source' => $rateSet->source(),
-    'db_error' => $dbError,
-];
+/** @return array<string,mixed> */
+$netContext = static function (array $source) use ($readInput, $calculator, $rowsFor, $periodPayload, $num): array {
+    $input = $readInput(['month' => $source['month'] ?? null, 'year' => $source['year'] ?? null]);
+    $target = array_key_exists('target', $source) ? min($num($source, 'target'), 50_000_000) : 100_000.0;
+    $options = [
+        'pension' => $num($source, 'pension'),
+        'mortgage_interest' => 0.0,
+        'insurance_premium' => 0.0,
+        'benefits_in_kind' => 0.0,
+        'helb' => 0.0,
+        'sacco' => 0.0,
+    ];
 
-if ($path === '/preview' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (($_SERVER['HTTP_HX_REQUEST'] ?? '') === '') {
-        // A plain form post still works: render the whole page.
-        echo $twig->render('calculator.twig', $context);
-        exit;
+    $solution = $target > 0
+        ? $calculator->solveGrossForNet($target, $input['rules'], $options)
+        : null;
+
+    return $periodPayload($input) + [
+        'mode' => 'net',
+        'target' => $target,
+        'pension' => $options['pension'],
+        'solution' => $solution,
+        'solution_rows' => $solution !== null ? $rowsFor($solution, $input['rules']) : [],
+        'pdf_url' => $solution !== null
+            ? '/payslip.pdf?' . http_build_query([
+                'gross' => (string) $solution['gross'],
+                'month' => (string) $input['month'],
+                'year' => (string) $input['year'],
+                'pension' => (string) $options['pension'],
+            ])
+            : '#',
+    ];
+};
+
+/** @return array<string,mixed> */
+$compareContext = static function (array $source) use ($readInput, $calculator, $periodPayload, $num): array {
+    $input = $readInput(['month' => $source['month'] ?? null, 'year' => $source['year'] ?? null]);
+
+    $defaults = [1 => 100_000, 2 => 120_000, 3 => 0];
+    $source = $source === [] ? [] : $source;
+
+    $offers = [];
+    for ($i = 1; $i <= 3; $i++) {
+        $basic = array_key_exists("o{$i}b", $source)
+            ? $num($source, "o{$i}b")
+            : (float) $defaults[$i];
+        $allowances = array_key_exists("o{$i}a", $source) ? $num($source, "o{$i}a") : 0.0;
+
+        $gross = $basic + $allowances;
+        if ($gross <= 0) {
+            $offers[$i] = ['basic' => $basic, 'allowances' => $allowances, 'slip' => null];
+            continue;
+        }
+
+        $slip = $calculator->payslip($gross, $input['rules']);
+        $offers[$i] = ['basic' => $basic, 'allowances' => $allowances, 'slip' => $slip];
     }
 
-    echo $twig->render('payslip.twig', $context);
+    $scored = [];
+    foreach ($offers as $index => $offer) {
+        if ($offer['slip'] === null) {
+            continue;
+        }
+        $scored[] = [
+            'label' => chr(64 + count($scored) + 1),
+            'basic' => $offer['basic'],
+            'allowances' => $offer['allowances'],
+            'slip' => $offer['slip'],
+            'statutory' => $offer['slip']['nssf']['total'] + $offer['slip']['shif'] + $offer['slip']['housing_levy'],
+        ];
+    }
+
+    $bestNet = 0.0;
+    foreach ($scored as $result) {
+        $bestNet = max($bestNet, $result['slip']['net']);
+    }
+
+    foreach ($scored as &$result) {
+        $result['delta'] = $bestNet - $result['slip']['net'];
+    }
+    unset($result);
+
+    $nets = array_map(static fn (array $result): float => (float) $result['slip']['net'], $scored);
+    rsort($nets);
+
+    return $periodPayload($input) + [
+        'mode' => 'compare',
+        'offers' => $offers,
+        'results' => $scored,
+        'best_net' => $bestNet,
+        'best_margin' => count($nets) > 1 ? $nets[0] - $nets[1] : 0.0,
+    ];
+};
+
+if ($path === '/preview' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $mode = (string) ($_POST['mode'] ?? 'tool');
+
+    if ($mode === 'net') {
+        echo $twig->render('net-result.twig', $netContext($_POST));
+    } elseif ($mode === 'compare') {
+        echo $twig->render('compare-result.twig', $compareContext($_POST));
+    } else {
+        echo $twig->render('payslip.twig', $toolContext($_POST));
+    }
     exit;
 }
 
 if ($path === '/save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($db === null) {
         http_response_code(503);
-        echo '<p class="note">Saving needs MySQL. Set up <code>php/.env</code> and run the migration.</p>';
+        echo '<p class="banner">Sharing needs MySQL.</p>';
         exit;
     }
 
-    $id = substr(bin2hex(random_bytes(8)), 0, 12);
-    $stmt = $db->prepare(
-        'INSERT INTO saved_payslips (id, rate_version, gross, slip) VALUES (?, ?, ?, ?)'
-    );
-    $stmt->execute([
-        $id,
-        $input['rules']['id'],
-        $slip['gross'],
-        json_encode(
-            ['slip' => $slip, 'rules' => $input['rules'], 'options' => $input['options']],
-            JSON_THROW_ON_ERROR,
-        ),
-    ]);
+    $input = $readInput($_POST);
+    $slip = $calculator->payslip($input['gross'], $input['rules'], $input['options']);
 
-    $safeId = htmlspecialchars($id);
-    echo '<p class="saved">Saved with the ' . htmlspecialchars($input['rules']['id'])
-        . ' rules. Share it: <a href="/p/' . $safeId . '">/p/' . $safeId . '</a></p>';
+    $id = substr(bin2hex(random_bytes(8)), 0, 12);
+    $db->prepare('INSERT INTO saved_payslips (id, rate_version, gross, slip) VALUES (?, ?, ?, ?)')
+        ->execute([
+            $id,
+            $input['rules']['id'],
+            $slip['gross'],
+            json_encode([
+                'slip' => $slip,
+                'rules' => $input['rules'],
+                'options' => $input['options'],
+                'year' => $input['year'],
+                'month' => $input['month'],
+            ], JSON_THROW_ON_ERROR),
+        ]);
+
+    $shareUrl = htmlspecialchars($origin . '/p/' . $id);
+    echo '<div class="saved-card">'
+        . '<span>Link ready</span>'
+        . '<a class="saved-link" href="/p/' . htmlspecialchars($id) . '">/p/' . htmlspecialchars($id) . '</a>'
+        . '<button type="button" class="btn-ghost" data-copy="' . $shareUrl . '">Copy</button>'
+        . '</div>';
+    exit;
+}
+
+if ($path === '/net-to-gross') {
+    echo $twig->render('net.twig', $netContext($_POST !== [] ? $_POST : $_GET));
+    exit;
+}
+
+if ($path === '/compare') {
+    echo $twig->render('compare.twig', $compareContext($_POST !== [] ? $_POST : $_GET));
     exit;
 }
 
 if ($path === '/' || $path === '/preview') {
-    echo $twig->render('calculator.twig', $context);
+    echo $twig->render('calculator.twig', $toolContext($_POST !== [] ? $_POST : $_GET));
     exit;
 }
 

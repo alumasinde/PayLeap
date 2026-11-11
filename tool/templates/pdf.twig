@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en-KE">
+<head>
+  <meta charset="utf-8">
+  <style>
+    @page { margin: 34px 38px; }
+    body { font-family: "DejaVu Sans", sans-serif; color: #22303c; font-size: 11px; margin: 0; }
+    .top { border-bottom: 2px solid #22303c; padding-bottom: 9px; margin-bottom: 22px; }
+    .brand { font-size: 16px; font-weight: bold; }
+    .brand span { color: #1a6ed0; }
+    .period { float: right; font-size: 11px; color: #566674; padding-top: 4px; }
+    table { width: 100%; border-collapse: collapse; }
+    td { padding: 7px 10px; border-bottom: 1px solid #e3e9ef; font-size: 11px; }
+    td.label { text-align: right; color: #566674; }
+    td.note { text-align: right; color: #8394a1; font-size: 8.5px; padding-top: 0; }
+    td.value { text-align: right; color: #1a6ed0; font-weight: bold; width: 120px; }
+    tr.alt td { background: #f7fafd; }
+    tr.sub td.label { color: #22303c; font-weight: bold; }
+    tr.sub td.value { color: #14518f; }
+    tr.net td { border-top: 2px solid #22303c; border-bottom: 0; padding-top: 12px; font-size: 15px; }
+    tr.net td.value { color: #14518f; font-size: 17px; }
+    .foot { margin-top: 20px; padding-top: 9px; border-top: 1px solid #e3e9ef; font-size: 8.5px; color: #8394a1; }
+    .summary { margin-top: 14px; font-size: 10px; color: #566674; }
+  </style>
+</head>
+<body>
+  <div class="top">
+    <span class="brand">Mshahara <span>Check</span></span>
+    <span class="period">{{ month|month_name }} {{ year }} · {{ rules.id }}</span>
+  </div>
+
+  <table>
+    {% for row in rows %}
+      <tr class="{{ loop.index is even ? 'alt' : '' }}{% if row.subtotal %} sub{% endif %}">
+        <td class="label">{{ row.label }}</td>
+        <td class="value">{% if row.negative %}−{% endif %}{{ row.value|money }}</td>
+      </tr>
+      {% if row.note %}
+        <tr class="{{ loop.index is even ? 'alt' : '' }}">
+          <td class="note" colspan="2">{{ row.note }}</td>
+        </tr>
+      {% endif %}
+    {% endfor %}
+    <tr class="net">
+      <td class="label">Net pay</td>
+      <td class="value">{{ slip.net|money }}</td>
+    </tr>
+  </table>
+
+  <div class="summary">
+    Take-home {{ slip.take_home_share|pct }} of gross · deductions {{ slip.total_deductions|money }} ·
+    {{ slip.rate_version }} rules from {{ rules.effective_from|long_date }}
+  </div>
+
+  <div class="foot">
+    Mshahara Check · estimates only, not tax advice · generated {{ "now"|date("j F Y") }}
+  </div>
+</body>
+</html>

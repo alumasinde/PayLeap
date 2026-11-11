@@ -44,17 +44,13 @@ WHERE id = 'ke-2026.02';
 
 ### This checkout
 
-A MariaDB instance runs on `127.0.0.1:3307`, with its data in `tool/.mysql-data/`
-(ignored by git), root with no password, so `.env` points at it. Start it with:
+`.env` points at your local MySQL (`127.0.0.1:3306`, database `mshahara`) with
+your own user. The password stays in `.env`, which git ignores. The schema is
+already migrated; re-run it whenever you change a ruleset:
 
 ```bash
-"/c/Program Files/MariaDB 12.3/bin/mariadbd.exe" --no-defaults \
-  --datadir="C:/projects/paye/tool/.mysql-data" \
-  --port=3307 --bind-address=127.0.0.1
+mysql -u <user> -p < migrations/001_init.sql
 ```
-
-To use your own server, set `DB_PORT`, `DB_USERNAME` and `DB_PASSWORD` in
-`.env`, then run the migration against it.
 
 ## Run
 

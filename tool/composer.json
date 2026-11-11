@@ -6,6 +6,7 @@
     "php": ">=8.2",
     "ext-pdo": "*",
     "ext-pdo_mysql": "*",
+    "dompdf/dompdf": "^3.0",
     "twig/twig": "^3.14"
   },
   "autoload": {

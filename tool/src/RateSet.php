@@ -171,6 +171,30 @@ final class RateSet
         return self::monthOf((string) $this->current()['effective_from']);
     }
 
+    /**
+     * The period a fresh visit opens on: this month when it can be priced,
+     * otherwise the latest period on record.
+     *
+     * @return array{year:int,month:int}
+     */
+    public function todayPeriod(): array
+    {
+        $year = (int) date('Y');
+        $month = (int) date('n');
+
+        if ($this->hasPeriod($year, $month)) {
+            return ['year' => $year, 'month' => $month];
+        }
+
+        $periods = $this->periods();
+        $last = $periods[array_key_last($periods)];
+
+        return [
+            'year' => (int) $last['year'],
+            'month' => (int) $last['months'][array_key_last($last['months'])],
+        ];
+    }
+
     public function hasPeriod(int $year, int $month): bool
     {
         foreach ($this->periods() as $period) {

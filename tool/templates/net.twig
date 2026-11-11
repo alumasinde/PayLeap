@@ -1,0 +1,80 @@
+{% extends 'layout.twig' %}
+
+{% block title %}Net to gross — Mshahara Check{% endblock %}
+
+{% block body %}
+  <section class="intro">
+    <h1>What gross do you need?</h1>
+    <p>Name the take-home and see the salary to ask for.</p>
+  </section>
+
+  {% include 'tabs.twig' %}
+
+  <div class="workspace">
+    <aside class="form-col">
+      <form id="calc"
+            class="panel"
+            hx-post="/preview"
+            hx-target="#result"
+            hx-swap="innerHTML"
+            hx-sync="this:replace"
+            hx-indicator="#calc-spin"
+            hx-trigger="submit, change, input changed delay:400ms from:#target">
+
+        <input type="hidden" name="mode" value="net">
+
+        <div class="panel-head">
+          <h2>Net → gross</h2>
+          <span class="chip-mono">{{ rules.id }}</span>
+        </div>
+
+        <div class="period-row">
+          <label class="mini-field">
+            <span>Month</span>
+            <select id="month" name="month">
+              {% for value in month_options %}
+                <option value="{{ value }}"{% if value == month %} selected{% endif %}>{{ value|month_name }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label class="mini-field">
+            <span>Year</span>
+            <select id="year" name="year">
+              {% for value in years %}
+                <option value="{{ value }}"{% if value == year %} selected{% endif %}>{{ value }}</option>
+              {% endfor %}
+            </select>
+          </label>
+        </div>
+
+        <label class="field">
+          <span class="eyebrow">Take-home wanted</span>
+          <span class="amount-box">
+            <span class="cur">KSh</span>
+            <input id="target" name="target" inputmode="numeric" autocomplete="off"
+                   value="{{ target|number_format(0, '.', '') }}">
+          </span>
+        </label>
+
+        <label class="field">
+          <span class="eyebrow">Pension (optional)</span>
+          <span class="amount-box small">
+            <span class="cur">KSh</span>
+            <input name="pension" inputmode="numeric" value="{{ pension ?: '' }}">
+          </span>
+        </label>
+
+        <button class="btn-primary" type="submit">
+          <span class="spinner" id="calc-spin" aria-hidden="true"></span>
+          <span>Calculate</span>
+        </button>
+      </form>
+    </aside>
+
+    <section class="result-col">
+      <div id="result" role="region" aria-live="polite" aria-label="Gross needed">
+        {% include 'net-result.twig' %}
+      </div>
+    </section>
+  </div>
+{% endblock %}

@@ -1,0 +1,86 @@
+{% extends 'layout.twig' %}
+
+{% block title %}Compare offers — Mshahara Check{% endblock %}
+
+{% block body %}
+  <section class="intro">
+    <h1>Which offer pays more?</h1>
+    <p>Two or three offers, compared on take-home rather than headline gross.</p>
+  </section>
+
+  {% include 'tabs.twig' %}
+
+  <div class="workspace">
+    <aside class="form-col">
+      <form id="calc"
+            class="panel"
+            hx-post="/preview"
+            hx-target="#result"
+            hx-swap="innerHTML"
+            hx-sync="this:replace"
+            hx-indicator="#calc-spin"
+            hx-trigger="submit, change, input changed delay:400ms from:#o1b">
+
+        <input type="hidden" name="mode" value="compare">
+
+        <div class="panel-head">
+          <h2>Offers</h2>
+          <span class="chip-mono">{{ rules.id }}</span>
+        </div>
+
+        <div class="period-row">
+          <label class="mini-field">
+            <span>Month</span>
+            <select id="month" name="month">
+              {% for value in month_options %}
+                <option value="{{ value }}"{% if value == month %} selected{% endif %}>{{ value|month_name }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label class="mini-field">
+            <span>Year</span>
+            <select id="year" name="year">
+              {% for value in years %}
+                <option value="{{ value }}"{% if value == year %} selected{% endif %}>{{ value }}</option>
+              {% endfor %}
+            </select>
+          </label>
+        </div>
+
+        {% for i in 1..3 %}
+          {% set offer = offers[i] %}
+          <div class="offer-input">
+            <span class="offer-title">Offer {{ ['A','B','C'][i - 1] }}{% if i == 3 %} <em>optional</em>{% endif %}</span>
+            <div class="grid2">
+              <label class="field">
+                <span class="eyebrow">Basic</span>
+                <span class="amount-box small">
+                  <span class="cur">KSh</span>
+                  <input id="o{{ i }}b" name="o{{ i }}b" inputmode="numeric" value="{{ offer.basic ?: '' }}">
+                </span>
+              </label>
+              <label class="field">
+                <span class="eyebrow">Allowances</span>
+                <span class="amount-box small">
+                  <span class="cur">KSh</span>
+                  <input name="o{{ i }}a" inputmode="numeric" value="{{ offer.allowances ?: '' }}">
+                </span>
+              </label>
+            </div>
+          </div>
+        {% endfor %}
+
+        <button class="btn-primary" type="submit">
+          <span class="spinner" id="calc-spin" aria-hidden="true"></span>
+          <span>Compare</span>
+        </button>
+      </form>
+    </aside>
+
+    <section class="result-col">
+      <div id="result" role="region" aria-live="polite" aria-label="Comparison">
+        {% include 'compare-result.twig' %}
+      </div>
+    </section>
+  </div>
+{% endblock %}
