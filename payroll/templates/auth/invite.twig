@@ -32,8 +32,13 @@
           <input type="hidden" name="_token" value="{{ csrf_token() }}">
 
           <label class="field">
-            <span>Full name</span>
-            <input type="text" name="name" value="{{ name|default('') }}" autocomplete="name" required autofocus>
+            <span>First name</span>
+            <input type="text" name="first_name" value="{{ first_name|default('') }}" autocomplete="given-name" required autofocus>
+          </label>
+
+          <label class="field">
+            <span>Last name</span>
+            <input type="text" name="last_name" value="{{ last_name|default('') }}" autocomplete="family-name" required>
           </label>
 
           <label class="field">

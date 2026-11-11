@@ -1,0 +1,133 @@
+{% extends 'layout.twig' %}
+
+{% block title %}Payslip · {{ line.employee_name }} · {{ run.period|date('F Y') }}{% endblock %}
+
+{% block body_class %}payslip-page{% endblock %}
+
+{% block body %}
+  <section class="payslip-head">
+    <div>
+      <span class="kicker">{{ current_company.company_name }}</span>
+      <h1>Payslip</h1>
+      <p class="muted">{{ run.period|date('F Y') }} · {{ run.label }}</p>
+    </div>
+    <div class="row-actions no-print">
+      <button class="btn-primary" type="button" data-print>Print payslip</button>
+      <a class="btn-ghost" href="/app/payroll/{{ run.id }}">Back to run</a>
+    </div>
+  </section>
+
+  <section class="payslip panel">
+    <div class="payslip-id">
+      <div>
+        <span class="kicker">Employee</span>
+        <h2>{{ line.employee_name }}</h2>
+        <p class="muted mono">
+          {{ line.employee_no }}
+          {% if employee and employee.department_name %} · {{ employee.department_name }}{% endif %}
+          {% if employee and employee.job_title %} · {{ employee.job_title }}{% endif %}
+        </p>
+      </div>
+
+      <dl class="facts payslip-facts">
+        <div><dt>KRA PIN</dt><dd class="mono">{{ employee.kra_pin ?: '—' }}</dd></div>
+        <div><dt>NSSF</dt><dd class="mono">{{ employee.nssf_number ?: '—' }}</dd></div>
+        <div><dt>SHIF</dt><dd class="mono">{{ employee.shif_number ?: '—' }}</dd></div>
+        <div><dt>Period</dt><dd class="mono">{{ run.period }}</dd></div>
+      </dl>
+    </div>
+
+    <div class="payslip-columns">
+      <div>
+        <h3>Earnings</h3>
+        <table class="list payslip-table">
+          <tbody>
+            <tr><td>Basic salary</td><td class="num mono">{{ line.gross_cents|money }}</td></tr>
+            <tr class="total"><td>Gross pay</td><td class="num mono">{{ line.gross_cents|money }}</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div>
+        <h3>Deductions</h3>
+        <table class="list payslip-table">
+          <tbody>
+            <tr><td>NSSF</td><td class="num mono">{{ line.nssf_cents|money }}</td></tr>
+            <tr><td>SHIF</td><td class="num mono">{{ line.shif_cents|money }}</td></tr>
+            <tr><td>Housing levy</td><td class="num mono">{{ line.housing_levy_cents|money }}</td></tr>
+            <tr><td>PAYE</td><td class="num mono">{{ line.paye_cents|money }}</td></tr>
+            <tr class="total"><td>Total deductions</td><td class="num mono">{{ line.deductions_cents|money }}</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="payslip-net">
+      <span>Net pay</span>
+      <strong class="mono">KES {{ line.net_cents|money }}</strong>
+    </div>
+
+    {% if slip %}
+      <div class="payslip-section">
+        <h3>Statutory detail</h3>
+        <dl class="facts">
+          <div><dt>Taxable pay</dt><dd class="mono">{{ slip.taxable_pay|number_format(2) }}</dd></div>
+          <div><dt>Tax before reliefs</dt><dd class="mono">{{ slip.tax_before_relief|number_format(2) }}</dd></div>
+          <div><dt>Personal relief</dt><dd class="mono">−{{ slip.personal_relief|number_format(2) }}</dd></div>
+          {% if slip.insurance_relief > 0 %}
+            <div><dt>Insurance relief</dt><dd class="mono">−{{ slip.insurance_relief|number_format(2) }}</dd></div>
+          {% endif %}
+          <div><dt>PAYE</dt><dd class="mono">{{ slip.paye|number_format(2) }}</dd></div>
+        </dl>
+
+        {% if slip.bands %}
+          <div class="table-wrap">
+            <table class="list payslip-bands">
+              <thead>
+                <tr><th>Band</th><th class="num">Rate</th><th class="num">Taxable in band</th><th class="num">Tax</th></tr>
+              </thead>
+              <tbody>
+                {% for band in slip.bands %}
+                  <tr>
+                    <td>{{ loop.index }}</td>
+                    <td class="num mono">{{ (band.rate * 100)|number_format(0) }}%</td>
+                    <td class="num mono">{{ band.taxable|number_format(2) }}</td>
+                    <td class="num mono">{{ band.tax|number_format(2) }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% endif %}
+      </div>
+    {% endif %}
+
+    <div class="payslip-section">
+      <h3>Employer contributions (not deducted from pay)</h3>
+      <dl class="facts">
+        <div><dt>NSSF</dt><dd class="mono">{{ line.employer_nssf_cents|money }}</dd></div>
+        <div><dt>Housing levy</dt><dd class="mono">{{ line.employer_housing_cents|money }}</dd></div>
+        <div><dt>NITA</dt><dd class="mono">{{ line.employer_nita_cents|money }}</dd></div>
+      </dl>
+    </div>
+
+    {% if can_bank and employee %}
+      <div class="payslip-section">
+        <h3>Paid to</h3>
+        <dl class="facts">
+          <div><dt>Bank</dt><dd>{{ employee.bank_name ?: '—' }}</dd></div>
+          <div><dt>Branch</dt><dd>{{ employee.bank_branch ?: '—' }}</dd></div>
+          <div><dt>Account</dt><dd class="mono">{{ employee.bank_account ?: '—' }}</dd></div>
+        </dl>
+      </div>
+    {% endif %}
+
+    <p class="payslip-foot">
+      Rates {{ run.rate_version_id }}{% if slip %} · engine {{ slip.rate_version }}{% endif %}
+      · Run {{ run.status == 'approved' ? 'approved' : 'draft' }}
+      · Generated {{ generated_at }} UTC
+    </p>
+  </section>
+{% endblock %}
+
+{% block scripts %}<script src="/print.js" defer></script>{% endblock %}

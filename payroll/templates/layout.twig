@@ -15,6 +15,9 @@
 
       <nav class="app-nav">
         <a href="/app">Workspace</a>
+        {% if can('employees.view') %}<a href="/app/employees">Employees</a>{% endif %}
+        {% if can('payroll.view') %}<a href="/app/payroll">Payroll</a>{% endif %}
+        {% if can('users.manage') or can('users.invite') %}<a href="/app/access">Access</a>{% endif %}
         <a href="/me">My account</a>
       </nav>
 
@@ -48,5 +51,6 @@
 <main class="shell">
   {% block body %}{% endblock %}
 </main>
+{% block scripts %}{% endblock %}
 </body>
 </html>

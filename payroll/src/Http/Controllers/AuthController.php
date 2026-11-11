@@ -36,7 +36,7 @@ final class AuthController
             && $this->app->limiter->hit('login-account', $email . '|' . $ip, 5, 900);
 
         if (!$allowed) {
-            $this->app->audit->record(null, null, 'auth.rate_limited', 'user', null, ['email' => $email]);
+            $this->app->auditLogger->record(null, null, 'auth.rate_limited', 'user', null, ['email' => $email]);
             echo $this->app->render('auth/login.twig', [
                 'next' => $next,
                 'email' => $email,
@@ -46,10 +46,10 @@ final class AuthController
             return;
         }
 
-        $user = $this->app->auth->attempt($email, $password);
+        $user = $this->app->authentication->attempt($email, $password);
 
         if ($user === null) {
-            $this->app->audit->record(null, null, 'auth.login.failed', 'user', null, ['email' => $email]);
+            $this->app->auditLogger->record(null, null, 'auth.login.failed', 'user', null, ['email' => $email]);
             echo $this->app->render('auth/login.twig', [
                 'next' => $next,
                 'email' => $email,
@@ -59,13 +59,13 @@ final class AuthController
             return;
         }
 
-        $this->app->auth->startSession($user);
+        $this->app->authentication->startSession($user);
         $this->app->limiter->clear('login-account', $email . '|' . $ip);
 
-        $memberships = $this->app->companies->membershipsFor((int) $user['id']);
-        $this->app->companies->active((int) $user['id'], $memberships);
+        $memberships = $this->app->companyRepository->membershipsFor((int) $user['id']);
+        $this->app->companyRepository->active((int) $user['id'], $memberships);
 
-        $this->app->audit->record(null, (int) $user['id'], 'auth.login', 'user', (string) $user['id']);
+        $this->app->auditLogger->record(null, (int) $user['id'], 'auth.login', 'user', (string) $user['id']);
 
         $this->app->redirect($next ?? '/app');
     }
@@ -75,10 +75,10 @@ final class AuthController
         $userId = (int) ($this->app->user['id'] ?? 0);
 
         if ($userId > 0) {
-            $this->app->audit->record(null, $userId, 'auth.logout', 'user', (string) $userId);
+            $this->app->auditLogger->record(null, $userId, 'auth.logout', 'user', (string) $userId);
         }
 
-        $this->app->auth->logout();
+        $this->app->authentication->logout();
         $this->app->redirect('/login');
     }
 

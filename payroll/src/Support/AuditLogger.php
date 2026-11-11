@@ -14,7 +14,7 @@ use PDO;
  * The client address and user agent come from the Request, so CLI and queue
  * callers can omit them instead of inventing a fake server entry.
  */
-final class Audit
+final class AuditLogger
 {
     public function __construct(
         private readonly PDO $db,

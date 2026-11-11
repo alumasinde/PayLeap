@@ -1,0 +1,128 @@
+{% extends 'layout.twig' %}
+
+{% block title %}Employees — {{ app_name }}{% endblock %}
+
+{% block body %}
+  <section class="page-head">
+    <span class="kicker">Employees</span>
+    <h1>People</h1>
+    <p class="muted">The register every payroll run reads. {{ summary.active }} active, {{ summary.exited }} archived.</p>
+  </section>
+
+  <div class="stat-grid">
+    <div class="stat"><span class="stat-label">Active</span><strong>{{ summary.active }}</strong></div>
+    <div class="stat"><span class="stat-label">Archived</span><strong>{{ summary.exited }}</strong></div>
+    <div class="stat"><span class="stat-label">Departments</span><strong>{{ departments|length }}</strong></div>
+    {% if can_salary %}
+      <div class="stat">
+        <span class="stat-label">Monthly salary bill</span>
+        <strong class="mono">KES {{ monthly_display }}</strong>
+      </div>
+    {% endif %}
+  </div>
+
+  <form class="filter-bar" method="get" action="/app/employees">
+    <input type="search" name="search" value="{{ filters.search }}" placeholder="Name, number, ID or KRA PIN" aria-label="Search employees">
+    <select name="status" aria-label="Status">
+      <option value="active"{% if filters.status == 'active' %} selected{% endif %}>Active</option>
+      <option value="exited"{% if filters.status == 'exited' %} selected{% endif %}>Archived</option>
+      <option value="all"{% if filters.status == 'all' %} selected{% endif %}>All</option>
+    </select>
+    <select name="department_id" aria-label="Department">
+      <option value="0">All departments</option>
+      {% for department in departments %}
+        <option value="{{ department.id }}"{% if filters.department_id == department.id %} selected{% endif %}>{{ department.name }}</option>
+      {% endfor %}
+    </select>
+    <button class="btn-ghost" type="submit">Filter</button>
+    {% if can_edit %}<a class="btn-primary" href="/app/employees/new">Add employee</a>{% endif %}
+  </form>
+
+  <section class="panel">
+    {% if employees %}
+      <div class="table-wrap">
+        <table class="list">
+          <thead>
+            <tr>
+              <th>No.</th>
+              <th>Name</th>
+              <th>Department</th>
+              <th>Type</th>
+              {% if can_salary %}<th class="num">Monthly</th>{% endif %}
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for employee in employees %}
+              <tr>
+                <td class="mono">{{ employee.employee_no }}</td>
+                <td>
+                  <a href="/app/employees/{{ employee.id }}">{{ employee.first_name }} {{ employee.last_name }}</a><br>
+                  <span class="muted">{{ employee.email ?: employee.phone ?: '—' }}</span>
+                </td>
+                <td>{{ employee.department_name ?: '—' }}</td>
+                <td>{{ types[employee.employment_type] ?? employee.employment_type }}</td>
+                {% if can_salary %}
+                  <td class="num mono">
+                    {% if employee.monthly_salary_cents is not null %}
+                      {{ (employee.monthly_salary_cents / 100)|number_format(2) }}
+                    {% else %}
+                      —
+                    {% endif %}
+                  </td>
+                {% endif %}
+                <td>
+                  <span class="chip{% if employee.status == 'active' %} on{% endif %}">
+                    {{ employee.status == 'active' ? 'Active' : 'Archived' }}
+                  </span>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      {% if pages > 1 %}
+        <nav class="pager">
+          {% if page > 1 %}
+            <a class="btn-ghost btn-sm" href="/app/employees?page={{ page - 1 }}&status={{ filters.status }}&department_id={{ filters.department_id }}&search={{ filters.search|url_encode }}">Previous</a>
+          {% endif %}
+          <span class="muted">Page {{ page }} of {{ pages }} · {{ total }} people</span>
+          {% if page < pages %}
+            <a class="btn-ghost btn-sm" href="/app/employees?page={{ page + 1 }}&status={{ filters.status }}&department_id={{ filters.department_id }}&search={{ filters.search|url_encode }}">Next</a>
+          {% endif %}
+        </nav>
+      {% endif %}
+    {% else %}
+      <p class="muted">No people match this filter.</p>
+      {% if can_edit %}<a class="btn-primary" href="/app/employees/new">Add the first employee</a>{% endif %}
+    {% endif %}
+  </section>
+
+  {% if can_edit %}
+    <section class="panel">
+      <h2>Departments</h2>
+      {% if departments %}
+        <ul class="role-list">
+          {% for department in departments %}
+            <li>
+              <strong>{{ department.name }}</strong>
+              <span class="muted">{{ department.employee_count }} active</span>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="muted">No departments yet. Add one to group people and cost reports.</p>
+      {% endif %}
+
+      <form class="inline-form" method="post" action="/app/employees/departments">
+        <input type="hidden" name="_token" value="{{ csrf_token() }}">
+        <label class="field">
+          <span>New department</span>
+          <input type="text" name="name" maxlength="80" required>
+        </label>
+        <button class="btn-ghost" type="submit">Add</button>
+      </form>
+    </section>
+  {% endif %}
+{% endblock %}

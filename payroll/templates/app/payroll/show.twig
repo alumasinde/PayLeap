@@ -1,0 +1,102 @@
+{% extends 'layout.twig' %}
+
+{% block title %}{{ run.label }} — {{ app_name }}{% endblock %}
+
+{% block body %}
+  <section class="page-head">
+    <span class="kicker">Payroll · {{ run.period|date('F Y') }}</span>
+    <h1>{{ run.label }}</h1>
+    <p class="muted">
+      <span class="chip{% if run.status == 'approved' %} on{% endif %}">
+        {{ run.status == 'approved' ? 'Approved' : 'Draft' }}
+      </span>
+      · Rates {{ run.rate_version_id }} (effective {{ run.rate_effective_from }}, verified {{ run.rate_verified_on }})
+      · Prepared by {{ run.prepared_first }} {{ run.prepared_last }}
+    </p>
+  </section>
+
+  <div class="stat-grid">
+    <div class="stat"><span class="stat-label">Employees</span><strong>{{ run.employee_count }}</strong></div>
+    <div class="stat"><span class="stat-label">Gross</span><strong class="mono">{{ run.gross_cents|money }}</strong></div>
+    <div class="stat"><span class="stat-label">Deductions</span><strong class="mono">{{ run.deductions_cents|money }}</strong></div>
+    <div class="stat"><span class="stat-label">Net pay</span><strong class="mono">{{ run.net_cents|money }}</strong></div>
+    <div class="stat"><span class="stat-label">Employer cost</span><strong class="mono">{{ run.employer_cost_cents|money }}</strong></div>
+  </div>
+
+  <section class="panel">
+    <h2>Lines</h2>
+    <div class="table-wrap">
+      <table class="list">
+        <thead>
+          <tr>
+            <th>No.</th>
+            <th>Name</th>
+            <th class="num">Gross</th>
+            <th class="num">NSSF</th>
+            <th class="num">SHIF</th>
+            <th class="num">Levy</th>
+            <th class="num">PAYE</th>
+            <th class="num">Net</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for line in lines %}
+            <tr>
+              <td class="mono">{{ line.employee_no }}</td>
+              <td>{{ line.employee_name }}</td>
+              <td class="num mono">{{ line.gross_cents|money }}</td>
+              <td class="num mono">{{ line.nssf_cents|money }}</td>
+              <td class="num mono">{{ line.shif_cents|money }}</td>
+              <td class="num mono">{{ line.housing_levy_cents|money }}</td>
+              <td class="num mono">{{ line.paye_cents|money }}</td>
+              <td class="num mono">{{ line.net_cents|money }}</td>
+              <td>
+                <a class="btn-ghost btn-sm" href="/app/payroll/{{ run.id }}/lines/{{ line.id }}/payslip">Payslip</a>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="grid-2">
+    <section class="panel">
+      <h2>Employer contributions</h2>
+      <dl class="facts">
+        <div><dt>NSSF</dt><dd class="mono">{{ run.employer_nssf_cents|money }}</dd></div>
+        <div><dt>Housing levy</dt><dd class="mono">{{ run.employer_housing_cents|money }}</dd></div>
+        <div><dt>NITA</dt><dd class="mono">{{ run.employer_nita_cents|money }}</dd></div>
+        <div><dt>Total cost</dt><dd class="mono">{{ run.employer_cost_cents|money }}</dd></div>
+      </dl>
+    </section>
+
+    <section class="panel">
+      <h2>Approval</h2>
+
+      {% if run.status == 'draft' %}
+        {% if can_approve %}
+          {% if is_preparer %}
+            <p class="muted">You prepared this run, so someone else must approve it.</p>
+          {% else %}
+            <form class="stack" method="post" action="/app/payroll/{{ run.id }}/approve">
+              <input type="hidden" name="_token" value="{{ csrf_token() }}">
+              <button class="btn-primary" type="submit">Approve run</button>
+            </form>
+            <p class="hint">Approving locks the run. Corrections would be a new adjustment run.</p>
+          {% endif %}
+        {% else %}
+          <p class="muted">Waiting for someone with approval rights.</p>
+        {% endif %}
+      {% else %}
+        <p class="muted">
+          Approved by {{ run.approved_first }} {{ run.approved_last }} on {{ run.approved_at }} UTC.
+        </p>
+        <p class="hint">This run is locked. A correction would be a new adjustment run.</p>
+      {% endif %}
+    </section>
+  </div>
+
+  <p class="muted"><a href="/app/payroll">Back to payroll</a></p>
+{% endblock %}

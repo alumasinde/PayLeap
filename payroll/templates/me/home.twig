@@ -5,7 +5,7 @@
 {% block body %}
   <section class="page-head">
     <span class="kicker">My account</span>
-    <h1>{{ current_user.name }}</h1>
+    <h1>{{ current_user.first_name }} {{ current_user.last_name }}</h1>
     <p class="muted">{{ current_company.company_name }} · {{ role_label }}</p>
   </section>
 
@@ -14,16 +14,48 @@
       <h2>Your record</h2>
       <p class="muted">No employee record is linked to this login yet. When the Employees module ships, HR links your record here and this page becomes your payslips, leave and timesheet.</p>
       <dl class="facts">
-        <div><dt>Name</dt><dd>{{ current_user.name }}</dd></div>
         <div><dt>Email</dt><dd>{{ current_user.email }}</dd></div>
         <div><dt>Role</dt><dd>{{ role_label }}</dd></div>
       </dl>
+
+      <h3>Edit your name</h3>
+      <form class="stack" method="post" action="/me/profile">
+        <input type="hidden" name="_token" value="{{ csrf_token() }}">
+        <label class="field">
+          <span>First name</span>
+          <input type="text" name="first_name" value="{{ current_user.first_name }}" maxlength="80" required>
+        </label>
+        <label class="field">
+          <span>Last name</span>
+          <input type="text" name="last_name" value="{{ current_user.last_name }}" maxlength="80" required>
+        </label>
+        <button class="btn-primary" type="submit">Save name</button>
+      </form>
     </section>
 
     <section class="panel">
       <h2>Access</h2>
       <p class="muted">This page is yours. It shows only your own data — never the workspace tools, even when your role has them.</p>
       <a class="btn-ghost" href="/app">Back to workspace</a>
+
+      <h3>Change password</h3>
+      <form class="stack" method="post" action="/me/password">
+        <input type="hidden" name="_token" value="{{ csrf_token() }}">
+        <label class="field">
+          <span>Current password</span>
+          <input type="password" name="current_password" autocomplete="current-password" required>
+        </label>
+        <label class="field">
+          <span>New password</span>
+          <input type="password" name="password" autocomplete="new-password" required>
+        </label>
+        <label class="field">
+          <span>Confirm new password</span>
+          <input type="password" name="password_confirmation" autocomplete="new-password" required>
+        </label>
+        <p class="hint">At least 10 characters. This signs out your other devices.</p>
+        <button class="btn-primary" type="submit">Change password</button>
+      </form>
 
       <h3>Sign out everywhere</h3>
       <p class="muted">Ends every session for this account, including this one. Use it if a device was lost or borrowed.</p>

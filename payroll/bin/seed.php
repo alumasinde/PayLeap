@@ -23,14 +23,15 @@ $statement->execute([$slug]);
 $companyId = $statement->fetchColumn();
 
 if ($companyId === false) {
-    $companyId = $app->companies->create($name, $slug);
+    $companyId = $app->companyService->create($name, $slug);
     echo "Created company: {$name} (#{$companyId})\n";
 } else {
     $companyId = (int) $companyId;
+    $app->roleRepository->provision($companyId);
     echo "Using company: {$name} (#{$companyId})\n";
 }
 
-$result = $app->invitations->create($companyId, $email, 'owner');
+$result = $app->invitationService->create($companyId, $email, 'owner');
 
 echo "Owner invite for {$email}:\n";
 echo rtrim((string) $app->config['url'], '/') . '/invite/' . $result['token'] . "\n";

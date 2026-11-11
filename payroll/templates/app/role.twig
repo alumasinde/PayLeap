@@ -1,0 +1,40 @@
+{% extends 'layout.twig' %}
+
+{% block title %}{{ role.name }} — {{ app_name }}{% endblock %}
+
+{% block body %}
+  <section class="page-head">
+    <span class="kicker">Role</span>
+    <h1>{{ role.name }}</h1>
+    <p class="muted">Choose what this role can do. Changes apply to everyone who holds it.</p>
+  </section>
+
+  <form class="panel stack" method="post" action="/app/access/roles/{{ role.id }}">
+    <input type="hidden" name="_token" value="{{ csrf_token() }}">
+
+    <label class="field">
+      <span>Role name</span>
+      <input type="text" name="name" value="{{ role.name }}" maxlength="80" required>
+    </label>
+
+    {% for module, permissions in catalog %}
+      <fieldset class="permission-group">
+        <legend>{{ module }}</legend>
+        {% for permission in permissions %}
+          <label class="permission-row">
+            <input type="checkbox" name="permissions[]" value="{{ permission.key }}"{% if permission.key in selected %} checked{% endif %}>
+            <span>
+              <strong>{{ permission.name }}</strong>
+              <small>{{ permission.description }} <span class="mono">{{ permission.key }}</span></small>
+            </span>
+          </label>
+        {% endfor %}
+      </fieldset>
+    {% endfor %}
+
+    <div class="row-actions">
+      <button class="btn-primary" type="submit">Save role</button>
+      <a class="btn-ghost" href="/app/access">Back to access</a>
+    </div>
+  </form>
+{% endblock %}

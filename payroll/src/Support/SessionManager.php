@@ -15,7 +15,7 @@ use RuntimeException;
  * controllers and services never touch $_SESSION directly and the storage can
  * be swapped (database sessions, encrypted cookies) without touching them.
  */
-final class Session
+final class SessionManager
 {
     /** @param array{name:string,idle:int,absolute:int,driver:string} $config */
     private function __construct(

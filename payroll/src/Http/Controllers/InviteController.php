@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Mshahara\Payroll\Http\Controllers;
 
 use Mshahara\Payroll\App;
-use Mshahara\Payroll\Auth\Passwords;
+use Mshahara\Payroll\Auth\PasswordHasher;
 
 final class InviteController
 {
@@ -16,32 +16,32 @@ final class InviteController
     public function show(array $params): void
     {
         $token = (string) ($params['token'] ?? '');
-        $invite = $this->app->invitations->find($token);
+        $invite = $this->app->invitationService->find($token);
 
         if ($invite === null) {
             $this->app->abort(410, 'This invitation has expired or was already used.');
         }
 
-        $existing = $this->findUser((string) $invite['email']);
+        $existing = $this->app->invitationService->userForEmail((string) $invite['email']);
 
         echo $this->app->render('auth/invite.twig', [
             'invite' => $invite,
             'token' => $token,
             'existing' => $existing !== null,
-            'role_label' => $this->app->roleLabel((string) $invite['role']),
+            'role_label' => (string) $invite['role_name'],
         ]);
     }
 
     public function accept(array $params): void
     {
         $token = (string) ($params['token'] ?? '');
-        $invite = $this->app->invitations->find($token);
+        $invite = $this->app->invitationService->find($token);
 
         if ($invite === null) {
             $this->app->abort(410, 'This invitation has expired or was already used.');
         }
 
-        $existing = $this->findUser((string) $invite['email']);
+        $existing = $this->app->invitationService->userForEmail((string) $invite['email']);
 
         if ($existing !== null) {
             if ($this->app->user === []) {
@@ -52,25 +52,26 @@ final class InviteController
                 $this->app->abort(403, 'Sign in as ' . $invite['email'] . ' to accept this invitation.');
             }
 
-            $this->app->invitations->acceptExisting($invite, $this->app->user);
+            $this->app->invitationService->acceptExisting($invite, $this->app->user);
 
             $this->app->session->regenerate();
-            $this->app->companies->select((int) $invite['company_id']);
+            $this->app->companyRepository->select((int) $invite['company_id']);
             $this->app->csrf->rotate();
 
             $this->app->flash->add('success', 'You have joined ' . $invite['company_name'] . '.');
             $this->app->redirect('/app');
         }
 
-        $name = trim($this->app->request->string('name'));
+        $firstName = trim($this->app->request->string('first_name'));
+        $lastName = trim($this->app->request->string('last_name'));
         $password = $this->app->request->string('password');
         $confirmation = $this->app->request->string('password_confirmation');
 
-        $error = Passwords::error($password, $confirmation);
+        $error = PasswordHasher::error($password, $confirmation);
 
-        if ($name === '') {
-            $error = 'Enter your full name.';
-        } elseif (mb_strlen($name) > 120) {
+        if ($firstName === '' || $lastName === '') {
+            $error = 'Enter your first and last name.';
+        } elseif (mb_strlen($firstName) > 80 || mb_strlen($lastName) > 80) {
             $error = 'That name is too long.';
         }
 
@@ -79,31 +80,22 @@ final class InviteController
                 'invite' => $invite,
                 'token' => $token,
                 'existing' => false,
-                'role_label' => $this->app->roleLabel((string) $invite['role']),
-                'name' => $name,
+                'role_label' => (string) $invite['role_name'],
+                'first_name' => $firstName,
+                'last_name' => $lastName,
                 'error' => $error,
             ], 422);
 
             return;
         }
 
-        $user = $this->app->invitations->acceptNew($invite, $name, $password);
+        $user = $this->app->invitationService->acceptNew($invite, $firstName, $lastName, $password);
 
-        $this->app->auth->startSession($user);
-        $this->app->companies->select((int) $invite['company_id']);
-        $this->app->companies->active((int) $user['id'], $this->app->companies->membershipsFor((int) $user['id']));
+        $this->app->authentication->startSession($user);
+        $this->app->companyRepository->select((int) $invite['company_id']);
+        $this->app->companyRepository->active((int) $user['id'], $this->app->companyRepository->membershipsFor((int) $user['id']));
 
         $this->app->flash->add('success', 'Welcome to ' . $invite['company_name'] . '.');
         $this->app->redirect('/app');
-    }
-
-    /** @return array<string,mixed>|null */
-    private function findUser(string $email): ?array
-    {
-        $statement = $this->app->db->prepare('SELECT * FROM users WHERE email = ? LIMIT 1');
-        $statement->execute([strtolower($email)]);
-        $row = $statement->fetch();
-
-        return $row === false ? null : $row;
     }
 }

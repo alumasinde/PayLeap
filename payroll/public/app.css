@@ -181,7 +181,9 @@ p { margin: 0 0 10px; }
 
 input[type="email"],
 input[type="password"],
-input[type="text"] {
+input[type="text"],
+input[type="search"],
+input[type="date"] {
   width: 100%;
   padding: 10px 12px;
   border: 1px solid var(--line-strong);
@@ -191,10 +193,71 @@ input[type="text"] {
   color: var(--ink);
 }
 
-input:focus {
+input:focus,
+select:focus {
   outline: 2px solid var(--green-soft);
   border-color: var(--green);
 }
+
+.field select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--paper);
+  font: inherit;
+  color: var(--ink);
+}
+
+.row-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.row-actions select {
+  padding: 5px 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  font: inherit;
+  font-size: 12px;
+  color: var(--ink);
+}
+
+.role-list {
+  margin: 0;
+  padding-left: 18px;
+  line-height: 1.9;
+}
+
+.role-list li { margin-bottom: 6px; }
+
+.permission-group {
+  margin: 6px 0 0;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.permission-group legend {
+  padding: 0 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--ink-2);
+}
+
+.permission-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 7px 0;
+}
+
+.permission-row strong { display: block; font-size: 13.5px; }
+.permission-row small { display: block; color: var(--ink-3); font-size: 12px; }
+.permission-row input { margin-top: 3px; }
 
 .btn-primary {
   display: inline-flex;
@@ -346,8 +409,209 @@ input:focus {
   color: var(--green-deep);
 }
 
+/* Employees --------------------------------------------------------------- */
+
+.stat-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  margin-top: 16px;
+}
+
+.stat {
+  padding: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.stat-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink-2);
+}
+
+.stat strong { font-size: 21px; letter-spacing: -0.02em; }
+
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.filter-bar input[type="search"] { flex: 1 1 240px; padding: 8px 10px; }
+
+.filter-bar select,
+.row-actions input[type="date"] {
+  padding: 8px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.filter-bar .btn-primary,
+.filter-bar .btn-ghost { height: 37px; }
+
+.table-wrap { overflow-x: auto; }
+.list .num { text-align: right; }
+
+.pager {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.form-section {
+  margin: 0 0 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.form-section legend {
+  padding: 0 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--ink-2);
+}
+
+.form-grid { display: grid; gap: 12px; }
+
+.inline-form {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.inline-form .field { flex: 1 1 auto; }
+
+.tile-link {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+/* Payslips --------------------------------------------------------------- */
+
+.payslip-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 6px 0 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.payslip { padding: 28px; }
+
+.payslip-id {
+  display: grid;
+  gap: 18px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.payslip-id h2 { margin: 2px 0; font-size: 20px; }
+
+.payslip-facts { margin-top: 6px; }
+
+.payslip-columns {
+  display: grid;
+  gap: 22px;
+  margin-top: 22px;
+}
+
+.payslip h3 {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+
+.payslip-table td { padding: 6px 8px; }
+
+.payslip-table tr.total td {
+  font-weight: 700;
+  border-top: 1px solid var(--line-strong);
+  border-bottom: 0;
+}
+
+.payslip-net {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 22px;
+  padding: 14px 16px;
+  border: 1px solid #cfe0d5;
+  border-radius: 10px;
+  background: var(--green-soft);
+  color: var(--green-deep);
+}
+
+.payslip-net span {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.payslip-net strong { font-size: 24px; letter-spacing: -0.02em; }
+
+.payslip-section {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.payslip-bands { margin-top: 10px; }
+
+.payslip-foot {
+  margin: 22px 0 0;
+  padding-top: 12px;
+  border-top: 1px dashed var(--line-strong);
+  font-size: 11px;
+  color: var(--ink-3);
+}
+
+@media (min-width: 700px) {
+  .payslip-id { grid-template-columns: minmax(0, 1fr) minmax(220px, 320px); align-items: start; }
+  .payslip-columns { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+}
+
+@media print {
+  .app-header, .flash, .no-print { display: none !important; }
+  body { background: #fff; }
+  .shell { max-width: none; padding: 0; }
+  .panel { border: 1px solid #d5cec0; box-shadow: none; }
+  .payslip { padding: 0; }
+  a { color: inherit; text-decoration: none; }
+  .payslip-net { background: transparent; }
+}
+
 @media (min-width: 760px) {
   .grid-2 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+}
+
+@media (min-width: 700px) {
+  .form-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+}
+
+@media (max-width: 620px) {
+  .inline-form { flex-direction: column; align-items: stretch; }
 }
 
 @media (max-width: 620px) {

@@ -1,0 +1,103 @@
+{% extends 'layout.twig' %}
+
+{% block title %}Payroll — {{ app_name }}{% endblock %}
+
+{% block body %}
+  <section class="page-head">
+    <span class="kicker">Payroll</span>
+    <h1>Payroll runs</h1>
+    <p class="muted">Calculated with the shared statutory engine. A run is approved by someone other than the person who prepared it.</p>
+  </section>
+
+  <div class="grid-2">
+    <section class="panel">
+      <h2>Prepare a month</h2>
+
+      {% if can_run %}
+        <form class="stack" method="post" action="/app/payroll">
+          <input type="hidden" name="_token" value="{{ csrf_token() }}">
+
+          <label class="field">
+            <span>Month</span>
+            <input type="month" name="period" value="{{ suggested_period }}" required>
+          </label>
+
+          <label class="field">
+            <span>Label (optional)</span>
+            <input type="text" name="label" maxlength="120" placeholder="e.g. November 2026 payroll">
+          </label>
+
+          <button class="btn-primary" type="submit">Prepare run</button>
+        </form>
+
+        <p class="hint">Active employees with a monthly salary are included. Archived people are not.</p>
+      {% else %}
+        <p class="muted">Your role can see payroll but cannot prepare a run.</p>
+      {% endif %}
+    </section>
+
+    <section class="panel">
+      <h2>Statutory rates</h2>
+
+      {% if rates %}
+        <dl class="facts">
+          <div><dt>Version</dt><dd class="mono">{{ rates.id }}</dd></div>
+          <div><dt>Effective</dt><dd class="mono">{{ rates.effective_from }}</dd></div>
+          <div><dt>Verified</dt><dd class="mono">{{ rates.verified_on }}</dd></div>
+          <div><dt>PAYE bands</dt><dd>{{ rates.paye.bands|length }}</dd></div>
+          <div><dt>NSSF ceiling</dt><dd class="mono">KES {{ rates.nssf.upper_earnings_limit|number_format(0) }}</dd></div>
+          <div><dt>SHIF rate</dt><dd>{{ (rates.shif.employee_rate * 100)|number_format(2) }}%</dd></div>
+        </dl>
+        <p class="hint">Rates live in MySQL; a new gazetted rate is a new row, not a deploy.</p>
+      {% else %}
+        <p class="muted">No rate version covers the suggested month.</p>
+      {% endif %}
+    </section>
+  </div>
+
+  <section class="panel">
+    <h2>Runs</h2>
+
+    {% if runs %}
+      <div class="table-wrap">
+        <table class="list">
+          <thead>
+            <tr>
+              <th>Month</th>
+              <th>Run</th>
+              <th class="num">People</th>
+              <th class="num">Gross</th>
+              <th class="num">Net</th>
+              <th class="num">Employer cost</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for run in runs %}
+              <tr>
+                <td class="mono"><a href="/app/payroll/{{ run.id }}">{{ run.period }}</a></td>
+                <td>
+                  <a href="/app/payroll/{{ run.id }}">{{ run.label }}</a><br>
+                  <span class="muted">
+                    Prepared by {{ run.prepared_first }} {{ run.prepared_last }} · {{ run.rate_label }}
+                  </span>
+                </td>
+                <td class="num">{{ run.employee_count }}</td>
+                <td class="num mono">{{ run.gross_cents|money }}</td>
+                <td class="num mono">{{ run.net_cents|money }}</td>
+                <td class="num mono">{{ run.employer_cost_cents|money }}</td>
+                <td>
+                  <span class="chip{% if run.status == 'approved' %} on{% endif %}">
+                    {{ run.status == 'approved' ? 'Approved' : 'Draft' }}
+                  </span>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="muted">No payroll runs yet.</p>
+    {% endif %}
+  </section>
+{% endblock %}

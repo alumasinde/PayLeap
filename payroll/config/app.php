@@ -29,6 +29,11 @@ return [
     'mail' => [
         'driver' => Env::get('MAIL_DRIVER', 'file'),
         'from' => Env::get('MAIL_FROM', 'Mshahara Payroll <no-reply@mshaharacheck.co.ke>'),
-        'path' => null, // filled by App
+        'host' => Env::get('MAIL_HOST', '127.0.0.1'),
+        'port' => (int) Env::get('MAIL_PORT', '587'),
+        'username' => Env::get('MAIL_USERNAME', ''),
+        'password' => Env::get('MAIL_PASSWORD', ''),
+        'encryption' => Env::get('MAIL_ENCRYPTION', 'tls'),
+        'path' => null, // filled by Bootstrap
     ],
 ];

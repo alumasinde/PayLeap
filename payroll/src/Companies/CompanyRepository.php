@@ -4,14 +4,18 @@ declare(strict_types=1);
 
 namespace Mshahara\Payroll\Companies;
 
-use Mshahara\Payroll\Support\Session;
+use Mshahara\Payroll\Support\SessionManager;
 use PDO;
 
-final class Companies
+/**
+ * Company and membership reads. Active-company selection is session state,
+ * kept behind SessionManager rather than touched directly.
+ */
+final class CompanyRepository
 {
     public function __construct(
         private readonly PDO $db,
-        private readonly Session $session,
+        private readonly SessionManager $session,
     ) {
     }
 
@@ -28,11 +32,16 @@ final class Companies
     public function membershipsFor(int $userId): array
     {
         $statement = $this->db->prepare(
-            'SELECT m.company_id, m.role, m.status, c.name AS company_name, c.slug
+            'SELECT m.company_id, m.status, c.name AS company_name, c.slug,
+                    MIN(m.created_at) AS joined_at,
+                    GROUP_CONCAT(r.name ORDER BY r.name SEPARATOR ", ") AS role_names
              FROM memberships m
              JOIN companies c ON c.id = m.company_id
+             LEFT JOIN user_roles ur ON ur.user_id = m.user_id AND ur.company_id = m.company_id
+             LEFT JOIN roles r ON r.id = ur.role_id
              WHERE m.user_id = ? AND m.status = ?
-             ORDER BY m.created_at, c.name',
+             GROUP BY m.company_id, m.status, c.name, c.slug
+             ORDER BY joined_at, c.name',
         );
         $statement->execute([$userId, 'active']);
 
@@ -75,10 +84,14 @@ final class Companies
     public function membership(int $userId, int $companyId): ?array
     {
         $statement = $this->db->prepare(
-            'SELECT m.company_id, m.role, m.status, c.name AS company_name, c.slug
+            'SELECT m.company_id, m.status, c.name AS company_name, c.slug,
+                    GROUP_CONCAT(r.name ORDER BY r.name SEPARATOR ", ") AS role_names
              FROM memberships m
              JOIN companies c ON c.id = m.company_id
+             LEFT JOIN user_roles ur ON ur.user_id = m.user_id AND ur.company_id = m.company_id
+             LEFT JOIN roles r ON r.id = ur.role_id
              WHERE m.user_id = ? AND m.company_id = ? AND m.status = ?
+             GROUP BY m.company_id, m.status, c.name, c.slug
              LIMIT 1',
         );
         $statement->execute([$userId, $companyId, 'active']);
@@ -91,15 +104,26 @@ final class Companies
     public function members(int $companyId): array
     {
         $statement = $this->db->prepare(
-            'SELECT u.id, u.name, u.email, m.role, m.status, m.created_at
+            'SELECT u.id, u.first_name, u.last_name, u.email, m.status, m.created_at,
+                    GROUP_CONCAT(r.name ORDER BY r.name SEPARATOR ", ") AS role_names
              FROM memberships m
              JOIN users u ON u.id = m.user_id
+             LEFT JOIN user_roles ur ON ur.user_id = m.user_id AND ur.company_id = m.company_id
+             LEFT JOIN roles r ON r.id = ur.role_id
              WHERE m.company_id = ?
+             GROUP BY u.id, u.first_name, u.last_name, u.email, m.status, m.created_at
              ORDER BY m.created_at',
         );
         $statement->execute([$companyId]);
 
         return $statement->fetchAll();
+    }
+
+    public function removeMembership(int $companyId, int $userId): void
+    {
+        $this->db
+            ->prepare('DELETE FROM memberships WHERE company_id = ? AND user_id = ?')
+            ->execute([$companyId, $userId]);
     }
 
     /** @return array<string,mixed>|null */

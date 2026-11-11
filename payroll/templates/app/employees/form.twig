@@ -1,0 +1,153 @@
+{% extends 'layout.twig' %}
+
+{% set editing = employee is not null %}
+
+{% block title %}{{ editing ? 'Edit employee' : 'Add employee' }} — {{ app_name }}{% endblock %}
+
+{% block body %}
+  <section class="page-head">
+    <span class="kicker">Employees</span>
+    <h1>{{ editing ? employee.first_name ~ ' ' ~ employee.last_name : 'Add an employee' }}</h1>
+    <p class="muted">
+      {% if editing %}
+        Employee number {{ employee.employee_no }}
+      {% else %}
+        A number is generated if you leave it blank.
+      {% endif %}
+    </p>
+  </section>
+
+  {% if error %}<div class="alert">{{ error }}</div>{% endif %}
+
+  <form class="panel" method="post" action="{{ editing ? '/app/employees/' ~ employee.id : '/app/employees' }}">
+    <input type="hidden" name="_token" value="{{ csrf_token() }}">
+
+    <fieldset class="form-section">
+      <legend>Person</legend>
+      <div class="form-grid">
+        <label class="field">
+          <span>Employee number</span>
+          <input type="text" name="employee_no" maxlength="30" value="{{ values.employee_no ?? employee.employee_no ?? '' }}" placeholder="EMP-0001">
+        </label>
+        <label class="field">
+          <span>First name</span>
+          <input type="text" name="first_name" maxlength="80" required value="{{ values.first_name ?? employee.first_name ?? '' }}">
+        </label>
+        <label class="field">
+          <span>Middle name</span>
+          <input type="text" name="middle_name" maxlength="80" value="{{ values.middle_name ?? employee.middle_name ?? '' }}">
+        </label>
+        <label class="field">
+          <span>Last name</span>
+          <input type="text" name="last_name" maxlength="80" required value="{{ values.last_name ?? employee.last_name ?? '' }}">
+        </label>
+        <label class="field">
+          <span>Email</span>
+          <input type="email" name="email" maxlength="190" value="{{ values.email ?? employee.email ?? '' }}">
+        </label>
+        <label class="field">
+          <span>Phone</span>
+          <input type="text" name="phone" maxlength="40" value="{{ values.phone ?? employee.phone ?? '' }}" placeholder="0712 345 678">
+        </label>
+      </div>
+    </fieldset>
+
+    <fieldset class="form-section">
+      <legend>Employment</legend>
+      <div class="form-grid">
+        <label class="field">
+          <span>Job title</span>
+          <input type="text" name="job_title" maxlength="80" value="{{ values.job_title ?? employee.job_title ?? '' }}">
+        </label>
+        <label class="field">
+          <span>Department</span>
+          <select name="department_id">
+            <option value="0">No department</option>
+            {% for department in departments %}
+              {% set selected = values.department_id ?? employee.department_id ?? 0 %}
+              <option value="{{ department.id }}"{% if selected == department.id %} selected{% endif %}>{{ department.name }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label class="field">
+          <span>Employment type</span>
+          {% set currentType = values.employment_type ?? employee.employment_type ?? 'permanent' %}
+          <select name="employment_type">
+            {% for key, label in types %}
+              <option value="{{ key }}"{% if currentType == key %} selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label class="field">
+          <span>Start date</span>
+          <input type="date" name="start_date" required value="{{ values.start_date ?? employee.start_date ?? '' }}">
+        </label>
+        <label class="field">
+          <span>Exit date</span>
+          <input type="date" name="exit_date" value="{{ values.exit_date ?? employee.exit_date ?? '' }}">
+          <small class="hint">Leave blank while the person is still employed.</small>
+        </label>
+      </div>
+    </fieldset>
+
+    <fieldset class="form-section">
+      <legend>Statutory numbers</legend>
+      <div class="form-grid">
+        <label class="field">
+          <span>National ID</span>
+          <input type="text" name="national_id" maxlength="30" value="{{ values.national_id ?? employee.national_id ?? '' }}">
+        </label>
+        <label class="field">
+          <span>KRA PIN</span>
+          <input type="text" name="kra_pin" maxlength="20" value="{{ values.kra_pin ?? employee.kra_pin ?? '' }}" placeholder="A012345678Z">
+        </label>
+        <label class="field">
+          <span>NSSF number</span>
+          <input type="text" name="nssf_number" maxlength="30" value="{{ values.nssf_number ?? employee.nssf_number ?? '' }}">
+        </label>
+        <label class="field">
+          <span>SHIF number</span>
+          <input type="text" name="shif_number" maxlength="30" value="{{ values.shif_number ?? employee.shif_number ?? '' }}">
+        </label>
+      </div>
+    </fieldset>
+
+    {% if can_salary %}
+      <fieldset class="form-section">
+        <legend>Pay</legend>
+        <div class="form-grid">
+          <label class="field">
+            <span>Monthly salary (KES)</span>
+            <input type="text" name="monthly_salary" inputmode="decimal" value="{{ values.monthly_salary ?? salary_display }}" placeholder="45000.00">
+            <small class="hint">Gross monthly pay before statutory deductions.</small>
+          </label>
+        </div>
+      </fieldset>
+    {% endif %}
+
+    {% if can_bank %}
+      <fieldset class="form-section">
+        <legend>Bank</legend>
+        <div class="form-grid">
+          <label class="field">
+            <span>Bank name</span>
+            <input type="text" name="bank_name" maxlength="80" value="{{ values.bank_name ?? employee.bank_name ?? '' }}">
+          </label>
+          <label class="field">
+            <span>Branch</span>
+            <input type="text" name="bank_branch" maxlength="80" value="{{ values.bank_branch ?? employee.bank_branch ?? '' }}">
+          </label>
+          <label class="field">
+            <span>Account number</span>
+            <input type="text" name="bank_account" maxlength="40" value="{{ values.bank_account ?? employee.bank_account ?? '' }}">
+          </label>
+        </div>
+      </fieldset>
+    {% endif %}
+
+    <div class="row-actions">
+      <button class="btn-primary" type="submit">{{ editing ? 'Save changes' : 'Add employee' }}</button>
+      <a class="btn-ghost" href="{{ editing ? '/app/employees/' ~ employee.id : '/app/employees' }}">Cancel</a>
+    </div>
+  </form>
+{% endblock %}

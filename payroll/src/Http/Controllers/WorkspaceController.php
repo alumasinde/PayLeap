@@ -22,17 +22,17 @@ final class WorkspaceController
         $company = $this->app->requireCompany();
 
         echo $this->app->render('app/home.twig', [
-            'members' => $this->app->companies->members((int) $company['company_id']),
-            'role_label' => $this->app->roleLabel((string) $company['role']),
+            'members' => $this->app->companyRepository->members((int) $company['company_id']),
+            'role_label' => $this->app->roleLabel(),
         ]);
     }
 
     public function me(): void
     {
-        $company = $this->app->requireCompany();
+        $this->app->requireCompany();
 
         echo $this->app->render('me/home.twig', [
-            'role_label' => $this->app->roleLabel((string) $company['role']),
+            'role_label' => $this->app->roleLabel(),
         ]);
     }
 
@@ -41,7 +41,7 @@ final class WorkspaceController
         $user = $this->app->requireUser();
         $companyId = $this->app->company === null ? null : (int) $this->app->company['company_id'];
 
-        $this->app->audit->record(
+        $this->app->auditLogger->record(
             $companyId,
             (int) $user['id'],
             'auth.signed_out_everywhere',
@@ -49,7 +49,7 @@ final class WorkspaceController
             (string) $user['id'],
         );
 
-        $this->app->auth->logoutEverywhere((int) $user['id']);
+        $this->app->authentication->logoutEverywhere((int) $user['id']);
 
         $this->app->redirect('/login?signed_out=everywhere');
     }
@@ -58,17 +58,17 @@ final class WorkspaceController
     {
         $user = $this->app->requireUser();
         $companyId = (int) $this->app->request->input('company_id', 0);
-        $membership = $this->app->companies->membership((int) $user['id'], $companyId);
+        $membership = $this->app->companyRepository->membership((int) $user['id'], $companyId);
 
         if ($membership === null) {
             $this->app->abort(404, 'Company not found.');
         }
 
         $this->app->session->regenerate();
-        $this->app->companies->select($companyId);
+        $this->app->companyRepository->select($companyId);
         $this->app->csrf->rotate();
 
-        $this->app->audit->record($companyId, (int) $user['id'], 'company.switched', 'company', (string) $companyId);
+        $this->app->auditLogger->record($companyId, (int) $user['id'], 'company.switched', 'company', (string) $companyId);
 
         $this->app->redirect('/app');
     }

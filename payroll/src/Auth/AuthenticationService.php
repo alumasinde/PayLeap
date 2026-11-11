@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Mshahara\Payroll\Auth;
 
-use Mshahara\Payroll\Support\Csrf;
-use Mshahara\Payroll\Support\Session;
+use Mshahara\Payroll\Support\CsrfGuard;
+use Mshahara\Payroll\Support\SessionManager;
 use PDO;
 
 /**
@@ -17,7 +17,7 @@ use PDO;
  *   request, so revoking access does not depend on the client cooperating.
  * - Idle and absolute timeouts are enforced server-side.
  */
-final class Auth
+final class AuthenticationService
 {
     private static ?string $dummyHash = null;
 
@@ -25,8 +25,8 @@ final class Auth
     public function __construct(
         private readonly PDO $db,
         private readonly array $config,
-        private readonly Session $session,
-        private readonly Csrf $csrf,
+        private readonly SessionManager $session,
+        private readonly CsrfGuard $csrf,
     ) {
     }
 
@@ -42,7 +42,7 @@ final class Auth
             return null;
         }
 
-        if (!Passwords::verify($password, $user['password_hash'])) {
+        if (!PasswordHasher::verify($password, $user['password_hash'])) {
             return null;
         }
 
@@ -50,10 +50,10 @@ final class Auth
             return null;
         }
 
-        if (Passwords::needsRehash($user['password_hash'])) {
+        if (PasswordHasher::needsRehash($user['password_hash'])) {
             $this->db
                 ->prepare('UPDATE users SET password_hash = ? WHERE id = ?')
-                ->execute([Passwords::hash($password), $user['id']]);
+                ->execute([PasswordHasher::hash($password), $user['id']]);
         }
 
         return $user;
@@ -119,6 +119,12 @@ final class Auth
         $this->session->destroy();
     }
 
+    /** Keep this device valid after a password change bumped the epoch. */
+    public function refreshEpoch(int $epoch): void
+    {
+        $this->session->put('epoch', $epoch);
+    }
+
     public function logoutEverywhere(int $userId): void
     {
         $this->db
@@ -143,7 +149,7 @@ final class Auth
 
     private function wasteTime(string $password): void
     {
-        self::$dummyHash ??= password_hash('not-a-real-password', Passwords::algo());
+        self::$dummyHash ??= password_hash('not-a-real-password', PasswordHasher::algo());
         password_verify($password, self::$dummyHash);
     }
 }

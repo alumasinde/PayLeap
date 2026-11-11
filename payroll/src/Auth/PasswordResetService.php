@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Mshahara\Payroll\Auth;
 
-use Mshahara\Payroll\Support\Audit;
+use Mshahara\Payroll\Support\AuditLogger;
 use Mshahara\Payroll\Support\Mailer;
 use Mshahara\Payroll\Support\Token;
 use PDO;
@@ -14,12 +14,12 @@ use PDO;
  * and completing a reset increments the user's session epoch so every other
  * session (and every other outstanding reset link) dies with it.
  */
-final class Resets
+final class PasswordResetService
 {
     public function __construct(
         private readonly PDO $db,
         private readonly Mailer $mailer,
-        private readonly Audit $audit,
+        private readonly AuditLogger $auditLogger,
         private readonly string $baseUrl,
     ) {
     }
@@ -27,7 +27,7 @@ final class Resets
     /** Returns the token for local development and tests; null for unknown emails. */
     public function request(string $email, ?string $ip = null): ?string
     {
-        $statement = $this->db->prepare("SELECT id, name, email FROM users WHERE email = ? AND status <> 'suspended' LIMIT 1");
+        $statement = $this->db->prepare("SELECT id, email FROM users WHERE email = ? AND status <> 'suspended' LIMIT 1");
         $statement->execute([strtolower(trim($email))]);
         $user = $statement->fetch();
 
@@ -55,7 +55,7 @@ final class Resets
             . "If you did not ask for this, ignore the email. Nothing has changed.\n",
         );
 
-        $this->audit->record(null, (int) $user['id'], 'password.reset.requested', 'user', (string) $user['id']);
+        $this->auditLogger->record(null, (int) $user['id'], 'password.reset.requested', 'user', (string) $user['id']);
 
         return $token;
     }
@@ -64,7 +64,7 @@ final class Resets
     public function find(string $token): ?array
     {
         $statement = $this->db->prepare(
-            'SELECT r.*, u.name, u.email
+            'SELECT r.*, u.email
              FROM password_resets r
              JOIN users u ON u.id = r.user_id
              WHERE r.token_hash = ? AND r.used_at IS NULL AND r.expires_at > UTC_TIMESTAMP()
@@ -89,7 +89,7 @@ final class Resets
                            SET password_hash = ?, session_epoch = session_epoch + 1, status = ?,
                                email_verified_at = COALESCE(email_verified_at, UTC_TIMESTAMP())
                            WHERE id = ?')
-                ->execute([Passwords::hash($password), 'active', $userId]);
+                ->execute([PasswordHasher::hash($password), 'active', $userId]);
 
             $this->db
                 ->prepare('UPDATE password_resets SET used_at = UTC_TIMESTAMP() WHERE user_id = ? AND used_at IS NULL')
@@ -101,7 +101,7 @@ final class Resets
             throw $error;
         }
 
-        $this->audit->record(null, $userId, 'password.reset.completed', 'user', (string) $userId);
+        $this->auditLogger->record(null, $userId, 'password.reset.completed', 'user', (string) $userId);
 
         return $userId;
     }

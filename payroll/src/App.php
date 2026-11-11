@@ -4,27 +4,33 @@ declare(strict_types=1);
 
 namespace Mshahara\Payroll;
 
-use Mshahara\Payroll\Auth\Auth;
-use Mshahara\Payroll\Auth\Invitations;
-use Mshahara\Payroll\Auth\Resets;
-use Mshahara\Payroll\Authz\Gate;
-use Mshahara\Payroll\Companies\Companies;
+use Mshahara\Payroll\Auth\AuthenticationService;
+use Mshahara\Payroll\Auth\InvitationService;
+use Mshahara\Payroll\Auth\PasswordResetService;
+use Mshahara\Payroll\Authz\PermissionGate;
+use Mshahara\Payroll\Authz\PermissionRepository;
+use Mshahara\Payroll\Authz\RoleRepository;
+use Mshahara\Payroll\Authz\RoleService;
+use Mshahara\Payroll\Companies\CompanyRepository;
+use Mshahara\Payroll\Companies\CompanyService;
+use Mshahara\Payroll\Companies\MembershipService;
+use Mshahara\Payroll\Foundation\Bootstrap;
 use Mshahara\Payroll\Http\Request;
 use Mshahara\Payroll\Http\Router;
-use Mshahara\Payroll\Support\Audit;
-use Mshahara\Payroll\Support\Csrf;
-use Mshahara\Payroll\Support\Db;
-use Mshahara\Payroll\Support\Env;
-use Mshahara\Payroll\Support\FileMailer;
-use Mshahara\Payroll\Support\Flash;
+use Mshahara\Payroll\Modules\Employees\EmployeeModule;
+use Mshahara\Payroll\Modules\ModuleRepository;
+use Mshahara\Payroll\Modules\Payroll\PayrollModule;
+use Mshahara\Payroll\Users\AccountService;
+use Mshahara\Payroll\Users\UserRepository;
+use Mshahara\Payroll\Support\AuditLogger;
+use Mshahara\Payroll\Support\CsrfGuard;
+use Mshahara\Payroll\Support\FlashBag;
 use Mshahara\Payroll\Support\HttpException;
 use Mshahara\Payroll\Support\Mailer;
 use Mshahara\Payroll\Support\RateLimiter;
-use Mshahara\Payroll\Support\Session;
+use Mshahara\Payroll\Support\SessionManager;
 use PDO;
 use Twig\Environment;
-use Twig\Loader\FilesystemLoader;
-use Twig\TwigFunction;
 
 final class App
 {
@@ -33,17 +39,27 @@ final class App
     public PDO $db;
     public Environment $twig;
     public Router $router;
-    public Auth $auth;
-    public Invitations $invitations;
-    public Resets $resets;
-    public Gate $gate;
-    public Companies $companies;
-    public Audit $audit;
+    public AuthenticationService $authentication;
+    public InvitationService $invitationService;
+    public PasswordResetService $passwordResetService;
+    public PermissionGate $permissionGate;
+    public CompanyRepository $companyRepository;
+    public CompanyService $companyService;
+    public MembershipService $membershipService;
+    public RoleRepository $roleRepository;
+    public RoleService $roleService;
+    public PermissionRepository $permissionRepository;
+    public UserRepository $userRepository;
+    public AccountService $accountService;
+    public ModuleRepository $moduleRepository;
+    public EmployeeModule $employees;
+    public PayrollModule $payroll;
+    public AuditLogger $auditLogger;
     public RateLimiter $limiter;
     public Mailer $mailer;
-    public Session $session;
-    public Csrf $csrf;
-    public Flash $flash;
+    public SessionManager $session;
+    public CsrfGuard $csrf;
+    public FlashBag $flash;
     public Request $request;
     public string $root;
 
@@ -61,42 +77,7 @@ final class App
 
     public static function boot(string $root, ?Request $request = null): self
     {
-        Env::load($root . '/.env');
-
-        $config = require $root . '/config/app.php';
-        $config['mail']['path'] = $root . '/storage/mail';
-
-        $app = new self();
-        $app->root = $root;
-        $app->config = $config;
-        $app->request = $request ?? Request::capture();
-
-        $app->db = Db::connect($config['db']);
-        $app->session = Session::start($config['session'], $app->request->isSecure(), $app->db);
-        $app->csrf = new Csrf($app->session);
-        $app->flash = new Flash($app->session);
-        $app->audit = new Audit($app->db, $app->request);
-        $app->limiter = new RateLimiter($app->db);
-        $app->mailer = new FileMailer($config['mail']['path'], (string) $config['mail']['from']);
-        $app->auth = new Auth($app->db, $config, $app->session, $app->csrf);
-        $app->companies = new Companies($app->db, $app->session);
-        $app->gate = new Gate(require $root . '/config/permissions.php');
-        $app->invitations = new Invitations($app->db, $app->mailer, $app->audit, (string) $config['url']);
-        $app->resets = new Resets($app->db, $app->mailer, $app->audit, (string) $config['url']);
-        $app->router = new Router();
-        $app->modules = require $root . '/config/modules.php';
-
-        $loader = new FilesystemLoader($root . '/templates');
-        $twig = new Environment($loader, [
-            'cache' => false,
-            'autoescape' => 'html',
-            'strict_variables' => false,
-        ]);
-        $twig->addFunction(new TwigFunction('csrf_token', static fn (): string => $app->csrf->token()));
-        $twig->addFunction(new TwigFunction('can', static fn (string $permission): bool => $app->can($permission)));
-        $app->twig = $twig;
-
-        return $app;
+        return Bootstrap::create($root, $request);
     }
 
     /** @param class-string $class */
@@ -119,7 +100,7 @@ final class App
 
     public function resolveContext(): void
     {
-        $this->user = $this->auth->user() ?? [];
+        $this->user = $this->authentication->user() ?? [];
 
         if ($this->user === []) {
             $this->memberships = [];
@@ -128,8 +109,8 @@ final class App
             return;
         }
 
-        $this->memberships = $this->companies->membershipsFor((int) $this->user['id']);
-        $this->company = $this->companies->active((int) $this->user['id'], $this->memberships);
+        $this->memberships = $this->companyRepository->membershipsFor((int) $this->user['id']);
+        $this->company = $this->companyRepository->active((int) $this->user['id'], $this->memberships);
     }
 
     /** @return array<string,mixed> */
@@ -156,7 +137,11 @@ final class App
 
     public function can(string $permission): bool
     {
-        return $this->gate->allows($this->company['role'] ?? null, $permission);
+        if ($this->user === [] || $this->company === null) {
+            return false;
+        }
+
+        return $this->permissionGate->allows((int) $this->user['id'], (int) $this->company['company_id'], $permission);
     }
 
     public function requirePermission(string $permission): void
@@ -168,9 +153,11 @@ final class App
         }
     }
 
-    public function roleLabel(string $role): string
+    public function roleLabel(): string
     {
-        return $this->gate->label($role);
+        $names = $this->company['role_names'] ?? '';
+
+        return is_string($names) && $names !== '' ? $names : 'No role';
     }
 
     /** @param array<string,mixed> $data */

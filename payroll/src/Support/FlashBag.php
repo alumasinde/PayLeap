@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Mshahara\Payroll\Support;
 
-final class Flash
+final class FlashBag
 {
-    public function __construct(private readonly Session $session)
+    public function __construct(private readonly SessionManager $session)
     {
     }
 

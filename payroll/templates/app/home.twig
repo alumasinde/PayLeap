@@ -28,9 +28,9 @@
         <tbody>
           {% for member in members %}
             <tr>
-              <td>{{ member.name }}</td>
+              <td>{{ member.first_name }} {{ member.last_name }}</td>
               <td class="muted">{{ member.email }}</td>
-              <td>{{ member.role|capitalize }}</td>
+              <td>{{ member.role_names }}</td>
             </tr>
           {% endfor %}
         </tbody>
@@ -48,6 +48,11 @@
           <p class="muted">{{ module.note }}</p>
           {% if can(module.permission) %}
             <span class="chip on">In your role</span>
+            {% if module.key == 'employees' %}
+              <a class="tile-link" href="/app/employees">Open register</a>
+            {% elseif module.key == 'payroll' %}
+              <a class="tile-link" href="/app/payroll">Open payroll</a>
+            {% endif %}
           {% else %}
             <span class="chip">Not in your role</span>
           {% endif %}
@@ -58,6 +63,6 @@
 
   <section class="panel">
     <h2>What this build is</h2>
-    <p class="muted">Identity, invitations, company access and audit. Employee records are the next module; nothing here pretends to run payroll yet.</p>
+    <p class="muted">Identity, invitations, company access, audit, the employee register and monthly payroll runs with two-person approval.</p>
   </section>
 {% endblock %}

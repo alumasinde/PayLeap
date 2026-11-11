@@ -3,7 +3,8 @@
 
 CREATE TABLE IF NOT EXISTS users (
   id                BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-  name              VARCHAR(120)    NOT NULL,
+  first_name        VARCHAR(80)     NOT NULL,
+  last_name         VARCHAR(80)     NOT NULL,
   email             VARCHAR(190)    NOT NULL,
   password_hash     VARCHAR(255)    NULL,
   email_verified_at DATETIME        NULL,

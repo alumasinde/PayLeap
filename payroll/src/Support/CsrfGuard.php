@@ -8,9 +8,9 @@ namespace Mshahara\Payroll\Support;
  * Session-bound CSRF token. Rotated on login, logout and privilege changes,
  * so a token harvested before authentication cannot be replayed after it.
  */
-final class Csrf
+final class CsrfGuard
 {
-    public function __construct(private readonly Session $session)
+    public function __construct(private readonly SessionManager $session)
     {
     }
 

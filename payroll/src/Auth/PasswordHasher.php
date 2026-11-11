@@ -8,7 +8,7 @@ namespace Mshahara\Payroll\Auth;
  * Password policy and hashing in one place.
  * Argon2id where PHP was built with it, bcrypt otherwise.
  */
-final class Passwords
+final class PasswordHasher
 {
     public const MIN_LENGTH = 10;
     private const MAX_LENGTH = 200;
