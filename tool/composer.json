@@ -10,7 +10,8 @@
   },
   "autoload": {
     "psr-4": {
-      "Mshahara\\": "src/"
+      "Mshahara\\": "src/",
+      "Mshahara\\Paye\\": "../engine/src/"
     }
   },
   "config": {

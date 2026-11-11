@@ -1,7 +1,11 @@
-# Mshahara Check — PHP
+# Mshahara Check — free tool
 
-Same calculator as the Next app, rebuilt as PHP 8.2 + htmx + Twig with the
-statutory rates stored in MySQL.
+Public calculator: gross → net, in Kenyan statutory order, with rates coming
+from MySQL. PHP 8.2, htmx (no page reloads), Twig views, `api/v1` for the future
+app.
+
+The tax arithmetic lives in `../engine` (`Mshahara\Paye\Calculator`), shared with
+the payroll product.
 
 ## Requirements
 
@@ -10,7 +14,7 @@ PHP 8.2+ with `pdo_mysql`, Composer, MySQL or MariaDB.
 ## Install
 
 ```bash
-cd php
+cd tool
 composer install
 ```
 
@@ -27,7 +31,8 @@ mysql -u root -p < migrations/001_init.sql
 ```
 
 Without a database the app still runs: rates come from `config/rates.php` and
-the page shows a demo-mode banner. Saved payslips need MySQL.
+the page shows a demo-mode banner. Saved payslips need MySQL. Turn the fallback
+off in production.
 
 Changing a rate means updating `rate_versions.payload` — no deploy:
 
@@ -36,6 +41,20 @@ UPDATE rate_versions
 SET payload = JSON_SET(payload, '$.nssf.upper_earnings_limit', 120000)
 WHERE id = 'ke-2026.02';
 ```
+
+### This checkout
+
+A MariaDB instance runs on `127.0.0.1:3307`, with its data in `tool/.mysql-data/`
+(ignored by git), root with no password, so `.env` points at it. Start it with:
+
+```bash
+"/c/Program Files/MariaDB 12.3/bin/mariadbd.exe" --no-defaults \
+  --datadir="C:/projects/paye/tool/.mysql-data" \
+  --port=3307 --bind-address=127.0.0.1
+```
+
+To use your own server, set `DB_PORT`, `DB_USERNAME` and `DB_PASSWORD` in
+`.env`, then run the migration against it.
 
 ## Run
 

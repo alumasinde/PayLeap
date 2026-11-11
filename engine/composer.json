@@ -1,0 +1,14 @@
+{
+  "name": "mshahara/paye",
+  "description": "Kenyan statutory payroll engine: PAYE bands, NSSF, SHIF, Housing Levy, reliefs, employer cost and reverse solving.",
+  "type": "library",
+  "license": "proprietary",
+  "require": {
+    "php": ">=8.2"
+  },
+  "autoload": {
+    "psr-4": {
+      "Mshahara\\Paye\\": "src/"
+    }
+  }
+}
