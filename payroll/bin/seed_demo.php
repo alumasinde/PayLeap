@@ -422,13 +422,13 @@ if ($rosterCount === 0) {
 /* Clock and meal devices -------------------------------------------------- */
 
 $demoDevices = [
-    ['Reception fingerprint', 'biometric', 'attendance', 'BIO-001', 'Main entrance'],
-    ['Gate face scanner', 'face', 'attendance', 'FACE-001', 'Staff gate'],
-    ['Canteen meal terminal', 'terminal', 'meal', 'MEAL-001', 'Canteen'],
+    ['Reception fingerprint', 'biometric', 'attendance', 'BIO-001', 'Main entrance', '192.168.1.21', 4370],
+    ['Gate face scanner', 'face', 'attendance', 'FACE-001', 'Staff gate', '192.168.1.22', 4370],
+    ['Canteen meal terminal', 'terminal', 'meal', 'MEAL-001', 'Canteen', '192.168.1.23', 8080],
 ];
 $devicesAdded = 0;
 
-foreach ($demoDevices as [$name, $kind, $purpose, $serial, $location]) {
+foreach ($demoDevices as [$name, $kind, $purpose, $serial, $location, $ip, $port]) {
     if ($app->attendance->devices->serialExists($companyId, $serial)) {
         continue;
     }
@@ -439,6 +439,8 @@ foreach ($demoDevices as [$name, $kind, $purpose, $serial, $location]) {
         'purpose' => $purpose,
         'serial' => $serial,
         'location' => $location,
+        'ip_address' => $ip,
+        'port' => $port,
         'active' => 1,
     ]);
     $devicesAdded++;

@@ -21,10 +21,10 @@ if (PHP_SAPI === 'cli-server') {
     }
 }
 
-header('X-Frame-Options: DENY');
+header('X-Frame-Options: SAMEORIGIN');
 header('X-Content-Type-Options: nosniff');
 header('Referrer-Policy: same-origin');
-header("Content-Security-Policy: default-src 'self'; img-src 'self' data:; style-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'self'");
+header("Content-Security-Policy: default-src 'self'; img-src 'self' data:; style-src 'self'; form-action 'self'; frame-src 'self'; frame-ancestors 'self'; base-uri 'self'");
 
 try {
     $app = App::boot($root, $request);

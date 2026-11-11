@@ -21,6 +21,7 @@ use Mshahara\Payroll\Modules\Employees\EmployeeModule;
 use Mshahara\Payroll\Modules\ModuleRepository;
 use Mshahara\Payroll\Modules\Attendance\AttendanceModule;
 use Mshahara\Payroll\Modules\Dashboard\DashboardRepository;
+use Mshahara\Payroll\Modules\Documents\DocumentModule;
 use Mshahara\Payroll\Modules\Leave\LeaveModule;
 use Mshahara\Payroll\Modules\Payroll\PayrollModule;
 use Mshahara\Payroll\Users\AccountService;
@@ -56,6 +57,7 @@ final class App
     public AccountService $accountService;
     public ModuleRepository $moduleRepository;
     public EmployeeModule $employees;
+    public DocumentModule $documents;
     public PayrollModule $payroll;
     public LeaveModule $leave;
     public AttendanceModule $attendance;

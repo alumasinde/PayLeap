@@ -6,9 +6,11 @@ namespace Mshahara\Payroll\Modules\Employees;
 
 use DateTimeImmutable;
 use Mshahara\Payroll\Support\AuditLogger;
+use Mshahara\Payroll\Support\FileStore;
 use Mshahara\Payroll\Support\HttpException;
 use Mshahara\Payroll\Support\Money;
 use PDO;
+use Throwable;
 
 /**
  * Employee records: validation, employee numbers, archiving and the audit
@@ -39,7 +41,8 @@ final class EmployeeService
 
     private const NULLABLE = [
         'employee_no', 'middle_name', 'gender', 'email', 'phone', 'national_id', 'address',
-        'marital_status', 'kra_pin', 'nssf_number', 'shif_number', 'bank_name', 'bank_branch',
+        'marital_status', 'nationality', 'cost_center', 'photo_path',
+        'kra_pin', 'nssf_number', 'shif_number', 'bank_name', 'bank_branch',
         'bank_account', 'job_title',
     ];
 
@@ -54,6 +57,9 @@ final class EmployeeService
         'national_id' => 30,
         'address' => 255,
         'marital_status' => 20,
+        'nationality' => 80,
+        'cost_center' => 80,
+        'photo_path' => 255,
         'kra_pin' => 20,
         'nssf_number' => 30,
         'shif_number' => 30,
@@ -63,11 +69,29 @@ final class EmployeeService
         'job_title' => 80,
     ];
 
+    private const PHOTO_MIMES = [
+        'image/jpeg' => 'jpg',
+        'image/png' => 'png',
+        'image/webp' => 'webp',
+    ];
+
+    private const PHOTO_MAX_BYTES = 2097152;
+
+    /** @var array<string,array{0:string,1:int}> contact input => [column, max length] */
+    private const NEXT_OF_KIN = [
+        'next_of_kin_name' => ['name', 120],
+        'next_of_kin_relationship' => ['relationship', 40],
+        'next_of_kin_phone' => ['phone', 40],
+        'next_of_kin_email' => ['email', 190],
+        'next_of_kin_address' => ['address', 255],
+    ];
+
     public function __construct(
         private readonly PDO $db,
         private readonly EmployeeRepository $employees,
         private readonly DepartmentRepository $departments,
         private readonly AuditLogger $auditLogger,
+        private readonly FileStore $files,
     ) {
     }
 
@@ -75,6 +99,11 @@ final class EmployeeService
     public function create(int $companyId, array $input, int $actorId): int
     {
         $data = $this->validate($companyId, $input, true);
+        $photo = $this->photoChange($input, null);
+
+        if ($photo['changed']) {
+            $data['photo_path'] = $photo['path'];
+        }
 
         $data['employee_no'] = $this->number($companyId, $this->string($data['employee_no'] ?? null));
 
@@ -87,7 +116,12 @@ final class EmployeeService
 
         $this->checkDates($data['start_date'], $data['exit_date'] ?? null);
 
-        $employeeId = $this->employees->create($companyId, $data);
+        try {
+            $employeeId = $this->employees->create($companyId, $data);
+        } catch (Throwable $error) {
+            $this->files->delete($photo['stored']);
+            throw $error;
+        }
 
         $this->auditLogger->record($companyId, $actorId, 'employee.created', 'employee', (string) $employeeId, [
             'employee_no' => $data['employee_no'],
@@ -107,6 +141,11 @@ final class EmployeeService
         }
 
         $data = $this->validate($companyId, $input, false, $employeeId);
+        $photo = $this->photoChange($input, $existing['photo_path'] ?? null);
+
+        if ($photo['changed']) {
+            $data['photo_path'] = $photo['path'];
+        }
 
         if ($data === []) {
             return;
@@ -122,7 +161,16 @@ final class EmployeeService
         $exitDate = array_key_exists('exit_date', $data) ? $data['exit_date'] : $existing['exit_date'];
         $this->checkDates($startDate, is_string($exitDate) ? $exitDate : null);
 
-        $this->employees->update($companyId, $employeeId, $data);
+        try {
+            $this->employees->update($companyId, $employeeId, $data);
+        } catch (Throwable $error) {
+            $this->files->delete($photo['stored']);
+            throw $error;
+        }
+
+        if ($photo['changed'] && $photo['old'] !== null) {
+            $this->files->delete($photo['old']);
+        }
 
         $this->auditLogger->record($companyId, $actorId, 'employee.updated', 'employee', (string) $employeeId, [
             'fields' => array_keys($data),
@@ -179,9 +227,77 @@ final class EmployeeService
         ]);
     }
 
-    public function addDepartment(int $companyId, string $name, int $actorId): int
+    /** @param array<string,mixed> $input */
+    public function addEducation(int $companyId, int $employeeId, array $input, int $actorId): int
     {
-        $name = trim($name);
+        if ($this->employees->find($companyId, $employeeId) === null) {
+            throw new HttpException(404, 'That employee does not exist.');
+        }
+
+        $institution = is_scalar($input['institution'] ?? null) ? trim((string) $input['institution']) : '';
+
+        if ($institution === '' || mb_strlen($institution) > 150) {
+            throw new HttpException(422, 'Give the institution a name of 1 to 150 characters.');
+        }
+
+        $data = ['institution' => $institution];
+
+        foreach ([
+            'qualification' => 120,
+            'field_of_study' => 120,
+            'level' => 40,
+            'grade' => 40,
+        ] as $field => $max) {
+            $value = is_scalar($input[$field] ?? null) ? trim((string) $input[$field]) : '';
+
+            if (mb_strlen($value) > $max) {
+                throw new HttpException(422, $this->label($field) . ' is too long.');
+            }
+
+            $data[$field] = $value === '' ? null : $value;
+        }
+
+        foreach (['start_date' => 'Start date', 'end_date' => 'End date'] as $field => $label) {
+            $value = is_scalar($input[$field] ?? null) ? trim((string) $input[$field]) : '';
+            $data[$field] = $value === '' ? null : $this->date($value, $label);
+        }
+
+        if ($data['start_date'] !== null && $data['end_date'] !== null && $data['end_date'] < $data['start_date']) {
+            throw new HttpException(422, 'The end date cannot be before the start date.');
+        }
+
+        $educationId = $this->employees->addEducation($companyId, $employeeId, $data);
+
+        $this->auditLogger->record(
+            $companyId,
+            $actorId,
+            'employee.education.added',
+            'employee',
+            (string) $employeeId,
+            ['institution' => $institution],
+        );
+
+        return $educationId;
+    }
+
+    public function removeEducation(int $companyId, int $employeeId, int $educationId, int $actorId): void
+    {
+        if (!$this->employees->deleteEducation($companyId, $employeeId, $educationId)) {
+            throw new HttpException(404, 'That education record does not exist.');
+        }
+
+        $this->auditLogger->record(
+            $companyId,
+            $actorId,
+            'employee.education.removed',
+            'employee',
+            (string) $employeeId,
+            ['education_id' => $educationId],
+        );
+    }
+
+    public function addDepartment(int $companyId, string $name, int $actorId): int
+    {        $name = trim($name);
 
         if ($name === '' || mb_strlen($name) > 80) {
             throw new HttpException(422, 'Give the department a name of 1 to 80 characters.');
@@ -347,6 +463,53 @@ final class EmployeeService
             $data['marital_status'] = $status === '' ? null : $status;
         }
 
+        $contactTouched = false;
+        $contact = [];
+
+        foreach (self::NEXT_OF_KIN as $inputKey => [$column, $max]) {
+            if (!array_key_exists($inputKey, $input)) {
+                continue;
+            }
+
+            $contactTouched = true;
+            $value = is_scalar($input[$inputKey]) ? trim((string) $input[$inputKey]) : '';
+
+            if (mb_strlen($value) > $max) {
+                throw new HttpException(422, $this->label($column) . ' is too long.');
+            }
+
+            $contact[$column] = $value === '' ? null : $value;
+        }
+
+        if ($contactTouched) {
+            $existingContact = $employeeId === null ? null : $this->employees->nextOfKin($companyId, $employeeId);
+
+            foreach (self::NEXT_OF_KIN as [$column]) {
+                if (!array_key_exists($column, $contact)) {
+                    $contact[$column] = $existingContact[$column] ?? null;
+                }
+            }
+
+            if (($contact['email'] ?? null) !== null) {
+                $contact['email'] = strtolower((string) $contact['email']);
+
+                if (filter_var($contact['email'], FILTER_VALIDATE_EMAIL) === false) {
+                    throw new HttpException(422, 'Enter a valid emergency contact email.');
+                }
+            }
+
+            $hasAny = array_filter(
+                $contact,
+                static fn (mixed $value): bool => $value !== null && $value !== '',
+            ) !== [];
+
+            if ($hasAny && (string) ($contact['name'] ?? '') === '') {
+                throw new HttpException(422, 'Give the emergency contact a name.');
+            }
+
+            $data['next_of_kin'] = $contact;
+        }
+
         if (array_key_exists('dob', $input)) {
             $raw = trim((string) $input['dob']);
 
@@ -397,6 +560,27 @@ final class EmployeeService
         }
 
         return $data;
+    }
+
+    /**
+     * @param array<string,mixed> $input
+     * @return array{changed:bool,path:?string,old:?string,stored:?string}
+     */
+    private function photoChange(array $input, ?string $current): array
+    {
+        $file = $input['photo_file'] ?? null;
+
+        if (is_array($file) && (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
+            $stored = $this->files->store($file, 'employees', self::PHOTO_MIMES, self::PHOTO_MAX_BYTES);
+
+            return ['changed' => true, 'path' => $stored['path'], 'old' => $current, 'stored' => $stored['path']];
+        }
+
+        if (!empty($input['remove_photo']) && $current !== null) {
+            return ['changed' => true, 'path' => null, 'old' => $current, 'stored' => null];
+        }
+
+        return ['changed' => false, 'path' => $current, 'old' => null, 'stored' => null];
     }
 
     private function number(int $companyId, string $requested): string

@@ -79,11 +79,42 @@ final class EmployeeController
             'types' => EmployeeService::TYPES,
             'genders' => EmployeeService::GENDERS,
             'marital_statuses' => EmployeeService::MARITAL_STATUSES,
+            'next_of_kin' => $this->app->employees->register->nextOfKin((int) $company['company_id'], (int) $employee['id']),
+            'dependants' => $this->app->employees->register->dependants((int) $company['company_id'], (int) $employee['id']),
+            'education' => $this->app->employees->register->education((int) $company['company_id'], (int) $employee['id']),
+            'reports' => $this->app->employees->register->directReports((int) $company['company_id'], (int) $employee['id']),
+            'documents' => $this->app->documents->repository->forEmployee((int) $company['company_id'], (int) $employee['id']),
             'service_years' => $this->serviceYears($employee),
             'can_edit' => $this->app->can('employees.edit'),
             'can_salary' => $this->app->can('employees.salary.view'),
             'can_bank' => $this->app->can('employees.bank.view'),
         ]);
+    }
+
+    public function photo(array $params): void
+    {
+        $company = $this->app->requireCompany();
+        $this->app->requirePermission('employees.view');
+
+        $employee = $this->employee($company, (int) ($params['id'] ?? 0));
+        $path = $this->app->employees->files->absolute($employee['photo_path'] ?? null);
+
+        if ($path === null) {
+            $this->app->abort(404, 'That employee has no photo.');
+        }
+
+        $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+        $mime = match ($extension) {
+            'png' => 'image/png',
+            'webp' => 'image/webp',
+            default => 'image/jpeg',
+        };
+
+        header('Content-Type: ' . $mime);
+        header('Content-Length: ' . (string) filesize($path));
+        header('Cache-Control: private, max-age=300');
+        readfile($path);
+        exit;
     }
 
     public function create(): void
@@ -204,6 +235,52 @@ final class EmployeeController
         $this->app->redirect('/app/employees/' . $employeeId);
     }
 
+    public function addEducation(array $params): void
+    {
+        $company = $this->app->requireCompany();
+        $this->app->requirePermission('employees.edit');
+
+        $employee = $this->employee($company, (int) ($params['id'] ?? 0));
+
+        try {
+            $this->app->employees->service->addEducation(
+                (int) $company['company_id'],
+                (int) $employee['id'],
+                $this->app->request->all(),
+                (int) $this->app->user['id'],
+            );
+        } catch (HttpException $error) {
+            $this->app->flash->add('error', $error->getMessage());
+            $this->app->redirect('/app/employees/' . $employee['id']);
+        }
+
+        $this->app->flash->add('success', 'Education added.');
+        $this->app->redirect('/app/employees/' . $employee['id']);
+    }
+
+    public function removeEducation(array $params): void
+    {
+        $company = $this->app->requireCompany();
+        $this->app->requirePermission('employees.edit');
+
+        $employee = $this->employee($company, (int) ($params['id'] ?? 0));
+
+        try {
+            $this->app->employees->service->removeEducation(
+                (int) $company['company_id'],
+                (int) $employee['id'],
+                (int) ($params['educationId'] ?? 0),
+                (int) $this->app->user['id'],
+            );
+        } catch (HttpException $error) {
+            $this->app->flash->add('error', $error->getMessage());
+            $this->app->redirect('/app/employees/' . $employee['id']);
+        }
+
+        $this->app->flash->add('success', 'Education removed.');
+        $this->app->redirect('/app/employees/' . $employee['id']);
+    }
+
     /** @param array<string,mixed> $company */
     private function employee(array $company, int $employeeId): array
     {
@@ -246,16 +323,28 @@ final class EmployeeController
 
         $fields = [
             'employee_no', 'first_name', 'middle_name', 'last_name', 'dob', 'gender',
-            'email', 'phone', 'address', 'marital_status',
+            'email', 'phone', 'address', 'marital_status', 'nationality', 'cost_center',
             'national_id', 'kra_pin', 'nssf_number', 'shif_number',
             'department_id', 'manager_id', 'user_id', 'job_title', 'employment_type',
             'start_date', 'exit_date',
+            'next_of_kin_name', 'next_of_kin_relationship', 'next_of_kin_phone',
+            'next_of_kin_email', 'next_of_kin_address',
         ];
 
         foreach ($fields as $field) {
             if ($request->has($field)) {
                 $input[$field] = $request->string($field);
             }
+        }
+
+        if ($request->has('remove_photo')) {
+            $input['remove_photo'] = $request->string('remove_photo');
+        }
+
+        $photo = $request->file('photo');
+
+        if ($photo !== null) {
+            $input['photo_file'] = $photo;
         }
 
         if ($this->app->can('employees.salary.view') && $request->has('monthly_salary')) {
@@ -283,6 +372,9 @@ final class EmployeeController
             'employee' => $employee,
             'values' => $values,
             'error' => $error,
+            'next_of_kin' => $employee === null
+                ? null
+                : $this->app->employees->register->nextOfKin((int) $company['company_id'], (int) $employee['id']),
             'departments' => $this->app->employees->departments->all((int) $company['company_id']),
             'managers' => $this->app->employees->register->activeForSelect(
                 (int) $company['company_id'],

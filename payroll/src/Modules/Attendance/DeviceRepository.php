@@ -77,8 +77,8 @@ final class DeviceRepository
         $this->db
             ->prepare(
                 'INSERT INTO attendance_devices
-                    (company_id, name, kind, purpose, serial, location, active)
-                 VALUES (?, ?, ?, ?, ?, ?, ?)',
+                    (company_id, name, kind, purpose, serial, location, ip_address, port, active)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
             )
             ->execute([
                 $companyId,
@@ -87,6 +87,8 @@ final class DeviceRepository
                 $data['purpose'],
                 $data['serial'],
                 $data['location'],
+                $data['ip_address'] ?? null,
+                $data['port'] ?? null,
                 $data['active'],
             ]);
 
@@ -99,7 +101,8 @@ final class DeviceRepository
         $this->db
             ->prepare(
                 'UPDATE attendance_devices
-                 SET name = ?, kind = ?, purpose = ?, serial = ?, location = ?, active = ?
+                 SET name = ?, kind = ?, purpose = ?, serial = ?, location = ?,
+                     ip_address = ?, port = ?, active = ?
                  WHERE id = ? AND company_id = ?',
             )
             ->execute([
@@ -108,6 +111,8 @@ final class DeviceRepository
                 $data['purpose'],
                 $data['serial'],
                 $data['location'],
+                $data['ip_address'] ?? null,
+                $data['port'] ?? null,
                 $data['active'],
                 $deviceId,
                 $companyId,

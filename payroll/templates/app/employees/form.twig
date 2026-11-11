@@ -19,7 +19,7 @@
 
   {% if error %}<div class="alert">{{ error }}</div>{% endif %}
 
-  <form class="panel" method="post" action="{{ editing ? '/app/employees/' ~ employee.id : '/app/employees' }}">
+  <form class="panel" method="post" enctype="multipart/form-data" action="{{ editing ? '/app/employees/' ~ employee.id : '/app/employees' }}">
     <input type="hidden" name="_token" value="{{ csrf_token() }}">
 
     <fieldset class="form-section">
@@ -77,6 +77,50 @@
         <label class="field">
           <span>Address</span>
           <input type="text" name="address" maxlength="255" value="{{ values.address ?? employee.address ?? '' }}">
+        </label>
+        <label class="field">
+          <span>Nationality</span>
+          <input type="text" name="nationality" maxlength="80" value="{{ values.nationality ?? employee.nationality ?? '' }}" placeholder="Kenyan">
+        </label>
+        <label class="field">
+          <span>Cost center</span>
+          <input type="text" name="cost_center" maxlength="80" value="{{ values.cost_center ?? employee.cost_center ?? '' }}" placeholder="Front office">
+        </label>
+        <label class="field field-wide">
+          <span>Photo</span>
+          <input type="file" name="photo" accept="image/jpeg,image/png,image/webp">
+          <small class="hint">JPG, PNG or WebP up to 2 MB. Shown on the profile.</small>
+        </label>
+        {% if editing and employee.photo_path %}
+          <label class="field field-wide">
+            <span><input type="checkbox" name="remove_photo" value="1"> Remove the current photo</span>
+          </label>
+        {% endif %}
+      </div>
+    </fieldset>
+
+    <fieldset class="form-section">
+      <legend>Emergency contact</legend>
+      <div class="form-grid">
+        <label class="field">
+          <span>Name</span>
+          <input type="text" name="next_of_kin_name" maxlength="120" value="{{ values.next_of_kin_name ?? next_of_kin.name ?? '' }}">
+        </label>
+        <label class="field">
+          <span>Relationship</span>
+          <input type="text" name="next_of_kin_relationship" maxlength="40" value="{{ values.next_of_kin_relationship ?? next_of_kin.relationship ?? '' }}" placeholder="Spouse">
+        </label>
+        <label class="field">
+          <span>Phone</span>
+          <input type="text" name="next_of_kin_phone" maxlength="40" value="{{ values.next_of_kin_phone ?? next_of_kin.phone ?? '' }}">
+        </label>
+        <label class="field">
+          <span>Email</span>
+          <input type="email" name="next_of_kin_email" maxlength="190" value="{{ values.next_of_kin_email ?? next_of_kin.email ?? '' }}">
+        </label>
+        <label class="field">
+          <span>Address</span>
+          <input type="text" name="next_of_kin_address" maxlength="255" value="{{ values.next_of_kin_address ?? next_of_kin.address ?? '' }}">
         </label>
       </div>
     </fieldset>

@@ -15,6 +15,7 @@
     <a class="{{ tab == 'leave' ? 'is-active' : '' }}" href="/app/settings?tab=leave">Leave &amp; holidays</a>
     <a class="{{ tab == 'shifts' ? 'is-active' : '' }}" href="/app/settings?tab=shifts">Shifts</a>
     <a class="{{ tab == 'devices' ? 'is-active' : '' }}" href="/app/settings?tab=devices">Devices &amp; meals</a>
+    <a class="{{ tab == 'documents' ? 'is-active' : '' }}" href="/app/settings?tab=documents">Documents</a>
   </nav>
 
   {% if tab == 'organisation' %}
@@ -330,6 +331,14 @@
           <span>Location</span>
           <input type="text" name="location" maxlength="80" placeholder="Main entrance">
         </label>
+        <label class="field">
+          <span>IP address</span>
+          <input type="text" name="ip_address" maxlength="45" placeholder="192.168.1.40">
+        </label>
+        <label class="field">
+          <span>Port</span>
+          <input type="number" name="port" min="1" max="65535" placeholder="4370">
+        </label>
         <div class="check-row">
           <label><input type="checkbox" name="active" value="1" checked> Active</label>
         </div>
@@ -351,6 +360,7 @@
                   {{ device_kinds[device.kind] ?? device.kind }} · {{ device_purposes[device.purpose] ?? device.purpose }}
                   {% if device.serial %} · <span class="mono">{{ device.serial }}</span>{% endif %}
                   {% if device.location %} · {{ device.location }}{% endif %}
+                  {% if device.ip_address %} · <span class="mono">{{ device.ip_address }}{% if device.port %}:{{ device.port }}{% endif %}</span>{% endif %}
                 </small>
               </span>
               <span class="status {{ device.active ? 'status-active' : 'status-exited' }}">{{ device.active ? 'Active' : 'Inactive' }}</span>
@@ -382,6 +392,14 @@
                 <span>Location</span>
                 <input type="text" name="location" value="{{ device.location }}" maxlength="80">
               </label>
+              <label class="field">
+                <span>IP address</span>
+                <input type="text" name="ip_address" value="{{ device.ip_address }}" maxlength="45">
+              </label>
+              <label class="field">
+                <span>Port</span>
+                <input type="number" name="port" value="{{ device.port }}" min="1" max="65535">
+              </label>
               <div class="check-row">
                 <label><input type="checkbox" name="active" value="1"{% if device.active %} checked{% endif %}> Active</label>
               </div>
@@ -403,6 +421,81 @@
         {{ icons.svg('clock', 14) }} Meal configuration is split in two: a meal device records who went to lunch, and the break minutes on a shift decide how much of that time is unpaid.
         <a class="text-link" href="/app/settings?tab=shifts">Open shifts</a>
       </p>
+    </section>
+  {% elseif tab == 'documents' %}
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>Reading library</h2>
+          <p class="muted">Publish a PDF for staff to read in My account. Progress is tracked per employee; a document counts as complete only at 100% and never before the minimum reading time has passed.</p>
+        </div>
+      </div>
+      <form class="form-grid form-grid-4" method="post" action="/app/settings/documents" enctype="multipart/form-data">
+        <input type="hidden" name="_token" value="{{ csrf_token() }}">
+        <label class="field">
+          <span>Title</span>
+          <input type="text" name="title" maxlength="160" required placeholder="Staff handbook">
+        </label>
+        <label class="field">
+          <span>Category</span>
+          <input type="text" name="category" maxlength="60" placeholder="Policy">
+        </label>
+        <label class="field">
+          <span>Minimum reading time (seconds)</span>
+          <input type="number" name="min_read_seconds" min="5" max="3600" value="60" required>
+        </label>
+        <label class="field">
+          <span>PDF file</span>
+          <input type="file" name="file" accept="application/pdf,.pdf" required>
+        </label>
+        <label class="field field-wide">
+          <span>Description</span>
+          <input type="text" name="description" maxlength="500" placeholder="What this document covers">
+        </label>
+        <div class="form-actions">
+          <button class="btn-primary" type="submit">Publish document</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel">
+      <h2>Published documents</h2>
+      <div class="setting-list">
+        {% for document in documents %}
+          <details class="setting-item">
+            <summary class="setting-summary">
+              <span class="setting-title">
+                <strong>{{ document.title }}</strong>
+                <small>
+                  {{ document.category ?: 'General' }} · {{ document.min_read_seconds }}s minimum ·
+                  {{ document.readers }} readers, {{ document.completed }} completed
+                </small>
+              </span>
+              <span class="status {{ document.active ? 'status-active' : 'status-exited' }}">{{ document.active ? 'Published' : 'Withdrawn' }}</span>
+            </summary>
+            <div class="setting-form">
+              <p class="muted">{{ document.description ?: 'No description.' }}</p>
+              <p class="hint">
+                Uploaded {{ document.published_at ? document.published_at|date('d/m/Y') : '—' }}
+                {% if document.size_bytes %} · {{ (document.size_bytes / 1048576)|number_format(2) }} MB{% endif %}
+              </p>
+              <div class="row-actions">
+                <form method="post" action="/app/settings/documents/{{ document.id }}/toggle">
+                  <input type="hidden" name="_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="active" value="{{ document.active ? '0' : '1' }}">
+                  <button class="btn-ghost btn-xs" type="submit">{{ document.active ? 'Withdraw' : 'Publish' }}</button>
+                </form>
+                <form method="post" action="/app/settings/documents/{{ document.id }}/delete">
+                  <input type="hidden" name="_token" value="{{ csrf_token() }}">
+                  <button class="btn-ghost btn-xs" type="submit">Delete</button>
+                </form>
+              </div>
+            </div>
+          </details>
+        {% else %}
+          <p class="muted">No documents published yet.</p>
+        {% endfor %}
+      </div>
     </section>
   {% endif %}
 {% endblock %}

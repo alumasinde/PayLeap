@@ -1,0 +1,60 @@
+{% extends 'layout.twig' %}
+{% import 'partials/icons.twig' as icons %}
+
+{% block title %}Documents — {{ app_name }}{% endblock %}
+
+{% block body %}
+  <section class="page-head">
+    <span class="kicker">My account</span>
+    <h1>Documents</h1>
+    <p class="muted">{{ current_company.company_name }} · {{ employee.first_name }} {{ employee.last_name }} ({{ employee.employee_no }})</p>
+  </section>
+
+  <section class="panel">
+    {% if documents %}
+      <div class="table-wrap">
+        <table class="list">
+          <thead>
+            <tr>
+              <th>Document</th>
+              <th>Category</th>
+              <th>Minimum reading</th>
+              <th>Progress</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for document in documents %}
+              <tr>
+                <td>
+                  <a href="/me/documents/{{ document.id }}">{{ document.title }}</a>
+                  {% if document.description %}<br><span class="muted">{{ document.description }}</span>{% endif %}
+                </td>
+                <td>{{ document.category ?: 'General' }}</td>
+                <td class="mono">{{ document.min_read_seconds }}s</td>
+                <td>
+                  <progress value="{{ document.progress_percent ?? 0 }}" max="100">{{ document.progress_percent ?? 0 }}%</progress>
+                  <span class="muted">{{ document.progress_percent ?? 0 }}%</span>
+                </td>
+                <td>
+                  {% set status = document.read_status ?? 'unread' %}
+                  <span class="status {{ status == 'completed' ? 'status-active' : (status == 'reading' ? 'status-pending' : 'status-exited') }}">
+                    {{ status == 'completed' ? 'Complete' : (status == 'reading' ? 'Reading' : 'Not started') }}
+                  </span>
+                </td>
+                <td>
+                  <a class="btn-ghost btn-xs" href="/me/documents/{{ document.id }}">{{ status == 'completed' ? 'Review' : 'Read' }}</a>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="muted">No documents have been published for staff yet.</p>
+    {% endif %}
+  </section>
+
+  <p class="back-link"><a href="/me">Back to my account</a></p>
+{% endblock %}

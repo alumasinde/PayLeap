@@ -1,0 +1,46 @@
+{% extends 'layout.twig' %}
+{% import 'partials/icons.twig' as icons %}
+
+{% block title %}{{ document.title }} — {{ app_name }}{% endblock %}
+
+{% block body %}
+  <section class="page-head">
+    <span class="kicker">My account · Documents</span>
+    <h1>{{ document.title }}</h1>
+    <p class="muted">
+      {{ document.category ?: 'General' }} · {{ document.min_read_seconds }} seconds minimum
+      {% if document.description %} · {{ document.description }}{% endif %}
+    </p>
+  </section>
+
+  {% set percent = read.progress_percent ?? 0 %}
+  {% set status = read.status ?? 'unread' %}
+
+  <section class="panel reader-panel" data-document-reader
+           data-progress-url="/me/documents/{{ document.id }}/progress"
+           data-start-progress="{{ percent }}">
+    <div class="reader-head">
+      <div class="reader-meter">
+        <div class="meter-head">
+          <span>Reading progress</span>
+          <strong data-reader-label>{{ percent }}%</strong>
+        </div>
+        <progress data-reader-bar value="{{ percent }}" max="100">{{ percent }}%</progress>
+      </div>
+      <span class="status {{ status == 'completed' ? 'status-active' : (status == 'reading' ? 'status-pending' : 'status-exited') }}"
+            data-reader-status>{{ status == 'completed' ? 'Complete' : (status == 'reading' ? 'Reading' : 'Not started') }}</span>
+    </div>
+
+    <p class="hint" data-reader-hint>
+      {% if status == 'completed' %}
+        You have completed this document.
+      {% else %}
+        Keep this page open while you read. It counts as complete only at 100%, after the minimum reading time.
+      {% endif %}
+    </p>
+
+    <iframe class="document-frame" src="/me/documents/{{ document.id }}/file" title="{{ document.title }}"></iframe>
+  </section>
+
+  <p class="back-link"><a href="/me/documents">Back to documents</a></p>
+{% endblock %}

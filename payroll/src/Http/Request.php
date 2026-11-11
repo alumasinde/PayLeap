@@ -18,6 +18,7 @@ final class Request
      * @param array<string,mixed> $input
      * @param array<string,mixed> $server
      * @param array<string,string> $headers
+     * @param array<string,mixed> $files
      */
     public function __construct(
         private readonly string $method,
@@ -26,6 +27,7 @@ final class Request
         private readonly array $input,
         private readonly array $server,
         private readonly array $headers,
+        private readonly array $files = [],
     ) {
     }
 
@@ -62,7 +64,7 @@ final class Request
             $headers['content-length'] = (string) $_SERVER['CONTENT_LENGTH'];
         }
 
-        return new self($method, $path, $_GET, $input, $_SERVER, $headers);
+        return new self($method, $path, $_GET, $input, $_SERVER, $headers, $_FILES);
     }
 
     public function method(): string
@@ -127,6 +129,20 @@ final class Request
     public function userAgent(): string
     {
         return (string) ($this->server['HTTP_USER_AGENT'] ?? '');
+    }
+
+    /** @return array<string,mixed>|null */
+    public function file(string $key): ?array
+    {
+        $file = $this->files[$key] ?? null;
+
+        return is_array($file) ? $file : null;
+    }
+
+    /** @return array<string,mixed> */
+    public function files(): array
+    {
+        return $this->files;
     }
 
     /** @return array<string,mixed> */

@@ -20,7 +20,8 @@ final class EmployeeRepository
 {
     private const CORE = [
         'employee_no', 'first_name', 'middle_name', 'last_name', 'dob', 'gender',
-        'national_id', 'phone', 'email', 'address', 'marital_status',
+        'national_id', 'phone', 'email', 'address', 'marital_status', 'nationality',
+        'cost_center', 'photo_path',
         'department_id', 'manager_id', 'user_id', 'status', 'exit_date', 'archived_at',
     ];
 
@@ -68,6 +69,7 @@ final class EmployeeRepository
             $this->writeEmployment($companyId, $employeeId, $data, $core, true);
             $this->writeStatutory($companyId, $employeeId, $data);
             $this->writeBank($companyId, $employeeId, $data);
+            $this->writeNextOfKin($companyId, $employeeId, $data);
 
             if ($own) {
                 $this->db->commit();
@@ -113,6 +115,7 @@ final class EmployeeRepository
             $this->writeEmployment($companyId, $employeeId, $data, $core, false);
             $this->writeStatutory($companyId, $employeeId, $data);
             $this->writeBank($companyId, $employeeId, $data);
+            $this->writeNextOfKin($companyId, $employeeId, $data);
 
             if ($own) {
                 $this->db->commit();
@@ -163,6 +166,89 @@ final class EmployeeRepository
         $row = $statement->fetch();
 
         return $row === false ? null : $row;
+    }
+
+    /** @return array<string,mixed>|null */
+    public function nextOfKin(int $companyId, int $employeeId): ?array
+    {
+        $statement = $this->db->prepare(
+            'SELECT * FROM next_of_kin
+             WHERE company_id = ? AND employee_id = ?
+             ORDER BY is_emergency DESC, id
+             LIMIT 1',
+        );
+        $statement->execute([$companyId, $employeeId]);
+        $row = $statement->fetch();
+
+        return $row === false ? null : $row;
+    }
+
+    /** @return list<array<string,mixed>> */
+    public function dependants(int $companyId, int $employeeId): array
+    {
+        $statement = $this->db->prepare(
+            'SELECT * FROM dependants
+             WHERE company_id = ? AND employee_id = ?
+             ORDER BY name',
+        );
+        $statement->execute([$companyId, $employeeId]);
+
+        return $statement->fetchAll();
+    }
+
+    /** @return list<array<string,mixed>> */
+    public function education(int $companyId, int $employeeId): array
+    {
+        $statement = $this->db->prepare(
+            'SELECT * FROM employee_education
+             WHERE company_id = ? AND employee_id = ?
+             ORDER BY end_date IS NULL, end_date DESC, id DESC',
+        );
+        $statement->execute([$companyId, $employeeId]);
+
+        return $statement->fetchAll();
+    }
+
+    /** @return list<array<string,mixed>> */
+    public function directReports(int $companyId, int $managerId): array
+    {
+        $statement = $this->db->prepare(
+            'SELECT e.id, e.employee_no, e.first_name, e.last_name,
+                    em.job_title, d.name AS department_name
+             FROM employees e
+             LEFT JOIN employments em ON em.id = (' . $this->currentEmploymentQuery() . ')
+             LEFT JOIN departments d ON d.id = e.department_id
+             WHERE e.company_id = ? AND e.manager_id = ? AND e.status = \'active\'
+             ORDER BY e.last_name, e.first_name',
+        );
+        $statement->execute([$companyId, $managerId]);
+
+        return $statement->fetchAll();
+    }
+
+    /** @param array<string,mixed> $data */
+    public function addEducation(int $companyId, int $employeeId, array $data): int
+    {
+        $data['company_id'] = $companyId;
+        $data['employee_id'] = $employeeId;
+
+        $columns = array_keys($data);
+        $this->db
+            ->prepare('INSERT INTO employee_education (' . implode(', ', $columns) . ')
+                       VALUES (' . implode(', ', array_fill(0, count($columns), '?')) . ')')
+            ->execute(array_values($data));
+
+        return (int) $this->db->lastInsertId();
+    }
+
+    public function deleteEducation(int $companyId, int $employeeId, int $educationId): bool
+    {
+        $statement = $this->db->prepare(
+            'DELETE FROM employee_education WHERE id = ? AND employee_id = ? AND company_id = ?',
+        );
+        $statement->execute([$educationId, $employeeId, $companyId]);
+
+        return $statement->rowCount() > 0;
     }
 
     public function exists(int $companyId, string $employeeNo, ?int $exceptId = null): bool
@@ -571,10 +657,13 @@ final class EmployeeRepository
         $bankId = $account === false || $account['bank_id'] === null ? null : (int) $account['bank_id'];
 
         $fields = [];
+        $bankChanged = false;
 
         if ($wantsBank) {
             $name = trim((string) $data['bank_name']);
-            $bankId = $name === '' ? null : $this->bankId($name);
+            $newBankId = $name === '' ? null : $this->bankId($name);
+            $bankChanged = $newBankId !== $bankId;
+            $bankId = $newBankId;
             $fields['bank_id'] = $bankId;
         }
 
@@ -583,6 +672,8 @@ final class EmployeeRepository
             $fields['branch_id'] = $branch === '' || $bankId === null
                 ? null
                 : $this->branchId($bankId, $branch);
+        } elseif ($bankChanged) {
+            $fields['branch_id'] = null;
         }
 
         if ($wantsAccount) {
@@ -616,6 +707,70 @@ final class EmployeeRepository
         $this->db
             ->prepare('UPDATE employee_bank_accounts SET ' . $assignments . '
                        WHERE id = ? AND employee_id = ? AND company_id = ?')
+            ->execute($values);
+    }
+
+    /** @param array<string,mixed> $data */
+    private function writeNextOfKin(int $companyId, int $employeeId, array $data): void
+    {
+        if (!array_key_exists('next_of_kin', $data) || !is_array($data['next_of_kin'])) {
+            return;
+        }
+
+        $allowed = ['name', 'relationship', 'phone', 'email', 'address'];
+        $fields = array_intersect_key($data['next_of_kin'], array_flip($allowed));
+
+        $statement = $this->db->prepare(
+            'SELECT id FROM next_of_kin
+             WHERE company_id = ? AND employee_id = ? AND is_emergency = 1
+             ORDER BY id
+             LIMIT 1',
+        );
+        $statement->execute([$companyId, $employeeId]);
+        $existingId = $statement->fetchColumn();
+
+        $empty = true;
+
+        foreach ($fields as $value) {
+            if ($value !== null && trim((string) $value) !== '') {
+                $empty = false;
+                break;
+            }
+        }
+
+        if ($empty) {
+            if ($existingId !== false) {
+                $this->db
+                    ->prepare('DELETE FROM next_of_kin WHERE id = ? AND company_id = ? AND employee_id = ?')
+                    ->execute([(int) $existingId, $companyId, $employeeId]);
+            }
+
+            return;
+        }
+
+        if ($existingId === false) {
+            $fields['company_id'] = $companyId;
+            $fields['employee_id'] = $employeeId;
+            $fields['is_emergency'] = 1;
+
+            $columns = array_keys($fields);
+            $this->db
+                ->prepare('INSERT INTO next_of_kin (' . implode(', ', $columns) . ')
+                           VALUES (' . implode(', ', array_fill(0, count($columns), '?')) . ')')
+                ->execute(array_values($fields));
+
+            return;
+        }
+
+        $assignments = implode(', ', array_map(
+            static fn (string $column): string => $column . ' = ?',
+            array_keys($fields),
+        ));
+        $values = array_values($fields);
+        $values[] = (int) $existingId;
+
+        $this->db
+            ->prepare('UPDATE next_of_kin SET ' . $assignments . ' WHERE id = ?')
             ->execute($values);
     }
 

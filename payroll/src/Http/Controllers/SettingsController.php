@@ -15,7 +15,7 @@ use Mshahara\Payroll\Support\HttpException;
  */
 final class SettingsController
 {
-    private const TABS = ['organisation', 'leave', 'shifts', 'devices'];
+    private const TABS = ['organisation', 'leave', 'shifts', 'devices', 'documents'];
 
     public function __construct(private readonly App $app)
     {
@@ -42,6 +42,7 @@ final class SettingsController
             'holidays' => $this->app->attendance->holidays->forYear($companyId, $year),
             'shifts' => $this->app->attendance->shifts->all($companyId, true),
             'devices' => $this->app->attendance->devices->all($companyId),
+            'documents' => $this->app->documents->repository->all($companyId),
             'genders' => ['any' => 'Everyone', 'female' => 'Female', 'male' => 'Male'],
             'device_kinds' => DeviceRepository::KINDS,
             'device_purposes' => DeviceRepository::PURPOSES,

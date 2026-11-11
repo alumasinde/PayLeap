@@ -102,3 +102,51 @@ CREATE TABLE IF NOT EXISTS asset_issues (
   CONSTRAINT asset_issues_company_fk FOREIGN KEY (company_id) REFERENCES companies (id) ON DELETE CASCADE,
   CONSTRAINT asset_issues_employee_fk FOREIGN KEY (employee_id) REFERENCES employees (id) ON DELETE CASCADE
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+-- Company-wide reading material (policies, handbooks). Progress is per
+-- employee; a document is complete only when progress reaches 100 percent,
+-- which the reader may do only after min_read_seconds of reading time.
+CREATE TABLE IF NOT EXISTS company_documents (
+  id               BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  company_id       BIGINT UNSIGNED NOT NULL,
+  title            VARCHAR(160)    NOT NULL,
+  description      VARCHAR(500)    NULL,
+  category         VARCHAR(60)     NULL,
+  file_ref         VARCHAR(255)    NOT NULL,
+  original_name    VARCHAR(255)    NULL,
+  mime_type        VARCHAR(100)    NOT NULL DEFAULT 'application/pdf',
+  size_bytes       BIGINT UNSIGNED NULL,
+  min_read_seconds INT UNSIGNED    NOT NULL DEFAULT 60,
+  active           TINYINT(1)      NOT NULL DEFAULT 1,
+  published_at     DATETIME        NULL,
+  created_by       BIGINT UNSIGNED NULL,
+  created_at       DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at       DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY company_documents_company_active (company_id, active),
+  CONSTRAINT company_documents_company_fk FOREIGN KEY (company_id) REFERENCES companies (id) ON DELETE CASCADE,
+  CONSTRAINT company_documents_creator_fk FOREIGN KEY (created_by) REFERENCES users (id) ON DELETE SET NULL
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS document_reads (
+  id               BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  company_id       BIGINT UNSIGNED NOT NULL,
+  document_id      BIGINT UNSIGNED NOT NULL,
+  employee_id      BIGINT UNSIGNED NOT NULL,
+  progress_percent TINYINT UNSIGNED NOT NULL DEFAULT 0,
+  seconds_spent    INT UNSIGNED     NOT NULL DEFAULT 0,
+  status           VARCHAR(20)      NOT NULL DEFAULT 'unread',
+  started_at       DATETIME         NULL,
+  last_seen_at     DATETIME         NULL,
+  completed_at     DATETIME         NULL,
+  created_at       DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at       DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY document_reads_document_employee (document_id, employee_id),
+  KEY document_reads_employee_status (employee_id, status),
+  KEY document_reads_company (company_id),
+  CONSTRAINT document_reads_document_fk FOREIGN KEY (document_id) REFERENCES company_documents (id) ON DELETE CASCADE,
+  CONSTRAINT document_reads_employee_fk FOREIGN KEY (employee_id) REFERENCES employees (id) ON DELETE CASCADE,
+  CONSTRAINT document_reads_company_fk FOREIGN KEY (company_id) REFERENCES companies (id) ON DELETE CASCADE,
+  CONSTRAINT document_reads_progress_check CHECK (progress_percent <= 100)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;

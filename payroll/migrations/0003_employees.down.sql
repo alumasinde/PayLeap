@@ -5,6 +5,7 @@ ALTER TABLE departments
   DROP COLUMN head_employee_id;
 
 DROP TABLE IF EXISTS employee_documents;
+DROP TABLE IF EXISTS employee_education;
 DROP TABLE IF EXISTS next_of_kin;
 DROP TABLE IF EXISTS dependants;
 DROP TABLE IF EXISTS employee_bank_accounts;

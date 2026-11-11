@@ -34,6 +34,9 @@ use Mshahara\Payroll\Modules\Attendance\ShiftRepository;
 use Mshahara\Payroll\Modules\Attendance\ShiftService;
 use Mshahara\Payroll\Modules\Attendance\TimesheetService;
 use Mshahara\Payroll\Modules\Dashboard\DashboardRepository;
+use Mshahara\Payroll\Modules\Documents\DocumentModule;
+use Mshahara\Payroll\Modules\Documents\DocumentRepository;
+use Mshahara\Payroll\Modules\Documents\DocumentService;
 use Mshahara\Payroll\Modules\Leave\LeaveModule;
 use Mshahara\Payroll\Modules\Leave\LeaveRepository;
 use Mshahara\Payroll\Modules\Leave\LeaveService;
@@ -46,6 +49,7 @@ use Mshahara\Payroll\Support\CsrfGuard;
 use Mshahara\Payroll\Support\Db;
 use Mshahara\Payroll\Support\Env;
 use Mshahara\Payroll\Support\FileMailer;
+use Mshahara\Payroll\Support\FileStore;
 use Mshahara\Payroll\Support\FlashBag;
 use Mshahara\Payroll\Support\Money;
 use Mshahara\Payroll\Support\RateLimiter;
@@ -119,12 +123,20 @@ final class Bootstrap
         $app->membershipService = new MembershipService($app->db, $app->companyRepository, $app->roleRepository, $app->auditLogger);
         $app->moduleRepository = new ModuleRepository($app->db);
         $app->dashboard = new DashboardRepository($app->db);
+        $fileStore = new FileStore($root);
         $employeeRepository = new EmployeeRepository($app->db);
         $departmentRepository = new DepartmentRepository($app->db);
         $app->employees = new EmployeeModule(
             $employeeRepository,
             $departmentRepository,
-            new EmployeeService($app->db, $employeeRepository, $departmentRepository, $app->auditLogger),
+            new EmployeeService($app->db, $employeeRepository, $departmentRepository, $app->auditLogger, $fileStore),
+            $fileStore,
+        );
+        $documentRepository = new DocumentRepository($app->db);
+        $app->documents = new DocumentModule(
+            $documentRepository,
+            new DocumentService($documentRepository, $app->auditLogger, $fileStore),
+            $fileStore,
         );
         $app->leave = new LeaveModule(
             $leaveRepository,

@@ -19,6 +19,9 @@ CREATE TABLE IF NOT EXISTS employees (
   email          VARCHAR(190)    NULL,
   address        VARCHAR(255)    NULL,
   marital_status VARCHAR(20)     NULL,
+  nationality    VARCHAR(80)     NULL,
+  cost_center    VARCHAR(80)     NULL,
+  photo_path     VARCHAR(255)    NULL,
   department_id  BIGINT UNSIGNED NULL,
   manager_id     BIGINT UNSIGNED NULL,
   status         VARCHAR(20)     NOT NULL DEFAULT 'active',
@@ -127,7 +130,8 @@ CREATE TABLE IF NOT EXISTS bank_branches (
   PRIMARY KEY (id),
   KEY bank_branches_bank (bank_id),
   CONSTRAINT bank_branches_bank_fk FOREIGN KEY (bank_id) REFERENCES bank_names (id) ON DELETE CASCADE,
-  UNIQUE KEY bank_branches_bank_branch (bank_id, branch)
+  UNIQUE KEY bank_branches_bank_branch (bank_id, branch),
+  UNIQUE KEY bank_branches_bank_code (bank_id, code)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
 
@@ -149,7 +153,9 @@ CREATE TABLE IF NOT EXISTS employee_bank_accounts (
   KEY employee_bank_bank (bank_id),
   KEY employee_bank_branch (branch_id),
   CONSTRAINT employee_bank_company_fk FOREIGN KEY (company_id) REFERENCES companies (id) ON DELETE CASCADE,
-  CONSTRAINT employee_bank_employee_fk FOREIGN KEY (employee_id) REFERENCES employees (id) ON DELETE CASCADE
+  CONSTRAINT employee_bank_employee_fk FOREIGN KEY (employee_id) REFERENCES employees (id) ON DELETE CASCADE,
+  CONSTRAINT employee_bank_bank_fk FOREIGN KEY (bank_id) REFERENCES bank_names (id) ON DELETE SET NULL,
+  CONSTRAINT employee_bank_branch_fk FOREIGN KEY (branch_id) REFERENCES bank_branches (id) ON DELETE SET NULL
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS dependants (
@@ -174,12 +180,36 @@ CREATE TABLE IF NOT EXISTS next_of_kin (
   name         VARCHAR(120)    NOT NULL,
   relationship VARCHAR(40)     NULL,
   phone        VARCHAR(40)     NULL,
+  email        VARCHAR(190)    NULL,
+  address      VARCHAR(255)    NULL,
+  is_emergency TINYINT(1)      NOT NULL DEFAULT 1,
   created_at   DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY next_of_kin_employee (employee_id),
   KEY next_of_kin_company (company_id),
   CONSTRAINT next_of_kin_company_fk FOREIGN KEY (company_id) REFERENCES companies (id) ON DELETE CASCADE,
   CONSTRAINT next_of_kin_employee_fk FOREIGN KEY (employee_id) REFERENCES employees (id) ON DELETE CASCADE
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS employee_education (
+  id              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  company_id      BIGINT UNSIGNED NOT NULL,
+  employee_id     BIGINT UNSIGNED NOT NULL,
+  institution     VARCHAR(150)    NOT NULL,
+  qualification   VARCHAR(120)    NULL,
+  field_of_study  VARCHAR(120)    NULL,
+  level           VARCHAR(40)     NULL,
+  start_date      DATE            NULL,
+  end_date        DATE            NULL,
+  grade           VARCHAR(40)     NULL,
+  certificate_ref VARCHAR(255)    NULL,
+  created_at      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY employee_education_employee (employee_id, end_date),
+  KEY employee_education_company (company_id),
+  CONSTRAINT employee_education_company_fk FOREIGN KEY (company_id) REFERENCES companies (id) ON DELETE CASCADE,
+  CONSTRAINT employee_education_employee_fk FOREIGN KEY (employee_id) REFERENCES employees (id) ON DELETE CASCADE
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS employee_documents (

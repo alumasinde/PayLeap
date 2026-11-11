@@ -1,3 +1,5 @@
+DROP TABLE IF EXISTS document_reads;
+DROP TABLE IF EXISTS company_documents;
 DROP TABLE IF EXISTS asset_issues;
 DROP TABLE IF EXISTS disciplinary_cases;
 DROP TABLE IF EXISTS exit_checklists;

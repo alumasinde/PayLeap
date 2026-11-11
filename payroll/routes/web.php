@@ -6,6 +6,7 @@ use Mshahara\Payroll\Http\Controllers\AccessController;
 use Mshahara\Payroll\Http\Controllers\AccountController;
 use Mshahara\Payroll\Http\Controllers\AttendanceController;
 use Mshahara\Payroll\Http\Controllers\AuthController;
+use Mshahara\Payroll\Http\Controllers\DocumentController;
 use Mshahara\Payroll\Http\Controllers\EmployeeController;
 use Mshahara\Payroll\Http\Controllers\EmployeeDepartmentController;
 use Mshahara\Payroll\Http\Controllers\InviteController;
@@ -52,10 +53,13 @@ return [
     ['POST', '/app/employees', [EmployeeController::class, 'store']],
     ['POST', '/app/employees/departments', [EmployeeDepartmentController::class, 'store']],
     ['GET', '/app/employees/{id}', [EmployeeController::class, 'show']],
+    ['GET', '/app/employees/{id}/photo', [EmployeeController::class, 'photo']],
     ['GET', '/app/employees/{id}/edit', [EmployeeController::class, 'edit']],
     ['POST', '/app/employees/{id}', [EmployeeController::class, 'update']],
     ['POST', '/app/employees/{id}/archive', [EmployeeController::class, 'archive']],
     ['POST', '/app/employees/{id}/reinstate', [EmployeeController::class, 'reinstate']],
+    ['POST', '/app/employees/{id}/education', [EmployeeController::class, 'addEducation']],
+    ['POST', '/app/employees/{id}/education/{educationId}/delete', [EmployeeController::class, 'removeEducation']],
 
     ['GET', '/app/payroll', [PayrollController::class, 'index']],
     ['POST', '/app/payroll', [PayrollController::class, 'store']],
@@ -80,10 +84,17 @@ return [
     ['POST', '/app/settings/shifts/{id}/toggle', [SettingsController::class, 'toggleShift']],
     ['POST', '/app/settings/devices', [SettingsController::class, 'saveDevice']],
     ['POST', '/app/settings/devices/{id}/toggle', [SettingsController::class, 'toggleDevice']],
+    ['POST', '/app/settings/documents', [DocumentController::class, 'store']],
+    ['POST', '/app/settings/documents/{id}/toggle', [DocumentController::class, 'toggle']],
+    ['POST', '/app/settings/documents/{id}/delete', [DocumentController::class, 'destroy']],
 
     ['GET', '/me', [WorkspaceController::class, 'me']],
     ['POST', '/me/profile', [AccountController::class, 'updateProfile']],
     ['POST', '/me/password', [AccountController::class, 'changePassword']],
+    ['GET', '/me/documents', [DocumentController::class, 'index']],
+    ['GET', '/me/documents/{id}', [DocumentController::class, 'show']],
+    ['GET', '/me/documents/{id}/file', [DocumentController::class, 'file']],
+    ['POST', '/me/documents/{id}/progress', [DocumentController::class, 'progress']],
     ['POST', '/me/sign-out-everywhere', [WorkspaceController::class, 'signOutEverywhere']],
     ['POST', '/app/company', [WorkspaceController::class, 'switchCompany']],
 ];

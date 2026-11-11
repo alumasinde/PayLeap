@@ -48,6 +48,8 @@ final class DeviceService
 
         $serial = trim((string) ($input['serial'] ?? ''));
         $location = trim((string) ($input['location'] ?? ''));
+        $ipAddress = trim((string) ($input['ip_address'] ?? ''));
+        $portRaw = trim((string) ($input['port'] ?? ''));
 
         if (mb_strlen($serial) > 80) {
             throw new HttpException(422, 'The serial number is too long.');
@@ -55,6 +57,20 @@ final class DeviceService
 
         if (mb_strlen($location) > 80) {
             throw new HttpException(422, 'The location is too long.');
+        }
+
+        if ($ipAddress !== '' && filter_var($ipAddress, FILTER_VALIDATE_IP) === false) {
+            throw new HttpException(422, 'Enter a valid IPv4 or IPv6 address.');
+        }
+
+        $port = null;
+
+        if ($portRaw !== '') {
+            if (!ctype_digit($portRaw) || (int) $portRaw < 1 || (int) $portRaw > 65535) {
+                throw new HttpException(422, 'The port must be between 1 and 65535.');
+            }
+
+            $port = (int) $portRaw;
         }
 
         if ($this->devices->serialExists($companyId, $serial, $deviceId > 0 ? $deviceId : null)) {
@@ -67,6 +83,8 @@ final class DeviceService
             'purpose' => $purpose,
             'serial' => $serial === '' ? null : $serial,
             'location' => $location === '' ? null : $location,
+            'ip_address' => $ipAddress === '' ? null : $ipAddress,
+            'port' => $port,
             'active' => !empty($input['active']) ? 1 : 0,
         ];
 
