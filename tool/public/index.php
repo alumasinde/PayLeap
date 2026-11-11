@@ -70,6 +70,74 @@ $calculator = new Calculator();
 $periods = $rateSet->periods();
 $defaultPeriod = $rateSet->todayPeriod();
 
+$modules = require $root . '/config/modules.php';
+$pricing = require $root . '/config/pricing.php';
+$employeeBands = ['1-10', '11-25', '26-100', '101-300', '300+'];
+
+/**
+ * Price a headcount and a set of modules from config/pricing.php.
+ *
+ * @param  list<string> $selected
+ * @return array{band:array,selected:list<string>,monthly:?int,usd:?int,yearly:?int,saving:?int,lines:list<array>}
+ */
+$quoteFor = static function (int $employees, array $selected) use ($pricing, $modules): array {
+    $band = $pricing['bands'][array_key_last($pricing['bands'])];
+
+    foreach ($pricing['bands'] as $candidate) {
+        if ($employees >= $candidate['min'] && ($candidate['max'] === null || $employees <= $candidate['max'])) {
+            $band = $candidate;
+            break;
+        }
+    }
+
+    $selected = array_values(array_intersect($selected, array_keys($modules)));
+    if ($selected === []) {
+        $selected = ['employees', 'payroll'];
+    }
+
+    $payroll = in_array('payroll', $selected, true);
+    $roundTo = max(1, (int) $pricing['currency']['round_to']);
+    $shares = [];
+    $totalShare = 0.0;
+
+    foreach ($selected as $key) {
+        $share = (float) ($pricing['modules'][$key] ?? $pricing['default_share']);
+        if ($key === 'employees' && $payroll) {
+            $share = 0.0;
+        }
+
+        $shares[$key] = $share;
+        $totalShare += $share;
+    }
+
+    $bandPrice = $band['price'];
+    $monthly = $bandPrice === null ? null : (int) (round($bandPrice * $totalShare / $roundTo) * $roundTo);
+
+    $lines = [];
+    foreach ($selected as $key) {
+        $lines[] = [
+            'key' => $key,
+            'name' => $modules[$key]['name'] ?? $key,
+            'amount' => $bandPrice === null ? null : (int) (round($bandPrice * $shares[$key] / $roundTo) * $roundTo),
+            'included' => $shares[$key] === 0.0,
+        ];
+    }
+
+    $yearly = $monthly === null
+        ? null
+        : (int) (round($monthly * 12 * (1 - (float) $pricing['yearly_discount']) / $roundTo) * $roundTo);
+
+    return [
+        'band' => $band,
+        'selected' => $selected,
+        'monthly' => $monthly,
+        'usd' => $monthly === null ? null : (int) round($monthly * (float) $pricing['currency']['usd_rate']),
+        'yearly' => $yearly,
+        'saving' => $monthly === null ? null : $monthly * 12 - $yearly,
+        'lines' => $lines,
+    ];
+};
+
 $num = static function (array $input, string $key): float {
     $raw = preg_replace('/[^0-9.]/', '', (string) ($input[$key] ?? '0'));
 
@@ -186,6 +254,38 @@ $pdfUrl = static function (array $input, float $gross) use ($shortNames): string
     return '/payslip.pdf?' . http_build_query($query);
 };
 
+/** Public shape for a ruleset: its readable name plus the parameters, no
+ *  internal database key. */
+$publicRuleset = static function (array $rules): array {
+    $public = $rules;
+    unset($public['id'], $public['label']);
+
+    return ['name' => $rules['label']] + $public;
+};
+
+/** Drop the internal ruleset key wherever it appears in a payload. */
+$withoutVersion = static function (array $data) use (&$withoutVersion): array {
+    unset($data['rate_version']);
+
+    foreach ($data as $key => $value) {
+        if (is_array($value)) {
+            $data[$key] = $withoutVersion($value);
+        }
+    }
+
+    return $data;
+};
+
+/** @return array<string,mixed> */
+$publicPayslip = static function (array $rules, array $slip, array $employer, int $year, int $month) use ($withoutVersion): array {
+    return [
+        'ruleset' => $rules['label'],
+        'period' => ['year' => $year, 'month' => $month],
+        'payslip' => $withoutVersion($slip),
+        'employer_cost' => $withoutVersion($employer),
+    ];
+};
+
 $monthsFor = static function (int $year) use ($periods): array {
     foreach ($periods as $period) {
         if ($period['year'] === $year) {
@@ -206,6 +306,215 @@ $periodPayload = static function (array $input) use ($periods, $monthsFor, $rate
         'source' => $rateSet->source(),
     ];
 };
+
+// ---------------------------------------------------------------- marketing
+
+/** A sample run for the payroll page and the public preview. */
+$runFor = static function (array $rules) use ($calculator): array {
+    $staff = [
+        ['name' => 'Amina Otieno', 'job' => 'Product designer', 'gross' => 145_000.0, 'pension' => 0.0],
+        ['name' => 'Brian Kiptoo', 'job' => 'Field supervisor', 'gross' => 62_000.0, 'pension' => 3_000.0],
+        ['name' => 'Faith Wanjiku', 'job' => 'Accounts assistant', 'gross' => 88_000.0, 'pension' => 0.0],
+    ];
+
+    $totals = ['gross' => 0.0, 'net' => 0.0, 'statutory' => 0.0, 'employer' => 0.0];
+
+    foreach ($staff as &$person) {
+        $options = ['pension' => $person['pension']];
+        $person['slip'] = $calculator->payslip($person['gross'], $rules, $options);
+        $person['employer'] = $calculator->employerCost($person['gross'], $rules, $options);
+        $person['statutory'] = $person['slip']['nssf']['total'] + $person['slip']['shif']
+            + $person['slip']['housing_levy'] + $person['slip']['paye'];
+
+        $totals['gross'] += $person['slip']['gross'];
+        $totals['net'] += $person['slip']['net'];
+        $totals['statutory'] += $person['statutory'];
+        $totals['employer'] += $person['employer']['total_cost'];
+    }
+    unset($person);
+
+    return ['people' => $staff, 'totals' => $totals];
+};
+
+if ($path === '/interest' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $values = [
+        'name' => trim((string) ($_POST['name'] ?? '')),
+        'email' => trim((string) ($_POST['email'] ?? '')),
+        'company' => trim((string) ($_POST['company'] ?? '')),
+        'employees' => trim((string) ($_POST['employees'] ?? '')),
+        'module' => trim((string) ($_POST['module'] ?? 'payroll')),
+        'message' => mb_substr(trim((string) ($_POST['message'] ?? '')), 0, 2000),
+    ];
+    $source = mb_substr(trim((string) ($_POST['source'] ?? 'site')), 0, 40);
+
+    if (!isset($modules[$values['module']])) {
+        $values['module'] = 'payroll';
+    }
+    if ($values['employees'] !== '' && !in_array($values['employees'], $employeeBands, true)) {
+        $values['employees'] = '';
+    }
+
+    $errors = [];
+    if (mb_strlen($values['name']) < 2) {
+        $errors['name'] = 'Please give your name.';
+    }
+    if (!filter_var($values['email'], FILTER_VALIDATE_EMAIL)) {
+        $errors['email'] = 'That email does not look right.';
+    }
+
+    // Bots fill the hidden field. Accept, but store nothing.
+    if (trim((string) ($_POST['website'] ?? '')) !== '') {
+        echo $twig->render('partials/interest-sent.twig', [
+            'name' => $values['name'],
+            'module_name' => $modules[$values['module']]['name'],
+        ]);
+        exit;
+    }
+
+    if ($errors === [] && $db === null) {
+        $errors['form'] = 'Our database is offline. Email hello@mshaharacheck.co.ke and we will add you.';
+    }
+
+    if ($errors === []) {
+        try {
+            $db->prepare('INSERT INTO leads (name, email, company, employees, module, message, source) VALUES (?, ?, ?, ?, ?, ?, ?)')
+                ->execute([
+                    $values['name'],
+                    $values['email'],
+                    $values['company'] !== '' ? $values['company'] : null,
+                    $values['employees'] !== '' ? $values['employees'] : null,
+                    $values['module'],
+                    $values['message'] !== '' ? $values['message'] : null,
+                    $source,
+                ]);
+        } catch (Throwable $error) {
+            error_log('Lead insert failed: ' . $error->getMessage());
+            $errors['form'] = 'We could not save that just now. Try again, or email hello@mshaharacheck.co.ke.';
+        }
+    }
+
+    if ($errors === []) {
+        echo $twig->render('partials/interest-sent.twig', [
+            'name' => $values['name'],
+            'module_name' => $modules[$values['module']]['name'],
+        ]);
+        exit;
+    }
+
+    echo $twig->render('partials/interest-form.twig', [
+        'values' => $values,
+        'errors' => $errors,
+        'module_key' => $values['module'],
+        'modules' => $modules,
+        'employee_bands' => $employeeBands,
+        'source' => $source,
+    ]);
+    exit;
+}
+
+if ($path === '/') {
+    $input = $readInput([]);
+    $slip = $calculator->payslip($input['gross'], $input['rules'], $input['options']);
+
+    $paidBands = array_values(array_filter(
+        $pricing['bands'],
+        static fn (array $band): bool => $band['price'] !== null && $band['price'] > 0,
+    ));
+
+    echo $twig->render('home.twig', [
+        'current' => 'home',
+        'modules' => $modules,
+        'pricing' => $pricing,
+        'pricing_min' => $paidBands[0],
+        'pricing_max' => $paidBands[array_key_last($paidBands)],
+        'employee_bands' => $employeeBands,
+        'hero' => [
+            'slip' => $slip,
+            'rows' => $rowsFor($slip, $input['rules']),
+            'rules' => $input['rules'],
+            'year' => $input['year'],
+            'month' => $input['month'],
+        ],
+    ]);
+    exit;
+}
+
+if ($path === '/payroll') {
+    $input = $readInput([]);
+    $slip = $calculator->payslip(100_000, $input['rules']);
+    $run = $runFor($input['rules']);
+
+    echo $twig->render('payroll.twig', [
+        'current' => 'payroll',
+        'modules' => $modules,
+        'employee_bands' => $employeeBands,
+        'hero' => [
+            'slip' => $slip,
+            'rows' => $rowsFor($slip, $input['rules']),
+            'rules' => $input['rules'],
+            'year' => $input['year'],
+            'month' => $input['month'],
+        ],
+        'people' => $run['people'],
+        'totals' => $run['totals'],
+    ]);
+    exit;
+}
+
+if ($path === '/pricing' || $path === '/pricing/quote') {
+    $isQuote = $path === '/pricing/quote';
+
+    if ($isQuote && $_SERVER['REQUEST_METHOD'] !== 'POST') {
+        http_response_code(405);
+        exit;
+    }
+
+    $source = $isQuote ? $_POST : $_GET;
+    $employees = max(1, min(10_000, (int) ($source['employees'] ?? 12)));
+    $selected = $source['modules'] ?? ['employees', 'payroll'];
+    $selected = is_array($selected) ? array_values(array_filter($selected, 'is_string')) : ['employees', 'payroll'];
+    $quote = $quoteFor($employees, $selected);
+
+    if ($isQuote) {
+        echo $twig->render('partials/pricing-quote.twig', $quote);
+        exit;
+    }
+
+    $bands = array_map(static function (array $band) use ($pricing): array {
+        $band['usd'] = $band['price'] === null
+            ? null
+            : (int) round($band['price'] * (float) $pricing['currency']['usd_rate']);
+
+        return $band;
+    }, $pricing['bands']);
+
+    echo $twig->render('pricing.twig', [
+        'current' => 'pricing',
+        'modules' => $modules,
+        'employee_bands' => $employeeBands,
+        'pricing' => $pricing,
+        'bands' => $bands,
+        'quote' => $quote,
+        'employees' => $employees,
+        'selected' => $quote['selected'],
+    ]);
+    exit;
+}
+
+if (preg_match('#^/modules/([a-z0-9-]+)$#', $path, $match)
+    && isset($modules[$match[1]])
+    && $modules[$match[1]]['path'] === $path) {
+    $slug = $match[1];
+
+    echo $twig->render('module.twig', [
+        'current' => 'module',
+        'module' => $modules[$slug],
+        'module_key' => $slug,
+        'modules' => $modules,
+        'employee_bands' => $employeeBands,
+    ]);
+    exit;
+}
 
 // ------------------------------------------------------------------- api/v1
 
@@ -230,7 +539,7 @@ if (str_starts_with($path, '/api/v1')) {
             echo json_encode([
                 'source' => $rateSet->source(),
                 'periods' => $periods,
-                'versions' => $rateSet->all(),
+                'versions' => array_map($publicRuleset, $rateSet->all()),
             ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
             exit;
         }
@@ -244,12 +553,13 @@ if (str_starts_with($path, '/api/v1')) {
             $input = $readInput($body);
             $slip = $calculator->payslip($input['gross'], $input['rules'], $input['options']);
 
-            echo json_encode([
-                'rate_version' => $input['rules']['id'],
-                'period' => ['year' => $input['year'], 'month' => $input['month']],
-                'payslip' => $slip,
-                'employer_cost' => $calculator->employerCost($input['gross'], $input['rules'], $input['options']),
-            ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+            echo json_encode($publicPayslip(
+                $input['rules'],
+                $slip,
+                $calculator->employerCost($input['gross'], $input['rules'], $input['options']),
+                $input['year'],
+                $input['month'],
+            ), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
             exit;
         }
 
@@ -273,7 +583,7 @@ if ($path === '/api' && $_SERVER['REQUEST_METHOD'] === 'GET') {
         'rates_json' => json_encode([
             'source' => $rateSet->source(),
             'periods' => $periods,
-            'versions' => [$rateSet->current()],
+            'versions' => [$publicRuleset($rateSet->current())],
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES),
         'request_json' => json_encode([
             'gross' => 100_000,
@@ -281,12 +591,13 @@ if ($path === '/api' && $_SERVER['REQUEST_METHOD'] === 'GET') {
             'month' => $defaultPeriod['month'],
             'pension' => 0,
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES),
-        'payslip_json' => json_encode([
-            'rate_version' => $sampleRules['id'],
-            'period' => ['year' => $defaultPeriod['year'], 'month' => $defaultPeriod['month']],
-            'payslip' => $sampleSlip,
-            'employer_cost' => $calculator->employerCost(100_000, $sampleRules),
-        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES),
+        'payslip_json' => json_encode($publicPayslip(
+            $sampleRules,
+            $sampleSlip,
+            $calculator->employerCost(100_000, $sampleRules),
+            $defaultPeriod['year'],
+            $defaultPeriod['month'],
+        ), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES),
     ]);
     exit;
 }
@@ -513,7 +824,7 @@ if ($path === '/compare') {
     exit;
 }
 
-if ($path === '/' || $path === '/preview') {
+if ($path === '/paye-calculator' || $path === '/preview') {
     echo $twig->render('calculator.twig', $toolContext($_POST !== [] ? $_POST : $_GET));
     exit;
 }

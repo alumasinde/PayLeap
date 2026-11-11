@@ -1,0 +1,37 @@
+{% if monthly is null %}
+  <article class="quote-card">
+    <span class="eyebrow">{{ band.name }} · {{ band.min }}+ employees</span>
+    <p class="quote-price">Quoted</p>
+    <p class="quote-meta">BlueChip pricing follows a short call: modules, payroll frequency and support.</p>
+    <ul class="quote-lines">
+      {% for line in lines %}
+        <li><span>{{ line.name }}</span><span class="quote-amount">On request</span></li>
+      {% endfor %}
+    </ul>
+    <a class="btn-primary" href="#early-access">Talk to us</a>
+  </article>
+{% elseif monthly == 0 %}
+  <article class="quote-card">
+    <span class="eyebrow">{{ band.name }} · {{ band.min }}–{{ band.max }} employees</span>
+    <p class="quote-price">Free</p>
+    <p class="quote-meta">For one or two employees. Every module in the workspace, no card.</p>
+    <a class="btn-primary" href="/paye-calculator">Start free</a>
+  </article>
+{% else %}
+  <article class="quote-card">
+    <span class="eyebrow">{{ band.name }} · {{ band.min }}–{{ band.max }} employees</span>
+    <p class="quote-price">KSh {{ monthly|number_format(0) }}<small> /month</small></p>
+    <p class="quote-meta">About ${{ usd }} · KSh {{ yearly|number_format(0) }} a year, saving {{ saving|number_format(0) }}</p>
+
+    <ul class="quote-lines">
+      {% for line in lines %}
+        <li>
+          <span>{{ line.name }}</span>
+          <span class="quote-amount">{% if line.included %}Included{% else %}KSh {{ line.amount|number_format(0) }}{% endif %}</span>
+        </li>
+      {% endfor %}
+    </ul>
+
+    <a class="btn-primary" href="#early-access">Start with {{ band.name }}</a>
+  </article>
+{% endif %}

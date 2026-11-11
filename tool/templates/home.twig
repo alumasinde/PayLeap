@@ -1,0 +1,126 @@
+{% extends 'layout-public.twig' %}
+
+{% block title %}Mshahara Check — Kenyan payroll and take-home pay{% endblock %}
+{% block description %}A free Kenyan PAYE calculator with live NSSF, SHIF and Housing Levy rates, and payroll software for HR and Finance teams.{% endblock %}
+
+{% block body %}
+  <main class="marketing">
+    <section class="hero">
+      <div class="hero-copy">
+        <span class="kicker">Payroll for Kenyan teams</span>
+        <h1 class="display">Payroll that closes before the month does.</h1>
+        <p class="lede">PAYE, NSSF, SHIF and the Housing Levy from rate tables you can update without a deploy. Start with a free payslip. When the team grows, run payroll for everyone.</p>
+        <div class="cta-row">
+          <a class="btn-primary" href="/paye-calculator">Run a payslip — free</a>
+          <a class="btn-ghost" href="/payroll">Explore payroll</a>
+        </div>
+        <p class="hero-note">No sign-up · {{ hero.month|month_name }} {{ hero.year }} rates</p>
+      </div>
+
+      <div class="hero-sheet">
+        {% include 'sheet.twig' with hero only %}
+        <p class="hero-caption">KSh 100,000 gross, priced on the current rules.</p>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <h2>Free tools, no account</h2>
+        <p>Everything you need to answer a salary question today.</p>
+      </div>
+      <div class="cards-3">
+        <a class="card tool-card" href="/paye-calculator">
+          <span class="tool-tag">Gross → net</span>
+          <h3>Take-home calculator</h3>
+          <p>Statutory deductions in the order payroll applies them, with a downloadable payslip.</p>
+          <span class="card-link">Open calculator</span>
+        </a>
+        <a class="card tool-card" href="/net-to-gross">
+          <span class="tool-tag">Net → gross</span>
+          <h3>Reverse calculator</h3>
+          <p>Name the take-home and see the salary to negotiate for.</p>
+          <span class="card-link">Find the gross</span>
+        </a>
+        <a class="card tool-card" href="/compare">
+          <span class="tool-tag">Offers</span>
+          <h3>Compare two offers</h3>
+          <p>Two or three offers ranked on what actually lands in the account.</p>
+          <span class="card-link">Compare offers</span>
+        </a>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <h2>The workspace</h2>
+        <p>Modules share the same employee records and the same calculations.</p>
+      </div>
+      <div class="cards-3">
+        {% for module in modules %}
+          <a class="card module-card" href="{{ module.path }}">
+            <span class="status-chip {{ module.status }}">{{ module.status_label }}</span>
+            <h3>{{ module.name }}</h3>
+            <p>{{ module.tagline }}</p>
+            <span class="card-link">{{ module.cta }}</span>
+          </a>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="band">
+        <div>
+          <h2>Rates are data, not code.</h2>
+          <p>A budget change lands in the database, not in a release. Every payslip keeps the rules it was priced on, so last month still reconciles.</p>
+        </div>
+        <div class="band-actions">
+          <a class="btn-primary" href="/payroll">See how payroll works</a>
+          <a class="btn-ghost" href="/paye-calculator">Try the calculator</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <h2>Pricing by headcount</h2>
+        <p>One price per band, including employee records and payroll. Add modules as the team needs them.</p>
+      </div>
+      <div class="price-strip">
+        <div>
+          <span class="eyebrow">From</span>
+          <p class="strip-price">KSh {{ pricing_min.price|number_format(0) }}<small> /month</small></p>
+          <p class="hint-line">{{ pricing_min.min }}–{{ pricing_min.max }} employees</p>
+        </div>
+        <div>
+          <span class="eyebrow">To</span>
+          <p class="strip-price">KSh {{ pricing_max.price|number_format(0) }}<small> /month</small></p>
+          <p class="hint-line">{{ pricing_max.min }}–{{ pricing_max.max }} employees</p>
+        </div>
+        <div class="strip-note">
+          <p>Yearly billing saves {{ (pricing.yearly_discount * 100)|round }}%. Above {{ pricing_max.max }}, BlueChip is quoted on request.</p>
+          <a class="btn-ghost" href="/pricing">Build your quote</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="early-access">
+      <div class="split">
+        <div>
+          <span class="kicker">Early access</span>
+          <h2 class="section-title">Put your payroll on the list.</h2>
+          <p class="lede">Tell us how many people you pay and which module you need first. We onboard a few companies a month.</p>
+          <ul class="check-list">
+            <li>We import your employee list from a spreadsheet.</li>
+            <li>You check one run against your current payroll.</li>
+            <li>Then it is yours.</li>
+          </ul>
+        </div>
+        <div class="interest-card">
+          <div id="interest-slot">
+            {% include 'partials/interest-form.twig' with {'module_key': 'payroll', 'source': 'home'} %}
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+{% endblock %}

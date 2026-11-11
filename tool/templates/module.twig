@@ -1,0 +1,54 @@
+{% extends 'layout-public.twig' %}
+
+{% block title %}{{ module.name }} — Mshahara Check{% endblock %}
+{% block description %}{{ module.summary }}{% endblock %}
+
+{% block body %}
+  <main class="marketing">
+    <section class="page-hero">
+      <span class="status-chip {{ module.status }}">{{ module.status_label }}</span>
+      <h1 class="display">{{ module.name }}</h1>
+      <p class="lede">{{ module.summary }}</p>
+      <p class="module-tags">
+        <span class="status-chip live">Works on its own</span>
+        {% for link in module.links %}
+          <span class="link-chip">Links with {{ modules[link].name }}</span>
+        {% endfor %}
+      </p>
+      <div class="cta-row">
+        <a class="btn-primary" href="#early-access">Join the early list</a>
+        <a class="btn-ghost" href="/payroll">See payroll</a>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <h2>What it will do</h2>
+        <p>{{ module.tagline }}</p>
+      </div>
+      <div class="cards-3">
+        {% for bullet in module.bullets %}
+          <div class="card">
+            <h3>{{ bullet.title }}</h3>
+            <p>{{ bullet.body }}</p>
+          </div>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="section" id="early-access">
+      <div class="split">
+        <div>
+          <span class="kicker">Early access</span>
+          <h2 class="section-title">Tell us how your team works.</h2>
+          <p class="lede">Companies on the early list try each module before it is generally available, and keep their price for a year.</p>
+        </div>
+        <div class="interest-card">
+          <div id="interest-slot">
+            {% include 'partials/interest-form.twig' with {'module_key': module_key, 'source': 'module'} %}
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+{% endblock %}

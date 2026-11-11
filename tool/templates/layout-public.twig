@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en-KE">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Mshahara Check — payroll and take-home pay for Kenyan teams{% endblock %}</title>
+  <meta name="description" content="{% block description %}PAYE, NSSF, SHIF and the Housing Levy from live rate tables. A free payslip calculator today, a payroll workspace for HR and Finance as you grow.{% endblock %}">
+  <link rel="stylesheet" href="/app.css">
+  <script src="/vendor/htmx.min.js" defer></script>
+</head>
+<body class="public">
+  <header class="site-header public">
+    <div class="header-inner">
+      <a class="brand" href="/"><span class="brand-mark">M</span> Mshahara Check</a>
+      <nav class="nav" aria-label="Main">
+        <a class="nav-btn{% if current == 'calculator' %} is-current{% endif %}" href="/paye-calculator">Calculator</a>
+        <a class="nav-btn{% if current == 'payroll' %} is-current{% endif %}" href="/payroll">Payroll</a>
+        <a class="nav-btn{% if current == 'pricing' %} is-current{% endif %}" href="/pricing">Pricing</a>
+      </nav>
+      <a class="header-cta" href="/paye-calculator">Run a payslip</a>
+    </div>
+  </header>
+
+  {% block body %}{% endblock %}
+
+  <footer class="site-footer public">
+    <div class="footer-grid">
+      <div>
+        <a class="brand" href="/"><span class="brand-mark">M</span> Mshahara Check</a>
+        <p class="footer-blurb">Kenyan payroll and take-home pay on one engine. Built in Nairobi.</p>
+      </div>
+      <div>
+        <h4>Free tools</h4>
+        <a href="/paye-calculator">PAYE calculator</a>
+        <a href="/net-to-gross">Net → gross</a>
+        <a href="/compare">Compare offers</a>
+        <a href="/api">API</a>
+      </div>
+      <div>
+        <h4>Product</h4>
+        <a href="/payroll">Payroll</a>
+        {% for module in modules %}
+          {% if module.path != '/payroll' %}
+            <a href="{{ module.path }}">{{ module.name }}</a>
+          {% endif %}
+        {% endfor %}
+        <a href="/pricing">Pricing</a>
+      </div>
+    </div>
+    <p class="footer-note">Estimates only, not tax advice. © {{ "now"|date("Y") }} Mshahara Check · Nairobi, Kenya</p>
+  </footer>
+</body>
+</html>

@@ -4,29 +4,29 @@
   <meta charset="utf-8">
   <style>
     @page { margin: 34px 38px; }
-    body { font-family: "DejaVu Sans", sans-serif; color: #22303c; font-size: 11px; margin: 0; }
-    .top { border-bottom: 2px solid #22303c; padding-bottom: 9px; margin-bottom: 22px; }
+    body { font-family: "DejaVu Sans", sans-serif; color: #1A2A2C; font-size: 11px; margin: 0; }
+    .top { border-bottom: 2px solid #1A2A2C; padding-bottom: 9px; margin-bottom: 22px; }
     .brand { font-size: 16px; font-weight: bold; }
-    .brand span { color: #1a6ed0; }
-    .period { float: right; font-size: 11px; color: #566674; padding-top: 4px; }
+    .brand span { color: #0E5A46; }
+    .period { float: right; font-size: 11px; color: #4F6165; padding-top: 4px; }
     table { width: 100%; border-collapse: collapse; }
-    td { padding: 7px 10px; border-bottom: 1px solid #e3e9ef; font-size: 11px; }
-    td.label { text-align: right; color: #566674; }
-    td.note { text-align: right; color: #8394a1; font-size: 8.5px; padding-top: 0; }
-    td.value { text-align: right; color: #1a6ed0; font-weight: bold; width: 120px; }
-    tr.alt td { background: #f7fafd; }
-    tr.sub td.label { color: #22303c; font-weight: bold; }
-    tr.sub td.value { color: #14518f; }
-    tr.net td { border-top: 2px solid #22303c; border-bottom: 0; padding-top: 12px; font-size: 15px; }
-    tr.net td.value { color: #14518f; font-size: 17px; }
-    .foot { margin-top: 20px; padding-top: 9px; border-top: 1px solid #e3e9ef; font-size: 8.5px; color: #8394a1; }
-    .summary { margin-top: 14px; font-size: 10px; color: #566674; }
+    td { padding: 7px 10px; border-bottom: 1px solid #E0D8C7; font-size: 11px; }
+    td.label { text-align: right; color: #4F6165; }
+    td.note { text-align: right; color: #5C6B65; font-size: 8.5px; padding-top: 0; }
+    td.value { text-align: right; color: #0E5A46; font-weight: bold; width: 120px; }
+    tr.alt td { background: #FAF6EC; }
+    tr.sub td.label { color: #1A2A2C; font-weight: bold; }
+    tr.sub td.value { color: #0B4031; }
+    tr.net td { border-top: 2px solid #1A2A2C; border-bottom: 0; padding-top: 12px; font-size: 15px; }
+    tr.net td.value { color: #0B4031; font-size: 17px; }
+    .foot { margin-top: 20px; padding-top: 9px; border-top: 1px solid #E0D8C7; font-size: 8.5px; color: #5C6B65; }
+    .summary { margin-top: 14px; font-size: 10px; color: #4F6165; }
   </style>
 </head>
 <body>
   <div class="top">
     <span class="brand">Mshahara <span>Check</span></span>
-    <span class="period">{{ month|month_name }} {{ year }} · {{ rules.id }}</span>
+    <span class="period">{{ month|month_name }} {{ year }}</span>
   </div>
 
   <table>
@@ -49,7 +49,7 @@
 
   <div class="summary">
     Take-home {{ slip.take_home_share|pct }} of gross · deductions {{ slip.total_deductions|money }} ·
-    {{ slip.rate_version }} rules from {{ rules.effective_from|long_date }}
+    Rules from {{ rules.effective_from|long_date }}
   </div>
 
   <div class="foot">

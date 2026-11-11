@@ -5,7 +5,7 @@
 {% block body %}
   <div class="saved-head">
     <h1>Saved payslip</h1>
-    <p>Snapshot taken with the {{ rules.id }} rules. It keeps those figures even after rates change.</p>
+    <p>Snapshot taken with the rules in force at the time. It keeps those figures even after rates change.</p>
   </div>
 
   <div class="workspace">
@@ -17,14 +17,14 @@
         </div>
         <p class="dialog-sub">Anyone with the link can open this payslip.</p>
         <button class="btn-ghost" type="button" data-copy="{{ origin }}/p/{{ id }}">Copy link</button>
-        <p style="margin:16px 0 0"><a class="btn-primary" href="/" style="text-decoration:none">New calculation</a></p>
+        <p style="margin:16px 0 0"><a class="btn-primary" href="/paye-calculator" style="text-decoration:none">New calculation</a></p>
       </div>
     </aside>
 
     <section class="result-col">
       {% include 'sheet.twig' %}
       <div class="meta-row">
-        <span class="mono">{{ rules.id }} · {{ rules.label }}</span>
+        <span class="mono">Rules from {{ rules.effective_from|long_date }}</span>
         <button type="button" class="link-btn" data-open="dialog-rates">Rates</button>
       </div>
       {% include 'dialogs.twig' %}

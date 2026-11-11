@@ -1,0 +1,102 @@
+{% extends 'layout-public.twig' %}
+
+{% block title %}Payroll for Kenyan teams — Mshahara Check{% endblock %}
+{% block description %}Run payroll for the whole team: NSSF, SHIF, Housing Levy and PAYE in the right order, with a payslip per employee and rates that update without a deploy.{% endblock %}
+
+{% block body %}
+  <main class="marketing">
+    <section class="page-hero">
+      <span class="kicker">Payroll module</span>
+      <h1 class="display">One run. Every statutory line.</h1>
+      <p class="lede">Gross to net for the whole team, with NSSF tiers, SHIF, the Housing Levy and PAYE applied in the right order. Rates live in the database, so a change lands without a deploy.</p>
+      <div class="cta-row">
+        <a class="btn-primary" href="#early-access">Request early access</a>
+        <a class="btn-ghost" href="/pricing">See pricing</a>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <h2>What it does</h2>
+        <p>Built for the month-end that has to be right the first time.</p>
+      </div>
+      <div class="cards-3">
+        <div class="card">
+          <h3>Statutory, in order</h3>
+          <p>NSSF on its tiers, SHIF and the levy on gross, reliefs, then PAYE — the same engine as the free calculator.</p>
+        </div>
+        <div class="card">
+          <h3>Payslips people trust</h3>
+          <p>A PDF per employee with every line explained, not a single net figure.</p>
+        </div>
+        <div class="card">
+          <h3>HR and Finance, one run</h3>
+          <p>People records for HR, cost and statutory totals for Finance, on the same data.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <h2>Inside a run</h2>
+        <p>Preview with three sample employees, priced on the current rules.</p>
+      </div>
+      <div class="mock-grid">
+        <figure class="mock">
+          <figcaption class="mock-bar">
+            <span class="mock-dot"></span><span class="mock-dot"></span><span class="mock-dot"></span>
+            <span class="mock-title">payroll · {{ hero.month|month_name }} {{ hero.year }}</span>
+          </figcaption>
+          <table class="mock-table">
+            <thead>
+              <tr><th>Employee</th><th class="num">Gross</th><th class="num">Statutory</th><th class="num">Net</th></tr>
+            </thead>
+            <tbody>
+              {% for person in people %}
+                <tr>
+                  <td>{{ person.name }}</td>
+                  <td class="num">{{ person.slip.gross|money }}</td>
+                  <td class="num">{{ person.statutory|money }}</td>
+                  <td class="num">{{ person.slip.net|money }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td>Total</td>
+                <td class="num">{{ totals.gross|money }}</td>
+                <td class="num">{{ totals.statutory|money }}</td>
+                <td class="num">{{ totals.net|money }}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </figure>
+
+        <figure class="mock">
+          <figcaption class="mock-bar">
+            <span class="mock-dot"></span><span class="mock-dot"></span><span class="mock-dot"></span>
+            <span class="mock-title">payslip · {{ hero.month|month_name }} {{ hero.year }}</span>
+          </figcaption>
+          <div class="mock-sheet">
+            {% include 'sheet.twig' with hero only %}
+          </div>
+        </figure>
+      </div>
+    </section>
+
+    <section class="section" id="early-access">
+      <div class="split">
+        <div>
+          <span class="kicker">Early access</span>
+          <h2 class="section-title">Start with one payroll run.</h2>
+          <p class="lede">We import your list, you check the run against your current payroll, then decide. No card needed to look.</p>
+        </div>
+        <div class="interest-card">
+          <div id="interest-slot">
+            {% include 'partials/interest-form.twig' with {'module_key': 'payroll', 'source': 'payroll'} %}
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+{% endblock %}

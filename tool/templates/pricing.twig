@@ -1,0 +1,152 @@
+{% extends 'layout-public.twig' %}
+
+{% block title %}Pricing — Mshahara Check{% endblock %}
+{% block description %}Payroll pricing by headcount, built from modules. Employee records and payroll are the base; add leave, attendance or casual management when you need them.{% endblock %}
+
+{% block body %}
+  <main class="marketing">
+    <section class="page-hero">
+      <span class="kicker">Pricing</span>
+      <h1 class="display">Priced by headcount. Built from modules.</h1>
+      <p class="lede">Employee records and payroll are the base. Add leave, attendance or casual management when you need them — each works on its own, and together they share one employee record.</p>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <h2>Build your quote</h2>
+        <p>Change the headcount or tick a module. The price is worked out from the band, not from a fixed plan.</p>
+      </div>
+
+      <div class="quote-grid">
+        <form class="quote-form"
+              hx-post="/pricing/quote"
+              hx-target="#quote"
+              hx-swap="innerHTML"
+              hx-sync="this:replace"
+              hx-trigger="submit, change, input changed delay:300ms from:#employees">
+
+          <label class="field-line">
+            <span>Employees paid</span>
+            <input id="employees" name="employees" type="number" min="1" max="10000"
+                   value="{{ employees }}" inputmode="numeric">
+          </label>
+
+          <fieldset class="module-picks">
+            <legend>Modules</legend>
+            {% for key, module in modules %}
+              <label class="module-pick">
+                <input type="checkbox" name="modules[]" value="{{ key }}"{% if key in selected %} checked{% endif %}>
+                <span class="pick-name">{{ module.name }}</span>
+                <span class="pick-status">{{ module.status_label }}</span>
+              </label>
+            {% endfor %}
+          </fieldset>
+
+          <p class="form-note">Employee records come free with payroll. Each other module adds its share of the band price.</p>
+          <button class="btn-primary" type="submit">Update quote</button>
+        </form>
+
+        <div id="quote">
+          {% include 'partials/pricing-quote.twig' with quote %}
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <h2>By headcount</h2>
+        <p>Monthly billing in shillings, with an indicative dollar figure. Yearly billing saves {{ (pricing.yearly_discount * 100)|round }}%.</p>
+      </div>
+
+      <div class="table-scroll">
+        <table class="band-table">
+          <thead>
+            <tr>
+              <th>Plan</th>
+              <th>Employees</th>
+              <th class="num">Monthly</th>
+              <th class="num">Yearly</th>
+              <th class="num">USD</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for band in bands %}
+              <tr>
+                <td>{{ band.name }}</td>
+                <td>{{ band.min }}{% if band.max %}–{{ band.max }}{% else %}+{% endif %}</td>
+                {% if band.price is null %}
+                  <td class="num" colspan="2">Quoted on request</td>
+                  <td class="num">—</td>
+                {% else %}
+                  <td class="num">{{ band.price ? band.price|number_format(0) : 'Free' }}</td>
+                  <td class="num">{{ band.price ? (band.price * 12 * (1 - pricing.yearly_discount))|round|number_format(0) : 'Free' }}</td>
+                  <td class="num">{{ band.usd ? '$' ~ band.usd : '—' }}</td>
+                {% endif %}
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <p class="plan-note">The monthly figure includes employee records and payroll. Modules scale with the same band, so growing headcount does not need a second quote.</p>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <h2>Modules</h2>
+        <p>Each works alone. Together they read the same employee record.</p>
+      </div>
+      <div class="cards-3">
+        {% for module in modules %}
+          <a class="card module-card" href="{{ module.path }}">
+            <span class="status-chip {{ module.status }}">{{ module.status_label }}</span>
+            <h3>{{ module.name }}</h3>
+            <p>{{ module.tagline }}</p>
+            <span class="card-link">{{ module.cta }}</span>
+          </a>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <h2>Questions</h2>
+        <p>The things people ask before the first call.</p>
+      </div>
+      <div class="faq">
+        <details>
+          <summary>Can I take one module without payroll?</summary>
+          <p>Yes. Every module has its own share of the band price, so leave or attendance can run on its own. Payroll is the only module that includes employee records at no extra cost.</p>
+        </details>
+        <details>
+          <summary>Do you file NSSF, SHIF and PAYE for us?</summary>
+          <p>Not yet. Mshahara calculates and documents every line; statutory filing is on the roadmap. You can check any run against your current payroll before switching.</p>
+        </details>
+        <details>
+          <summary>What happens when a rate changes?</summary>
+          <p>Rates live in the database with an effective date. A budget change is a new ruleset, and every old payslip keeps the rules it was priced on.</p>
+        </details>
+        <details>
+          <summary>Is the calculator really free?</summary>
+          <p>Yes, with no account. It runs on the same engine as the paid payroll module.</p>
+        </details>
+      </div>
+      <p class="plan-note">Prices are per company, per month, in Kenyan shillings and exclude VAT. The dollar figure is indicative. Early-access companies keep their band price for twelve months.</p>
+    </section>
+
+    <section class="section" id="early-access">
+      <div class="split">
+        <div>
+          <span class="kicker">Early access</span>
+          <h2 class="section-title">Lock the band, not the payroll.</h2>
+          <p class="lede">Early-access companies keep their band price for twelve months and help decide what ships first.</p>
+        </div>
+        <div class="interest-card">
+          <div id="interest-slot">
+            {% include 'partials/interest-form.twig' with {'module_key': 'payroll', 'source': 'pricing'} %}
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+{% endblock %}
