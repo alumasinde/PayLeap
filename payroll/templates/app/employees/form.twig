@@ -81,6 +81,28 @@
           </select>
         </label>
         <label class="field">
+          <span>Reports to</span>
+          {% set currentManager = values.manager_id ?? employee.manager_id ?? 0 %}
+          <select name="manager_id">
+            <option value="0">No manager</option>
+            {% for manager in managers %}
+              <option value="{{ manager.id }}"{% if currentManager == manager.id %} selected{% endif %}>{{ manager.last_name }}, {{ manager.first_name }} ({{ manager.employee_no }})</option>
+            {% endfor %}
+          </select>
+          <small class="hint">The manager approves this person's leave.</small>
+        </label>
+        <label class="field">
+          <span>Portal login</span>
+          {% set currentUser = values.user_id ?? employee.user_id ?? 0 %}
+          <select name="user_id">
+            <option value="0">Not linked</option>
+            {% for user in portal_users %}
+              <option value="{{ user.id }}"{% if currentUser == user.id %} selected{% endif %}>{{ user.first_name }} {{ user.last_name }} ({{ user.email }})</option>
+            {% endfor %}
+          </select>
+          <small class="hint">Links the employee to a login for self-service and team approvals.</small>
+        </label>
+        <label class="field">
           <span>Employment type</span>
           {% set currentType = values.employment_type ?? employee.employment_type ?? 'permanent' %}
           <select name="employment_type">

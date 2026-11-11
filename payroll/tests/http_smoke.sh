@@ -99,7 +99,7 @@ else
   bad "settings opens on the organisation tab"
 fi
 
-for tab in leave holidays shifts devices; do
+for tab in leave shifts devices; do
   status=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR" "$BASE/app/settings?tab=$tab")
   expect "GET /app/settings?tab=$tab is 200" "$status" "200"
 done
@@ -114,7 +114,7 @@ status=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR" -c "$JAR" -X POST "$BA
   --data-urlencode "name=Idd ul-Fitr")
 expect "holiday creation redirects" "$status" "302"
 
-curl -s -b "$JAR" -o "$APP_HTML" "$BASE/app/settings?tab=holidays&year=2027"
+curl -s -b "$JAR" -o "$APP_HTML" "$BASE/app/settings?tab=leave&year=2027"
 if grep -q "Idd ul-Fitr" "$APP_HTML"; then ok "the holiday is listed"; else bad "the holiday is listed"; fi
 
 # ------------------------------------------------------------------ employees
@@ -125,6 +125,11 @@ if grep -q "Add employee" "$APP_HTML"; then ok "register offers to add people"; 
 
 status=$(curl -s -b "$JAR" -o "$APP_HTML" -w '%{http_code}' "$BASE/app/employees/new")
 expect "GET /app/employees/new is 200" "$status" "200"
+if grep -q "Reports to" "$APP_HTML" && grep -q "Portal login" "$APP_HTML"; then
+  ok "employee form sets the approver and login"
+else
+  bad "employee form sets the approver and login"
+fi
 etoken=$(grep -o 'name="_token" value="[^"]*"' "$APP_HTML" | head -1 | sed 's/.*value="//;s/"$//')
 emp_no="SMK-$(date +%s)"
 

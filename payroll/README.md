@@ -85,8 +85,8 @@ are stored in MySQL by default (`SESSION_DRIVER=database`); set
 | `GET /app/roster` | Month calendar of shifts, rest days and approved leave (`attendance.view`) |
 | `POST /app/roster` | Assign a shift or a rest day to one person's date (`attendance.edit`) |
 | `GET /app/leave` | Leave requests filtered by status (`leave.view`); `?view=balances` shows entitlement, taken, pending and balance |
-| `POST /app/leave/{id}/decide` | Approve or reject a pending request (`leave.approve.team`); restricted types check the employee's gender |
-| `GET /app/settings` | Company policy tabs: organisation, leave types, public holidays, shifts, devices (`settings.manage`) |
+| `POST /app/leave/{id}/decide` | Approve or reject a pending request (`leave.approve.team` for the team, `leave.approve.all` for the company); nobody decides their own, and restricted types check gender |
+| `GET /app/settings` | Company policy tabs: organisation, leave and holidays, shifts, devices (`settings.manage`) |
 | `POST /app/settings/company` | Rename the company |
 | `POST /app/settings/leave-types` | Add or update a leave type, its days, eligibility and carry-over |
 | `POST /app/settings/leave-types/{id}/toggle` | Enable or retire a leave type |
@@ -137,6 +137,7 @@ context, and the guard resolves both from the request.
 ```bash
 php tests/auth_test.php       # services: tokens, resets, CSRF, rate limits, gate
 php tests/employee_test.php   # register: numbers, validation, scope, archive
+php tests/leave_test.php      # approvals: manager scope, self-approval, linking
 php tests/payroll_test.php    # runs: engine parity, totals, approval, scope
 php tests/smtp_test.php       # SMTP wire format against a local stub
 bash tests/http_smoke.sh      # HTTP: CSRF 419, invite, register, payroll, reset
@@ -214,23 +215,35 @@ bash tests/http_smoke.sh      # HTTP: CSRF 419, invite, register, payroll, reset
 - **Leave balances are derived, never stored.** Entitlement comes from
   `leave_types.days_per_year`; taken is approved days in the year and pending is
   requested days, so a decision immediately moves the balance.
+- **Approval follows the reporting line.** `employees.manager_id` is the direct
+  supervisor and `user_id` links that person to a login (both set on the employee
+  form). A team approver (`leave.approve.team`, the HOD) sees direct reports and
+  their own department; a company approver (`leave.approve.all`, HR, owner,
+  admin) sees every request. An approver's own pending request is visible but
+  never decidable, and the dashboard badge counts only actionable requests.
+  HOD leave therefore waits for their manager or HR; HR leave waits for the
+  owner or another company approver.
 - **Leave policy is data.** A leave type carries its days, paid flag, document
   rule, carry-over limit, active flag and a gender restriction (`any`, `female`,
   `male`). Balances hide restricted types from the other gender. Approval of a
   restricted type is refused when the employee's gender does not match, and an
   employee with no recorded gender must be completed first.
-- **A holiday is a date, not a workday.** `public_holidays` is company-scoped;
-  fixed statutory days are provisioned for the current and next year, and
-  movable feasts are added in Settings. The roster marks the date, and the
-  timesheet drops the target and lost hours for it. Hours clocked on a holiday
-  are summed into a separate `Holiday hrs` column so payroll can price them.
+- **A holiday is a date, not a balance.** `public_holidays` is company-scoped
+  and managed with the leave policy in Settings. Fixed statutory days are
+  provisioned for the current and next year, and movable feasts are added
+  there. A public holiday is a paid non-working day, not an entitlement: no
+  leave balance is consumed and no request is needed. The roster marks the
+  date, and the timesheet drops the target and lost hours for it. Hours clocked
+  on a holiday are summed into a separate `Holiday hrs` column so payroll can
+  price them; the current payroll run does not yet apply a holiday premium.
 - **Devices are registered, then feed the same rows.** `attendance_devices`
   records a terminal's kind (biometric, face, terminal), purpose (clock in/out
   or meal), serial and location. The meal break itself is the shift's
   `break_minutes`; a meal device records the lunch clock.
 - **Permissions gate the pages.** Viewing a register or timesheet needs
   `attendance.view`; assigning a shift needs `attendance.edit`; team leave
-  decisions need `leave.approve.team`; company policy lives behind
+  decisions need `leave.approve.team` and company leave decisions
+  `leave.approve.all`; company policy lives behind
   `settings.manage`, granted to owner, administrator and HR.
 
 ## Next

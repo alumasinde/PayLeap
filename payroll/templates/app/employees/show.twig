@@ -55,6 +55,7 @@
     <div class="detail-grid">
       <div class="detail"><span>Employee number</span><strong class="mono">{{ employee.employee_no }}</strong></div>
       <div class="detail"><span>Department</span><strong>{{ employee.department_name ?: '—' }}</strong></div>
+      <div class="detail"><span>Reports to</span><strong>{% if employee.manager_first_name %}{{ employee.manager_first_name }} {{ employee.manager_last_name }}{% else %}—{% endif %}</strong></div>
       <div class="detail"><span>Job title</span><strong>{{ employee.job_title ?: '—' }}</strong></div>
       <div class="detail"><span>Employment type</span><strong>{{ types[employee.employment_type] ?? employee.employment_type }}</strong></div>
       <div class="detail"><span>Start date</span><strong class="mono">{{ employee.start_date|date('d/m/Y') }}</strong></div>

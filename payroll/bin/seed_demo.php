@@ -189,6 +189,37 @@ foreach ($people as $index => [$first, $last, $department, $title, $type, $salar
 
 echo 'Employees ready: ' . count($employeeIds) . "\n";
 
+/* Reporting lines --------------------------------------------------------- */
+
+$teamRows = $db->prepare(
+    'SELECT id, department_id FROM employees
+     WHERE company_id = ? AND status = \'active\'
+     ORDER BY id',
+);
+$teamRows->execute([$companyId]);
+$byDepartment = [];
+
+foreach ($teamRows->fetchAll() as $row) {
+    if ($row['department_id'] !== null) {
+        $byDepartment[(int) $row['department_id']][] = (int) $row['id'];
+    }
+}
+
+$setManager = $db->prepare(
+    'UPDATE employees SET manager_id = ?
+     WHERE id = ? AND company_id = ? AND manager_id IS NULL',
+);
+
+foreach ($byDepartment as $team) {
+    $lead = array_shift($team);
+
+    foreach ($team as $member) {
+        $setManager->execute([$lead, $member, $companyId]);
+    }
+}
+
+echo 'Reporting lines ready: ' . count($byDepartment) . " departments\n";
+
 /* Public holidays --------------------------------------------------------- */
 
 $app->attendance->holidays->provisionDefaults($companyId);

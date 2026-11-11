@@ -9,6 +9,7 @@
     <p class="muted">
       Requests and balances for the team.
       {% if pending_count > 0 %}{{ pending_count }} waiting for a decision.{% else %}Nothing is pending.{% endif %}
+      {% if can('settings.manage') %}<a class="text-link" href="/app/settings?tab=leave">Leave policy and holidays</a>{% endif %}
     </p>
   </section>
 
@@ -124,18 +125,22 @@
                   {% if can_approve %}
                     <td>
                       {% if request.status == 'pending' %}
-                        <div class="row-actions">
-                          <form method="post" action="/app/leave/{{ request.id }}/decide">
-                            <input type="hidden" name="_token" value="{{ csrf_token() }}">
-                            <input type="hidden" name="decision" value="approved">
-                            <button class="btn-primary btn-xs" type="submit">Approve</button>
-                          </form>
-                          <form method="post" action="/app/leave/{{ request.id }}/decide">
-                            <input type="hidden" name="_token" value="{{ csrf_token() }}">
-                            <input type="hidden" name="decision" value="rejected">
-                            <button class="btn-ghost btn-xs" type="submit">Reject</button>
-                          </form>
-                        </div>
+                        {% if actor_employee_id and request.employee_id == actor_employee_id %}
+                          <span class="muted">Your request — decided by your manager</span>
+                        {% else %}
+                          <div class="row-actions">
+                            <form method="post" action="/app/leave/{{ request.id }}/decide">
+                              <input type="hidden" name="_token" value="{{ csrf_token() }}">
+                              <input type="hidden" name="decision" value="approved">
+                              <button class="btn-primary btn-xs" type="submit">Approve</button>
+                            </form>
+                            <form method="post" action="/app/leave/{{ request.id }}/decide">
+                              <input type="hidden" name="_token" value="{{ csrf_token() }}">
+                              <input type="hidden" name="decision" value="rejected">
+                              <button class="btn-ghost btn-xs" type="submit">Reject</button>
+                            </form>
+                          </div>
+                        {% endif %}
                       {% else %}
                         <span class="muted">
                           {% if request.decided_at %}{{ request.decided_at|date('j M Y') }}{% else %}Decided{% endif %}

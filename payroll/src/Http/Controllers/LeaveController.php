@@ -22,6 +22,7 @@ final class LeaveController
         $company = $this->app->requireCompany();
         $this->app->requirePermission('leave.view');
         $companyId = (int) $company['company_id'];
+        $userId = (int) $this->app->user['id'];
 
         $status = (string) $this->app->request->query('status', 'pending');
 
@@ -31,18 +32,24 @@ final class LeaveController
 
         $view = (string) $this->app->request->query('view', 'requests');
         $view = $view === 'balances' ? 'balances' : 'requests';
-        $employees = $this->app->employees->register->activeForSelect($companyId);
+
+        $canApproveAll = $this->app->can('leave.approve.all');
+        $canApproveTeam = $this->app->can('leave.approve.team');
+        $scope = $this->app->leave->service->scopeFor($companyId, $userId, $canApproveAll, $canApproveTeam);
+
+        $employees = $this->app->employees->register->activeForSelectInScope($companyId, $scope);
         $employee = $this->selectedEmployee($companyId, (int) $this->app->request->query('employee_id', 0), $employees);
         $year = (int) $this->app->request->query('year', date('Y'));
         $year = $year >= 2000 && $year <= 2100 ? $year : (int) date('Y');
 
         echo $this->app->render('app/leave/index.twig', [
             'view' => $view,
-            'requests' => $this->app->leave->requests->listForCompany($companyId, $status),
+            'requests' => $this->app->leave->requests->listForCompany($companyId, $status, $scope),
             'types' => $this->app->leave->requests->types($companyId),
             'filter_status' => $status,
-            'pending_count' => $this->app->leave->requests->pendingCount($companyId),
-            'can_approve' => $this->app->can('leave.approve.team'),
+            'pending_count' => $this->app->leave->requests->pendingCount($companyId, $scope),
+            'can_approve' => $canApproveAll || $canApproveTeam,
+            'actor_employee_id' => $scope['employee_id'],
             'employees' => $employees,
             'selected_employee' => $employee,
             'year' => $year,
@@ -58,19 +65,35 @@ final class LeaveController
      */
     private function selectedEmployee(int $companyId, int $employeeId, array $employees): ?array
     {
+        $allowed = array_map(static fn (array $row): int => (int) $row['id'], $employees);
+
         if ($employeeId > 0) {
+            if (!in_array($employeeId, $allowed, true)) {
+                $this->app->abort(404, 'That employee is outside your leave scope.');
+            }
+
             return $this->app->employees->register->find($companyId, $employeeId);
         }
 
-        return $this->app->employees->register->forUser($companyId, (int) $this->app->user['id'])
-            ?? $employees[0]
-            ?? null;
+        $self = $this->app->employees->register->forUser($companyId, (int) $this->app->user['id']);
+
+        if ($self !== null && in_array((int) $self['id'], $allowed, true)) {
+            return $self;
+        }
+
+        return $allowed === [] ? null : $this->app->employees->register->find($companyId, $allowed[0]);
     }
 
     public function decide(array $params): void
     {
         $company = $this->app->requireCompany();
-        $this->app->requirePermission('leave.approve.team');
+        $canApproveAll = $this->app->can('leave.approve.all');
+        $canApproveTeam = $this->app->can('leave.approve.team');
+
+        if (!$canApproveAll && !$canApproveTeam) {
+            $this->app->abort(403, 'Your role cannot decide leave.');
+        }
+
         $requestId = (int) ($params['id'] ?? 0);
 
         try {
@@ -80,6 +103,8 @@ final class LeaveController
                 $this->app->request->string('decision'),
                 (int) $this->app->user['id'],
                 $this->app->request->string('note'),
+                $canApproveAll,
+                $canApproveTeam,
             );
         } catch (HttpException $error) {
             $this->app->flash->add('error', $error->getMessage());

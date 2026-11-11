@@ -91,7 +91,7 @@ Names are suggestions. Prefix is not needed; `company_id` on all unless marked g
 | Table | Key columns / purpose |
 | --- | --- |
 | `companies` | name, KRA PIN, NSSF no., SHA no., NITA no., logo path, pay_day, default_currency, status |
-| `users` (global) | email, password_hash, name, session_epoch, mfa_secret, status |
+| `users` (global) | email, password_hash, first_name, last_name, session_epoch, mfa_secret, status |
 | `memberships` | user_id, company_id, status |
 | `invitations` | company_id, email, role_id, token_hash, expires_at, accepted_at |
 | `password_resets` | user_id, token_hash, expires_at, used_at |
@@ -115,7 +115,7 @@ Names are suggestions. Prefix is not needed; `company_id` on all unless marked g
 | `departments` | company_id, name, head_employee_id (unique name per company) |
 | `job_titles` | company_id, name, grade_id |
 | `grades` | company_id, name, min_salary_cents, max_salary_cents |
-| `employees` | employee_no, names, national_id, dob, gender, phone, email, address, marital_status, status, archived_at, exit_date, user_id (nullable link to portal) |
+| `employees` | employee_no, first_name, middle_name, last_name, national_id, dob, gender, phone, email, address, marital_status, status, archived_at, exit_date, department_id, manager_id (leave approver), user_id (nullable link to portal) |
 | `employee_statutory` | employee_id, kra_pin, nssf_no, sha_no, is_resident, has_disability_exemption, is_primary_employee |
 | `employments` | employee_id, type (permanent/casual/consultant/intern), start_date, end_date, dept_id, branch_id, title_id, manager_id, probation_end, pay_basis (monthly/daily/hourly), salary_cents, salary_input (basic/net) |
 | `employment_history` | employee_id, change_type, from/to values, effective_date (promotions, transfers, pay changes) |
@@ -138,7 +138,7 @@ Names are suggestions. Prefix is not needed; `company_id` on all unless marked g
 | `leave_requests` | employee_id, leave_type_id, start, end, days, reason, status, decided_by, decided_at |
 | `approval_workflows` | company_id, entity_type, step_no, approver (role or manager) |
 | `approvals` | entity_type, entity_id, step_no, approver_id, decision, at, note |
-| `public_holidays` (company) | company_id, holiday_date, name; unique per company per date, fixed statutory days provisioned |
+| `public_holidays` (company) | company_id, holiday_date, name; unique per company per date, fixed statutory days provisioned; a paid non-working day, never a leave balance |
 | `shifts` | company_id, name, start, end, break_minutes, active |
 | `rosters` → `roster_entries` | employee_id, work_date, shift_id, status (shift/off), note; unique per person per day |
 | `attendance_devices` | company_id, name, kind (biometric/face/terminal), purpose (attendance/meal), serial, location, active |
@@ -228,7 +228,7 @@ Keep every figure in `rate_versions`. Verify current rates and thresholds agains
 ```
 employees.view, employees.edit, employees.salary.view, employees.bank.view, employees.archive
 contracts.view, contracts.manage
-leave.view, leave.approve, leave.manage_types
+leave.view, leave.approve.team, leave.approve.all, leave.manage_types
 attendance.view, attendance.edit, overtime.approve
 payroll.view, payroll.run, payroll.approve, payroll.export
 loans.view, loans.manage

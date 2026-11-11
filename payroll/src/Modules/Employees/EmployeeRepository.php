@@ -17,7 +17,7 @@ final class EmployeeRepository
         'employee_no', 'first_name', 'middle_name', 'last_name', 'gender', 'email', 'phone',
         'national_id', 'kra_pin', 'nssf_number', 'shif_number',
         'bank_name', 'bank_branch', 'bank_account',
-        'department_id', 'job_title', 'employment_type',
+        'department_id', 'manager_id', 'user_id', 'job_title', 'employment_type',
         'monthly_salary_cents', 'start_date', 'exit_date', 'status',
     ];
 
@@ -68,9 +68,11 @@ final class EmployeeRepository
     public function find(int $companyId, int $employeeId): ?array
     {
         $statement = $this->db->prepare(
-            'SELECT e.*, d.name AS department_name
+            'SELECT e.*, d.name AS department_name,
+                    m.first_name AS manager_first_name, m.last_name AS manager_last_name
              FROM employees e
              LEFT JOIN departments d ON d.id = e.department_id
+             LEFT JOIN employees m ON m.id = e.manager_id AND m.company_id = e.company_id
              WHERE e.id = ? AND e.company_id = ?
              LIMIT 1',
         );
@@ -88,9 +90,9 @@ final class EmployeeRepository
     public function forUser(int $companyId, int $userId): ?array
     {
         $statement = $this->db->prepare(
-            'SELECT id, employee_no, first_name, last_name
+            'SELECT id, employee_no, first_name, last_name, department_id, manager_id
              FROM employees
-             WHERE company_id = ? AND user_id = ?
+             WHERE company_id = ? AND user_id = ? AND status = \'active\'
              LIMIT 1',
         );
         $statement->execute([$companyId, $userId]);
@@ -138,17 +140,104 @@ final class EmployeeRepository
      *
      * @return list<array<string,mixed>>
      */
-    public function activeForSelect(int $companyId): array
+    public function activeForSelect(int $companyId, ?int $exceptId = null): array
+    {
+        $sql = 'SELECT id, employee_no, first_name, last_name
+                FROM employees
+                WHERE company_id = ? AND status = \'active\'';
+        $params = [$companyId];
+
+        if ($exceptId !== null) {
+            $sql .= ' AND id <> ?';
+            $params[] = $exceptId;
+        }
+
+        $statement = $this->db->prepare($sql . ' ORDER BY last_name, first_name');
+        $statement->execute($params);
+
+        return $statement->fetchAll();
+    }
+
+    /**
+     * Active people an approver may see: direct reports, their department and
+     * themselves. A company approver passes a null scope and sees everyone.
+     *
+     * @param array{all:bool,employee_id:?int,department_id:?int}|null $scope
+     * @return list<array<string,mixed>>
+     */
+    public function activeForSelectInScope(int $companyId, ?array $scope): array
+    {
+        if ($scope === null || $scope['all']) {
+            return $this->activeForSelect($companyId);
+        }
+
+        $clauses = [];
+        $params = [$companyId];
+
+        if ($scope['employee_id'] !== null) {
+            $clauses[] = 'manager_id = ?';
+            $params[] = $scope['employee_id'];
+            $clauses[] = 'id = ?';
+            $params[] = $scope['employee_id'];
+        }
+
+        if ($scope['department_id'] !== null) {
+            $clauses[] = 'department_id = ?';
+            $params[] = $scope['department_id'];
+        }
+
+        $sql = 'SELECT id, employee_no, first_name, last_name
+                FROM employees
+                WHERE company_id = ? AND status = \'active\''
+            . ($clauses === [] ? ' AND 1 = 0' : ' AND (' . implode(' OR ', $clauses) . ')')
+            . ' ORDER BY last_name, first_name';
+
+        $statement = $this->db->prepare($sql);
+        $statement->execute($params);
+
+        return $statement->fetchAll();
+    }
+
+    /** Logins that belong to this company, for linking an employee record. */
+    public function portalUsers(int $companyId): array
     {
         $statement = $this->db->prepare(
-            'SELECT id, employee_no, first_name, last_name
-             FROM employees
-             WHERE company_id = ? AND status = \'active\'
-             ORDER BY last_name, first_name',
+            'SELECT u.id, u.first_name, u.last_name, u.email
+             FROM users u
+             JOIN memberships m ON m.user_id = u.id AND m.company_id = ? AND m.status = \'active\'
+             ORDER BY u.first_name, u.last_name',
         );
         $statement->execute([$companyId]);
 
         return $statement->fetchAll();
+    }
+
+    public function userIsMember(int $companyId, int $userId): bool
+    {
+        $statement = $this->db->prepare(
+            'SELECT 1 FROM memberships
+             WHERE company_id = ? AND user_id = ? AND status = \'active\'
+             LIMIT 1',
+        );
+        $statement->execute([$companyId, $userId]);
+
+        return $statement->fetchColumn() !== false;
+    }
+
+    public function userLinkedToOther(int $companyId, int $userId, ?int $exceptEmployeeId): bool
+    {
+        $sql = 'SELECT 1 FROM employees WHERE company_id = ? AND user_id = ?';
+        $params = [$companyId, $userId];
+
+        if ($exceptEmployeeId !== null) {
+            $sql .= ' AND id <> ?';
+            $params[] = $exceptEmployeeId;
+        }
+
+        $statement = $this->db->prepare($sql . ' LIMIT 1');
+        $statement->execute($params);
+
+        return $statement->fetchColumn() !== false;
     }
 
     /**

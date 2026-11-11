@@ -15,7 +15,7 @@ use Mshahara\Payroll\Support\HttpException;
  */
 final class SettingsController
 {
-    private const TABS = ['organisation', 'leave', 'holidays', 'shifts', 'devices'];
+    private const TABS = ['organisation', 'leave', 'shifts', 'devices'];
 
     public function __construct(private readonly App $app)
     {
@@ -28,6 +28,7 @@ final class SettingsController
         $companyId = (int) $company['company_id'];
 
         $tab = (string) $this->app->request->query('tab', 'organisation');
+        $tab = $tab === 'holidays' ? 'leave' : $tab;
         $tab = in_array($tab, self::TABS, true) ? $tab : 'organisation';
 
         $year = (int) $this->app->request->query('year', date('Y'));
@@ -118,10 +119,10 @@ final class SettingsController
                 (int) $this->app->user['id'],
             );
         } catch (HttpException $error) {
-            $this->back('holidays', $error->getMessage(), 'error', $year);
+            $this->back('leave', $error->getMessage(), 'error', $year);
         }
 
-        $this->back('holidays', 'Public holiday added.', 'success', $year);
+        $this->back('leave', 'Public holiday added.', 'success', $year);
     }
 
     public function removeHoliday(array $params): void
@@ -137,10 +138,10 @@ final class SettingsController
                 (int) $this->app->user['id'],
             );
         } catch (HttpException $error) {
-            $this->back('holidays', $error->getMessage(), 'error', $year);
+            $this->back('leave', $error->getMessage(), 'error', $year);
         }
 
-        $this->back('holidays', 'Public holiday removed.', 'success', $year);
+        $this->back('leave', 'Public holiday removed.', 'success', $year);
     }
 
     public function saveShift(): void

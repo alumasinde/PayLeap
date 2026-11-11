@@ -12,8 +12,7 @@
 
   <nav class="page-tabs" aria-label="Settings sections">
     <a class="{{ tab == 'organisation' ? 'is-active' : '' }}" href="/app/settings?tab=organisation">Organisation</a>
-    <a class="{{ tab == 'leave' ? 'is-active' : '' }}" href="/app/settings?tab=leave">Leave types</a>
-    <a class="{{ tab == 'holidays' ? 'is-active' : '' }}" href="/app/settings?tab=holidays">Public holidays</a>
+    <a class="{{ tab == 'leave' ? 'is-active' : '' }}" href="/app/settings?tab=leave">Leave &amp; holidays</a>
     <a class="{{ tab == 'shifts' ? 'is-active' : '' }}" href="/app/settings?tab=shifts">Shifts</a>
     <a class="{{ tab == 'devices' ? 'is-active' : '' }}" href="/app/settings?tab=devices">Devices &amp; meals</a>
   </nav>
@@ -150,15 +149,14 @@
       </div>
     </section>
 
-  {% elseif tab == 'holidays' %}
     <section class="panel">
       <div class="panel-head">
         <div>
-          <h2>Public holidays</h2>
-          <p class="muted">Fixed statutory days are provisioned for each company. Add movable feasts and company days here; the roster marks them and the timesheet keeps holiday work separate from lost hours.</p>
+          <h2 id="holidays">Public holidays</h2>
+          <p class="muted">Fixed statutory days are provisioned for each company; add movable feasts and company days. A public holiday is a paid non-working day, not an entitlement, so it never uses a leave balance or needs a request. The roster marks it, and any hours worked are reported separately on the timesheet.</p>
         </div>
         <form class="row-actions" method="get" action="/app/settings">
-          <input type="hidden" name="tab" value="holidays">
+          <input type="hidden" name="tab" value="leave">
           <label class="field inline-field">
             <span>Year</span>
             <input type="number" name="year" min="2000" max="2100" step="1" value="{{ year }}">

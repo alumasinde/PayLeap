@@ -25,9 +25,19 @@ final class WorkspaceController
         $canEmployees = $this->app->can('employees.view');
         $canSalary = $this->app->can('employees.salary.view');
         $canPayroll = $this->app->can('payroll.view');
-        $canLeave = $this->app->can('leave.view') || $this->app->can('leave.approve.team');
+        $canApproveAllLeave = $this->app->can('leave.approve.all');
+        $canApproveTeamLeave = $this->app->can('leave.approve.team');
+        $canLeave = $this->app->can('leave.view') || $canApproveTeamLeave || $canApproveAllLeave;
         $canAttendance = $this->app->can('attendance.view');
-        $canApproveLeave = $this->app->can('leave.approve.team');
+        $canApproveLeave = $canApproveAllLeave || $canApproveTeamLeave;
+        $leaveScope = $canLeave
+            ? $this->app->leave->service->scopeFor(
+                $companyId,
+                (int) $this->app->user['id'],
+                $canApproveAllLeave,
+                $canApproveTeamLeave,
+            )
+            : null;
 
         $hasWorkspace = $canEmployees || $canPayroll || $canLeave || $canAttendance
             || $this->app->can('users.manage') || $this->app->can('users.invite')
@@ -41,7 +51,7 @@ final class WorkspaceController
         $headcount = $this->app->dashboard->headcount($companyId, date('Y-m-01'), $canSalary);
         $attendance = $canAttendance ? $this->app->dashboard->attendanceOn($companyId, $today) : null;
         $onLeave = $canLeave ? $this->app->dashboard->onLeaveOn($companyId, $today) : 0;
-        $pendingLeave = $canLeave ? $this->app->dashboard->pendingLeaveCount($companyId) : 0;
+        $pendingLeave = $canLeave ? $this->app->dashboard->pendingLeaveCount($companyId, $leaveScope) : 0;
         $draftRuns = $canPayroll ? $this->app->dashboard->draftRunCount($companyId) : 0;
 
         $present = $attendance === null ? 0 : $attendance['present'] + $attendance['late'];
@@ -73,7 +83,7 @@ final class WorkspaceController
             'statutory' => $statutory,
             'departments' => $canEmployees ? $this->app->dashboard->departments($companyId, 6) : [],
             'recent_employees' => $canEmployees ? $this->app->dashboard->recentEmployees($companyId, 4) : [],
-            'pending_requests' => $canLeave ? $this->app->dashboard->pendingLeaveList($companyId, 3) : [],
+            'pending_requests' => $canLeave ? $this->app->dashboard->pendingLeaveList($companyId, 3, $leaveScope) : [],
             'actions' => $this->quickActions($canApproveLeave),
             'can_employees' => $canEmployees,
             'can_salary' => $canSalary,

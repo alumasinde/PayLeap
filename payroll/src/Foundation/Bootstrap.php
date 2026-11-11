@@ -128,7 +128,7 @@ final class Bootstrap
         );
         $app->leave = new LeaveModule(
             $leaveRepository,
-            new LeaveService($leaveRepository, $app->auditLogger),
+            new LeaveService($leaveRepository, $employeeRepository, $app->auditLogger),
         );
         $attendanceRepository = new AttendanceRepository($app->db);
         $app->attendance = new AttendanceModule(
@@ -181,10 +181,18 @@ final class Bootstrap
                 return 0;
             }
 
+            $canAll = $app->can('leave.approve.all');
+            $canTeam = $app->can('leave.approve.team');
+            $canLeave = $app->can('leave.view') || $canAll || $canTeam;
+            $scope = $canLeave && $app->user !== []
+                ? $app->leave->service->scopeFor((int) $app->company['company_id'], (int) $app->user['id'], $canAll, $canTeam)
+                : null;
+
             return $app->dashboard->pendingApprovalCount(
                 (int) $app->company['company_id'],
-                $app->can('leave.view') || $app->can('leave.approve.team'),
+                $canLeave,
                 $app->can('payroll.view'),
+                $scope,
             );
         }));
         $twig->addFilter(new TwigFilter('money', static function (mixed $cents): string {

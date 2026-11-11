@@ -222,7 +222,9 @@ final class LeaveRepository
     {
         $statement = $this->db->prepare(
             'SELECT lr.*, lt.name AS leave_type_name, lt.gender_restriction,
-                    e.gender AS employee_gender, e.first_name, e.last_name
+                    e.gender AS employee_gender, e.first_name, e.last_name,
+                    e.department_id AS employee_department_id,
+                    e.manager_id AS employee_manager_id
              FROM leave_requests lr
              JOIN leave_types lt ON lt.id = lr.leave_type_id AND lt.company_id = lr.company_id
              JOIN employees e ON e.id = lr.employee_id AND e.company_id = lr.company_id
@@ -236,7 +238,39 @@ final class LeaveRepository
     }
 
     /** @return list<array<string,mixed>> */
-    public function listForCompany(int $companyId, string $status = 'all'): array
+    /**
+     * @param array{all?:bool,employee_id?:?int,department_id?:?int}|null $scope
+     * @return array{0:string,1:list<mixed>}
+     */
+    private function scopeClause(?array $scope, string $alias = 'e'): array
+    {
+        if ($scope === null || ($scope['all'] ?? false)) {
+            return ['', []];
+        }
+
+        $clauses = [];
+        $params = [];
+
+        if (($scope['employee_id'] ?? null) !== null) {
+            $clauses[] = $alias . '.manager_id = ?';
+            $params[] = $scope['employee_id'];
+        }
+
+        if (($scope['department_id'] ?? null) !== null) {
+            $clauses[] = $alias . '.department_id = ?';
+            $params[] = $scope['department_id'];
+        }
+
+        return [
+            $clauses === [] ? ' AND 1 = 0' : ' AND (' . implode(' OR ', $clauses) . ')',
+            $params,
+        ];
+    }
+
+    /**
+     * @param array{all?:bool,employee_id?:?int,department_id?:?int}|null $scope
+     */
+    public function listForCompany(int $companyId, string $status = 'all', ?array $scope = null): array
     {
         $where = ' WHERE lr.company_id = ?';
         $params = [$companyId];
@@ -245,6 +279,10 @@ final class LeaveRepository
             $where .= ' AND lr.status = ?';
             $params[] = $status;
         }
+
+        [$scopeSql, $scopeParams] = $this->scopeClause($scope);
+        $where .= $scopeSql;
+        array_push($params, ...$scopeParams);
 
         $statement = $this->db->prepare(
             'SELECT lr.*, e.employee_no, e.first_name, e.last_name, e.job_title,
@@ -262,12 +300,33 @@ final class LeaveRepository
         return $statement->fetchAll();
     }
 
-    public function pendingCount(int $companyId): int
+    /**
+     * Actionable requests only: an approver's own pending request is excluded
+     * because they can never decide it.
+     *
+     * @param array{all?:bool,employee_id?:?int,department_id?:?int}|null $scope
+     */
+    public function pendingCount(int $companyId, ?array $scope = null): int
     {
+        $where = ' WHERE lr.company_id = ? AND lr.status = ?';
+        $params = [$companyId, 'pending'];
+
+        [$scopeSql, $scopeParams] = $this->scopeClause($scope);
+        $where .= $scopeSql;
+        array_push($params, ...$scopeParams);
+
+        if (($scope['employee_id'] ?? null) !== null) {
+            $where .= ' AND lr.employee_id <> ?';
+            $params[] = $scope['employee_id'];
+        }
+
         $statement = $this->db->prepare(
-            'SELECT COUNT(*) FROM leave_requests WHERE company_id = ? AND status = ?',
+            'SELECT COUNT(*)
+             FROM leave_requests lr
+             JOIN employees e ON e.id = lr.employee_id AND e.company_id = lr.company_id'
+            . $where,
         );
-        $statement->execute([$companyId, 'pending']);
+        $statement->execute($params);
 
         return (int) $statement->fetchColumn();
     }

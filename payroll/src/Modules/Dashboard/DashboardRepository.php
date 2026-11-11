@@ -153,31 +153,87 @@ final class DashboardRepository
         return (int) $statement->fetchColumn();
     }
 
-    public function pendingLeaveCount(int $companyId): int
+    /**
+     * @param array{all?:bool,employee_id?:?int,department_id?:?int}|null $scope
+     * @return array{0:string,1:list<mixed>}
+     */
+    private function leaveScopeClause(?array $scope): array
     {
-        $statement = $this->db->prepare(
-            'SELECT COUNT(*) FROM leave_requests WHERE company_id = ? AND status = \'pending\'',
-        );
-        $statement->execute([$companyId]);
+        if ($scope === null || ($scope['all'] ?? false)) {
+            return ['', []];
+        }
+
+        $clauses = [];
+        $params = [];
+
+        if (($scope['employee_id'] ?? null) !== null) {
+            $clauses[] = 'e.manager_id = ?';
+            $params[] = $scope['employee_id'];
+        }
+
+        if (($scope['department_id'] ?? null) !== null) {
+            $clauses[] = 'e.department_id = ?';
+            $params[] = $scope['department_id'];
+        }
+
+        return [
+            $clauses === [] ? ' AND 1 = 0' : ' AND (' . implode(' OR ', $clauses) . ')',
+            $params,
+        ];
+    }
+
+    /**
+     * @param array{all?:bool,employee_id?:?int,department_id?:?int}|null $scope
+     */
+    public function pendingLeaveCount(int $companyId, ?array $scope = null): int
+    {
+        $sql = 'SELECT COUNT(*)
+                FROM leave_requests lr
+                JOIN employees e ON e.id = lr.employee_id AND e.company_id = lr.company_id
+                WHERE lr.company_id = ? AND lr.status = \'pending\'';
+        $params = [$companyId];
+
+        [$scopeSql, $scopeParams] = $this->leaveScopeClause($scope);
+        $sql .= $scopeSql;
+        array_push($params, ...$scopeParams);
+
+        if (($scope['employee_id'] ?? null) !== null) {
+            $sql .= ' AND lr.employee_id <> ?';
+            $params[] = $scope['employee_id'];
+        }
+
+        $statement = $this->db->prepare($sql);
+        $statement->execute($params);
 
         return (int) $statement->fetchColumn();
     }
 
-    /** @return list<array<string,mixed>> */
-    public function pendingLeaveList(int $companyId, int $limit = 4): array
+    /**
+     * @param array{all?:bool,employee_id?:?int,department_id?:?int}|null $scope
+     * @return list<array<string,mixed>>
+     */
+    public function pendingLeaveList(int $companyId, int $limit = 4, ?array $scope = null): array
     {
-        $statement = $this->db->prepare(
-            'SELECT lr.id, lr.start_date, lr.end_date, lr.days, lr.created_at,
+        $sql = 'SELECT lr.id, lr.start_date, lr.end_date, lr.days, lr.created_at,
                     e.first_name, e.last_name, e.employee_no,
                     lt.name AS leave_type
              FROM leave_requests lr
              JOIN employees e ON e.id = lr.employee_id AND e.company_id = lr.company_id
              JOIN leave_types lt ON lt.id = lr.leave_type_id AND lt.company_id = lr.company_id
-             WHERE lr.company_id = ? AND lr.status = \'pending\'
-             ORDER BY lr.start_date, lr.id
-             LIMIT ' . max(1, min(20, $limit)),
-        );
-        $statement->execute([$companyId]);
+             WHERE lr.company_id = ? AND lr.status = \'pending\'';
+        $params = [$companyId];
+
+        [$scopeSql, $scopeParams] = $this->leaveScopeClause($scope);
+        $sql .= $scopeSql;
+        array_push($params, ...$scopeParams);
+
+        if (($scope['employee_id'] ?? null) !== null) {
+            $sql .= ' AND lr.employee_id <> ?';
+            $params[] = $scope['employee_id'];
+        }
+
+        $statement = $this->db->prepare($sql . ' ORDER BY lr.start_date, lr.id LIMIT ' . max(1, min(20, $limit)));
+        $statement->execute($params);
 
         return $statement->fetchAll();
     }
@@ -192,12 +248,16 @@ final class DashboardRepository
         return (int) $statement->fetchColumn();
     }
 
-    public function pendingApprovalCount(int $companyId, bool $includeLeave, bool $includePayroll): int
-    {
+    public function pendingApprovalCount(
+        int $companyId,
+        bool $includeLeave,
+        bool $includePayroll,
+        ?array $leaveScope = null,
+    ): int {
         $count = 0;
 
         if ($includeLeave) {
-            $count += $this->pendingLeaveCount($companyId);
+            $count += $this->pendingLeaveCount($companyId, $leaveScope);
         }
 
         if ($includePayroll) {

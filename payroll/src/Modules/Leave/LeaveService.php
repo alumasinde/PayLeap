@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Mshahara\Payroll\Modules\Leave;
 
+use Mshahara\Payroll\Modules\Employees\EmployeeRepository;
 use Mshahara\Payroll\Support\AuditLogger;
 use Mshahara\Payroll\Support\HttpException;
 
@@ -18,12 +19,44 @@ final class LeaveService
 
     public function __construct(
         private readonly LeaveRepository $requests,
+        private readonly EmployeeRepository $employees,
         private readonly AuditLogger $auditLogger,
     ) {
     }
 
-    public function decide(int $companyId, int $requestId, string $decision, int $actorId, string $note = ''): void
+    /**
+     * What an approver may see. Company approvers see everything; team
+     * approvers see their direct reports and their own department.
+     *
+     * @return array{all:bool,team:bool,employee_id:?int,department_id:?int}
+     */
+    public function scopeFor(int $companyId, int $userId, bool $canAll, bool $canTeam): array
     {
+        $actor = $this->employees->forUser($companyId, $userId);
+
+        return [
+            'all' => $canAll,
+            'team' => $canTeam,
+            'employee_id' => $actor === null ? null : (int) $actor['id'],
+            'department_id' => $actor === null || $actor['department_id'] === null
+                ? null
+                : (int) $actor['department_id'],
+        ];
+    }
+
+    public function decide(
+        int $companyId,
+        int $requestId,
+        string $decision,
+        int $actorId,
+        string $note = '',
+        bool $canAll = false,
+        bool $canTeam = false,
+    ): void {
+        if (!$canAll && !$canTeam) {
+            throw new HttpException(403, 'Your role cannot decide leave.');
+        }
+
         if (!in_array($decision, ['approved', 'rejected'], true)) {
             throw new HttpException(422, 'Choose approve or reject.');
         }
@@ -33,6 +66,8 @@ final class LeaveService
         if ($request === null) {
             throw new HttpException(404, 'That leave request does not exist.');
         }
+
+        $this->requireScope($companyId, $request, $actorId, $canAll, $canTeam);
 
         if ($request['status'] !== 'pending') {
             throw new HttpException(409, 'That leave request has already been decided.');
@@ -128,6 +163,48 @@ final class LeaveService
         $this->requests->setTypeActive($companyId, $typeId, $active);
 
         $this->auditLogger->record($companyId, $actorId, 'leave.type.' . ($active ? 'enabled' : 'disabled'), 'leave_type', (string) $typeId);
+    }
+
+    /**
+     * Nobody decides their own request. A team approver is limited to direct
+     * reports and their own department; a company approver covers the rest.
+     *
+     * @param array<string,mixed> $request
+     */
+    private function requireScope(int $companyId, array $request, int $actorId, bool $canAll, bool $canTeam): void
+    {
+        $actor = $this->employees->forUser($companyId, $actorId);
+        $actorEmployeeId = $actor === null ? null : (int) $actor['id'];
+
+        if ($actorEmployeeId !== null && (int) $request['employee_id'] === $actorEmployeeId) {
+            throw new HttpException(403, 'You cannot decide your own leave request.');
+        }
+
+        if ($canAll) {
+            return;
+        }
+
+        if (!$canTeam) {
+            throw new HttpException(403, 'Your role cannot decide leave.');
+        }
+
+        if ($actorEmployeeId === null) {
+            throw new HttpException(403, 'Link your login to an employee record before approving team leave.');
+        }
+
+        if ((int) ($actor['manager_id'] ?? 0) > 0
+            && (int) $request['employee_id'] === (int) $actor['manager_id']) {
+            throw new HttpException(403, 'Your manager\'s leave is approved above your level.');
+        }
+
+        $isManager = (int) ($request['employee_manager_id'] ?? 0) === $actorEmployeeId;
+        $sameDepartment = $actor['department_id'] !== null
+            && $request['employee_department_id'] !== null
+            && (int) $request['employee_department_id'] === (int) $actor['department_id'];
+
+        if (!$isManager && !$sameDepartment) {
+            throw new HttpException(403, 'That leave request is outside your team.');
+        }
     }
 
     /** @param array<string,mixed> $request */

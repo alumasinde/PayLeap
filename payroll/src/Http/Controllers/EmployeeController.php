@@ -246,7 +246,8 @@ final class EmployeeController
         $fields = [
             'employee_no', 'first_name', 'middle_name', 'last_name', 'gender', 'email', 'phone',
             'national_id', 'kra_pin', 'nssf_number', 'shif_number',
-            'department_id', 'job_title', 'employment_type', 'start_date', 'exit_date',
+            'department_id', 'manager_id', 'user_id', 'job_title', 'employment_type',
+            'start_date', 'exit_date',
         ];
 
         foreach ($fields as $field) {
@@ -281,6 +282,11 @@ final class EmployeeController
             'values' => $values,
             'error' => $error,
             'departments' => $this->app->employees->departments->all((int) $company['company_id']),
+            'managers' => $this->app->employees->register->activeForSelect(
+                (int) $company['company_id'],
+                $employee === null ? null : (int) $employee['id'],
+            ),
+            'portal_users' => $this->app->employees->register->portalUsers((int) $company['company_id']),
             'types' => EmployeeService::TYPES,
             'genders' => EmployeeService::GENDERS,
             'can_salary' => $this->app->can('employees.salary.view'),

@@ -95,7 +95,7 @@ final class EmployeeService
             throw new HttpException(404, 'That employee does not exist.');
         }
 
-        $data = $this->validate($companyId, $input, false);
+        $data = $this->validate($companyId, $input, false, $employeeId);
 
         if ($data === []) {
             return;
@@ -194,7 +194,7 @@ final class EmployeeService
      * @param array<string,mixed> $input
      * @return array<string,mixed>
      */
-    private function validate(int $companyId, array $input, bool $creating): array
+    private function validate(int $companyId, array $input, bool $creating, ?int $employeeId = null): array
     {
         $data = [];
 
@@ -259,6 +259,48 @@ final class EmployeeService
                 $data['department_id'] = $departmentId;
             } else {
                 $data['department_id'] = null;
+            }
+        }
+
+        if (array_key_exists('manager_id', $input)) {
+            $managerId = (int) ($input['manager_id'] ?? 0);
+
+            if ($managerId > 0) {
+                $manager = $this->employees->find($companyId, $managerId);
+
+                if ($manager === null || $manager['status'] !== 'active') {
+                    throw new HttpException(422, 'Choose an active manager from this company.');
+                }
+
+                if ($employeeId !== null && $managerId === $employeeId) {
+                    throw new HttpException(422, 'An employee cannot report to themselves.');
+                }
+
+                if ($employeeId !== null && (int) ($manager['manager_id'] ?? 0) === $employeeId) {
+                    throw new HttpException(422, 'That reporting line would loop back to this employee.');
+                }
+
+                $data['manager_id'] = $managerId;
+            } else {
+                $data['manager_id'] = null;
+            }
+        }
+
+        if (array_key_exists('user_id', $input)) {
+            $userId = (int) ($input['user_id'] ?? 0);
+
+            if ($userId > 0) {
+                if (!$this->employees->userIsMember($companyId, $userId)) {
+                    throw new HttpException(422, 'That login does not belong to this company.');
+                }
+
+                if ($this->employees->userLinkedToOther($companyId, $userId, $employeeId)) {
+                    throw new HttpException(422, 'That login is already linked to another employee.');
+                }
+
+                $data['user_id'] = $userId;
+            } else {
+                $data['user_id'] = null;
             }
         }
 
