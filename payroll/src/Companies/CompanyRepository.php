@@ -126,6 +126,13 @@ final class CompanyRepository
             ->execute([$companyId, $userId]);
     }
 
+    public function rename(int $companyId, string $name): void
+    {
+        $this->db
+            ->prepare('UPDATE companies SET name = ? WHERE id = ?')
+            ->execute([trim($name), $companyId]);
+    }
+
     /** @return array<string,mixed>|null */
     public function find(int $companyId): ?array
     {

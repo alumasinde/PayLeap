@@ -82,13 +82,18 @@
           </a>
         {% endif %}
 
-        {% if can('users.manage') or can('users.invite') %}
-          <details class="side-group"{{ current_path starts with '/app/access' ? ' open' }}>
+        {% if can('users.manage') or can('users.invite') or can('settings.manage') %}
+          <details class="side-group"{{ current_path starts with '/app/access' or current_path starts with '/app/settings' ? ' open' }}>
             <summary class="side-group-head">
               {{ icons.svg('shield', 18) }}<span>Organisation</span>{{ icons.svg('chevron-down', 14) }}
             </summary>
             <div class="side-group-body">
-              <a class="side-sub{{ current_path starts with '/app/access' ? ' is-active' : '' }}" href="/app/access">Users &amp; access</a>
+              {% if can('users.manage') or can('users.invite') %}
+                <a class="side-sub{{ current_path starts with '/app/access' ? ' is-active' : '' }}" href="/app/access">Users &amp; access</a>
+              {% endif %}
+              {% if can('settings.manage') %}
+                <a class="side-sub{{ current_path starts with '/app/settings' ? ' is-active' : '' }}" href="/app/settings">Settings</a>
+              {% endif %}
             </div>
           </details>
         {% endif %}

@@ -49,22 +49,36 @@
 
         {% for week in weeks %}
           {% for day in week %}
-            <div class="roster-day{{ day.in_month ? '' : ' is-outside' }}{{ day.is_today ? ' is-today' : '' }}">
+            <div class="roster-day{{ day.in_month ? '' : ' is-outside' }}{{ day.is_today ? ' is-today' : '' }}{{ day.holiday ? ' is-holiday' : '' }}">
               <span class="roster-date">{{ day.day_num }}</span>
               {% if day.leave %}
                 <span class="roster-pill leave">On leave</span>
-              {% elseif day.shift %}
-                <span class="roster-pill shift">
-                  <strong>{{ day.shift.shift_name }}</strong>
-                  <small class="mono">{{ day.shift.start_time|slice(0, 5) }} – {{ day.shift.end_time|slice(0, 5) }}</small>
-                </span>
-              {% elseif day.off %}
-                <span class="roster-pill off">Off</span>
+              {% endif %}
+              {% if day.holiday %}
+                <span class="roster-pill holiday" title="{{ day.holiday }}">{{ day.holiday }}</span>
+              {% endif %}
+              {% if not day.leave %}
+                {% if day.shift %}
+                  <span class="roster-pill shift">
+                    <strong>{{ day.shift.shift_name }}</strong>
+                    <small class="mono">{{ day.shift.start_time|slice(0, 5) }} – {{ day.shift.end_time|slice(0, 5) }}</small>
+                  </span>
+                {% elseif day.off %}
+                  <span class="roster-pill off">Off</span>
+                {% endif %}
               {% endif %}
             </div>
           {% endfor %}
         {% endfor %}
       </div>
+      <p class="hint">
+        {% if holiday_count > 0 %}
+          {{ holiday_count }} public holiday{{ holiday_count == 1 ? '' : 's' }} this month. A holiday is never counted as a rostered or lost day; hours clocked on it appear as holiday hours on the timesheet.
+        {% else %}
+          No public holidays this month.
+        {% endif %}
+        <a class="text-link" href="/app/settings?tab=holidays">Manage holidays</a>
+      </p>
     </section>
 
     {% if can_edit and shifts %}

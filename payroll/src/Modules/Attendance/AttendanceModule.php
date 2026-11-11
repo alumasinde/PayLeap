@@ -12,6 +12,10 @@ final class AttendanceModule
         public readonly ShiftRepository $shifts,
         public readonly ShiftService $roster,
         public readonly TimesheetService $timesheet,
+        public readonly HolidayRepository $holidays,
+        public readonly HolidayService $holidayService,
+        public readonly DeviceRepository $devices,
+        public readonly DeviceService $deviceService,
     ) {
     }
 }

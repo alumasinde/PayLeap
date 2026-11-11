@@ -67,7 +67,12 @@
             </tbody>
           </table>
         </div>
-        <p class="hint">Balance is entitlement less approved days for {{ year }}. Pending requests are shown but not deducted.</p>
+        <p class="hint">
+          Balance is entitlement less approved days for {{ year }}. Pending requests are shown but not deducted.
+          {% if selected_employee and not selected_employee.gender %}
+            Gender is not recorded for this employee; maternity and paternity balances are shown until it is set on the employee record.
+          {% endif %}
+        </p>
       {% else %}
         <p class="muted">Add people to the register before checking balances.</p>
       {% endif %}
@@ -157,15 +162,17 @@
         <div class="table-wrap">
           <table class="list">
             <thead>
-              <tr><th>Type</th><th class="num">Days per year</th><th>Paid</th><th>Document</th></tr>
+              <tr><th>Type</th><th class="num">Days per year</th><th>Who may take it</th><th>Paid</th><th>Document</th><th class="num">Carry-over</th></tr>
             </thead>
             <tbody>
               {% for type in types %}
                 <tr>
                   <td>{{ type.name }}</td>
                   <td class="num mono">{{ type.days_per_year == type.days_per_year|round ? type.days_per_year|number_format(0) : type.days_per_year|number_format(1) }}</td>
+                  <td>{{ {'any': 'Everyone', 'female': 'Female', 'male': 'Male'}[type.gender_restriction] ?? 'Everyone' }}</td>
                   <td>{{ type.paid ? 'Yes' : 'No' }}</td>
                   <td>{{ type.requires_document ? 'Required' : 'Not required' }}</td>
+                  <td class="num mono">{{ type.carry_over_max > 0 ? type.carry_over_max|number_format(0) : '—' }}</td>
                 </tr>
               {% endfor %}
             </tbody>

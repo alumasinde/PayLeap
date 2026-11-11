@@ -26,6 +26,10 @@ use Mshahara\Payroll\Modules\ModuleRepository;
 use Mshahara\Payroll\Modules\Attendance\AttendanceModule;
 use Mshahara\Payroll\Modules\Attendance\AttendanceRepository;
 use Mshahara\Payroll\Modules\Attendance\AttendanceService;
+use Mshahara\Payroll\Modules\Attendance\DeviceRepository;
+use Mshahara\Payroll\Modules\Attendance\DeviceService;
+use Mshahara\Payroll\Modules\Attendance\HolidayRepository;
+use Mshahara\Payroll\Modules\Attendance\HolidayService;
 use Mshahara\Payroll\Modules\Attendance\ShiftRepository;
 use Mshahara\Payroll\Modules\Attendance\ShiftService;
 use Mshahara\Payroll\Modules\Attendance\TimesheetService;
@@ -101,7 +105,17 @@ final class Bootstrap
         $app->permissionGate = new PermissionGate($app->db);
         $leaveRepository = new LeaveRepository($app->db);
         $shiftRepository = new ShiftRepository($app->db);
-        $app->companyService = new CompanyService($app->db, $app->companyRepository, $app->roleRepository, $leaveRepository, $shiftRepository);
+        $holidayRepository = new HolidayRepository($app->db);
+        $deviceRepository = new DeviceRepository($app->db);
+        $app->companyService = new CompanyService(
+            $app->db,
+            $app->companyRepository,
+            $app->roleRepository,
+            $leaveRepository,
+            $shiftRepository,
+            $holidayRepository,
+            $app->auditLogger,
+        );
         $app->membershipService = new MembershipService($app->db, $app->companyRepository, $app->roleRepository, $app->auditLogger);
         $app->moduleRepository = new ModuleRepository($app->db);
         $app->dashboard = new DashboardRepository($app->db);
@@ -122,7 +136,11 @@ final class Bootstrap
             new AttendanceService($attendanceRepository, $employeeRepository, $app->auditLogger),
             $shiftRepository,
             new ShiftService($shiftRepository, $employeeRepository, $app->auditLogger),
-            new TimesheetService($attendanceRepository, $shiftRepository, $leaveRepository),
+            new TimesheetService($attendanceRepository, $shiftRepository, $leaveRepository, $holidayRepository),
+            $holidayRepository,
+            new HolidayService($holidayRepository, $app->auditLogger),
+            $deviceRepository,
+            new DeviceService($deviceRepository, $app->auditLogger),
         );
         $payrollRepository = new PayrollRepository($app->db);
         $rateVersionRepository = new RateVersionRepository($app->db);

@@ -36,28 +36,97 @@ final class ShiftRepository
     }
 
     /** @return list<array<string,mixed>> */
-    public function all(int $companyId): array
+    public function all(int $companyId, bool $includeInactive = false): array
     {
-        $statement = $this->db->prepare(
-            'SELECT * FROM shifts
-             WHERE company_id = ? AND active = 1
-             ORDER BY start_time, name',
-        );
+        $sql = 'SELECT * FROM shifts WHERE company_id = ?';
+
+        if (!$includeInactive) {
+            $sql .= ' AND active = 1';
+        }
+
+        $statement = $this->db->prepare($sql . ' ORDER BY start_time, name');
         $statement->execute([$companyId]);
 
         return $statement->fetchAll();
     }
 
     /** @return array<string,mixed>|null */
-    public function find(int $companyId, int $shiftId): ?array
+    public function find(int $companyId, int $shiftId, bool $includeInactive = false): ?array
     {
-        $statement = $this->db->prepare(
-            'SELECT * FROM shifts WHERE id = ? AND company_id = ? AND active = 1 LIMIT 1',
-        );
+        $sql = 'SELECT * FROM shifts WHERE id = ? AND company_id = ?';
+
+        if (!$includeInactive) {
+            $sql .= ' AND active = 1';
+        }
+
+        $statement = $this->db->prepare($sql . ' LIMIT 1');
         $statement->execute([$shiftId, $companyId]);
         $row = $statement->fetch();
 
         return $row === false ? null : $row;
+    }
+
+    public function nameExists(int $companyId, string $name, ?int $exceptId = null): bool
+    {
+        $sql = 'SELECT 1 FROM shifts WHERE company_id = ? AND name = ?';
+        $params = [$companyId, $name];
+
+        if ($exceptId !== null) {
+            $sql .= ' AND id <> ?';
+            $params[] = $exceptId;
+        }
+
+        $statement = $this->db->prepare($sql . ' LIMIT 1');
+        $statement->execute($params);
+
+        return $statement->fetchColumn() !== false;
+    }
+
+    /** @param array<string,mixed> $data */
+    public function create(int $companyId, array $data): int
+    {
+        $this->db
+            ->prepare(
+                'INSERT INTO shifts (company_id, name, start_time, end_time, break_minutes, active)
+                 VALUES (?, ?, ?, ?, ?, ?)',
+            )
+            ->execute([
+                $companyId,
+                $data['name'],
+                $data['start_time'],
+                $data['end_time'],
+                $data['break_minutes'],
+                $data['active'],
+            ]);
+
+        return (int) $this->db->lastInsertId();
+    }
+
+    /** @param array<string,mixed> $data */
+    public function update(int $companyId, int $shiftId, array $data): void
+    {
+        $this->db
+            ->prepare(
+                'UPDATE shifts
+                 SET name = ?, start_time = ?, end_time = ?, break_minutes = ?, active = ?
+                 WHERE id = ? AND company_id = ?',
+            )
+            ->execute([
+                $data['name'],
+                $data['start_time'],
+                $data['end_time'],
+                $data['break_minutes'],
+                $data['active'],
+                $shiftId,
+                $companyId,
+            ]);
+    }
+
+    public function setActive(int $companyId, int $shiftId, bool $active): void
+    {
+        $this->db
+            ->prepare('UPDATE shifts SET active = ? WHERE id = ? AND company_id = ?')
+            ->execute([$active ? 1 : 0, $shiftId, $companyId]);
     }
 
     /**

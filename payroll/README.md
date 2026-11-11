@@ -16,7 +16,9 @@ pending leave, the latest run and payroll cost. **Leave** requests and balances,
 the **daily attendance** register, a **monthly timesheet**, and a **shift roster**
 are live alongside it. Attendance records carry a source, so a biometric reader
 or face scanner can post clock times into the same rows and audit trail later.
-The `modules` table says exactly what is live.
+**Settings** holds the company policy those screens read: leave types with
+gender eligibility, public holidays, shift times and breaks, and the clock or
+meal devices on site. The `modules` table says exactly what is live.
 
 No framework. Twig + PDO + PHP 8.2, Composer for autoload and Twig only.
 
@@ -83,7 +85,17 @@ are stored in MySQL by default (`SESSION_DRIVER=database`); set
 | `GET /app/roster` | Month calendar of shifts, rest days and approved leave (`attendance.view`) |
 | `POST /app/roster` | Assign a shift or a rest day to one person's date (`attendance.edit`) |
 | `GET /app/leave` | Leave requests filtered by status (`leave.view`); `?view=balances` shows entitlement, taken, pending and balance |
-| `POST /app/leave/{id}/decide` | Approve or reject a pending request (`leave.approve.team`) |
+| `POST /app/leave/{id}/decide` | Approve or reject a pending request (`leave.approve.team`); restricted types check the employee's gender |
+| `GET /app/settings` | Company policy tabs: organisation, leave types, public holidays, shifts, devices (`settings.manage`) |
+| `POST /app/settings/company` | Rename the company |
+| `POST /app/settings/leave-types` | Add or update a leave type, its days, eligibility and carry-over |
+| `POST /app/settings/leave-types/{id}/toggle` | Enable or retire a leave type |
+| `POST /app/settings/holidays` | Add a public holiday for the company |
+| `POST /app/settings/holidays/{id}/delete` | Remove a public holiday |
+| `POST /app/settings/shifts` | Add or update a shift's start, end and break |
+| `POST /app/settings/shifts/{id}/toggle` | Enable or retire a shift |
+| `POST /app/settings/devices` | Register a clock or meal device |
+| `POST /app/settings/devices/{id}/toggle` | Enable or retire a device |
 | `POST /me/profile` | Change your own first and last name |
 | `POST /me/password` | Change your password; other sessions are revoked |
 | `GET /me` | The signed-in person's own account (self-service shell) |
@@ -192,8 +204,9 @@ bash tests/http_smoke.sh      # HTTP: CSRF 419, invite, register, payroll, reset
   non-future days: worked is clock-out minus clock-in (wrapping past midnight),
   target is the shift span less its break, lost is target minus worked (or the
   full shift for an absence), overtime is worked beyond target. Approved leave
-  overrides the roster and is counted separately, not as lost time. A day with
-  only one clock is flagged, not guessed.
+  overrides the roster and is counted separately, not as lost time. A public
+  holiday has no target or lost hours; work clocked on it is reported as holiday
+  hours. A day with only one clock is flagged, not guessed.
 - **Every record names its source.** `attendance_records.source` is `manual`,
   `biometric`, `face` or `import`; the register shows it and the audit entry
   records it. A terminal integration writes the same row through
@@ -201,9 +214,24 @@ bash tests/http_smoke.sh      # HTTP: CSRF 419, invite, register, payroll, reset
 - **Leave balances are derived, never stored.** Entitlement comes from
   `leave_types.days_per_year`; taken is approved days in the year and pending is
   requested days, so a decision immediately moves the balance.
+- **Leave policy is data.** A leave type carries its days, paid flag, document
+  rule, carry-over limit, active flag and a gender restriction (`any`, `female`,
+  `male`). Balances hide restricted types from the other gender. Approval of a
+  restricted type is refused when the employee's gender does not match, and an
+  employee with no recorded gender must be completed first.
+- **A holiday is a date, not a workday.** `public_holidays` is company-scoped;
+  fixed statutory days are provisioned for the current and next year, and
+  movable feasts are added in Settings. The roster marks the date, and the
+  timesheet drops the target and lost hours for it. Hours clocked on a holiday
+  are summed into a separate `Holiday hrs` column so payroll can price them.
+- **Devices are registered, then feed the same rows.** `attendance_devices`
+  records a terminal's kind (biometric, face, terminal), purpose (clock in/out
+  or meal), serial and location. The meal break itself is the shift's
+  `break_minutes`; a meal device records the lunch clock.
 - **Permissions gate the pages.** Viewing a register or timesheet needs
   `attendance.view`; assigning a shift needs `attendance.edit`; team leave
-  decisions need `leave.approve.team`.
+  decisions need `leave.approve.team`; company policy lives behind
+  `settings.manage`, granted to owner, administrator and HR.
 
 ## Next
 

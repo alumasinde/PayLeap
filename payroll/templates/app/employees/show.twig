@@ -45,6 +45,7 @@
       <div class="detail"><span>First name</span><strong>{{ employee.first_name }}</strong></div>
       <div class="detail"><span>Middle name</span><strong>{{ employee.middle_name ?: '—' }}</strong></div>
       <div class="detail"><span>Last name</span><strong>{{ employee.last_name }}</strong></div>
+      <div class="detail"><span>Gender</span><strong>{{ genders[employee.gender] ?? '—' }}</strong></div>
       <div class="detail"><span>Email</span><strong>{{ employee.email ?: '—' }}</strong></div>
       <div class="detail"><span>Phone</span><strong class="mono">{{ employee.phone ?: '—' }}</strong></div>
       <div class="detail"><span>Status</span><strong>{{ employee.status == 'active' ? 'Active' : 'Archived' }}</strong></div>

@@ -1,0 +1,410 @@
+{% extends 'layout.twig' %}
+{% import 'partials/icons.twig' as icons %}
+
+{% block title %}Settings — {{ app_name }}{% endblock %}
+
+{% block body %}
+  <section class="page-head">
+    <span class="kicker">Organisation</span>
+    <h1>Settings</h1>
+    <p class="muted">Company policy: leave, public holidays, shifts and the devices that record time.</p>
+  </section>
+
+  <nav class="page-tabs" aria-label="Settings sections">
+    <a class="{{ tab == 'organisation' ? 'is-active' : '' }}" href="/app/settings?tab=organisation">Organisation</a>
+    <a class="{{ tab == 'leave' ? 'is-active' : '' }}" href="/app/settings?tab=leave">Leave types</a>
+    <a class="{{ tab == 'holidays' ? 'is-active' : '' }}" href="/app/settings?tab=holidays">Public holidays</a>
+    <a class="{{ tab == 'shifts' ? 'is-active' : '' }}" href="/app/settings?tab=shifts">Shifts</a>
+    <a class="{{ tab == 'devices' ? 'is-active' : '' }}" href="/app/settings?tab=devices">Devices &amp; meals</a>
+  </nav>
+
+  {% if tab == 'organisation' %}
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>Company</h2>
+          <p class="muted">The name shown in the sidebar and on the top bar. The workspace slug stays fixed.</p>
+        </div>
+      </div>
+      <form class="form-grid form-grid-4" method="post" action="/app/settings/company">
+        <input type="hidden" name="_token" value="{{ csrf_token() }}">
+        <label class="field">
+          <span>Company name</span>
+          <input type="text" name="name" value="{{ company.name }}" maxlength="120" required>
+        </label>
+        <label class="field">
+          <span>Workspace slug</span>
+          <input type="text" value="{{ company.slug }}" readonly class="mono">
+        </label>
+        <div class="form-actions">
+          <button class="btn-primary" type="submit">Save company</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel">
+      <h2>Where the rest lives</h2>
+      <p class="muted">
+        People and their gender are on each employee record. Departments are on the employee register.
+        Roles and invitations are under <a class="text-link" href="/app/access">Users &amp; access</a>.
+        Payroll rates stay with each payroll run.
+      </p>
+    </section>
+
+  {% elseif tab == 'leave' %}
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>Leave policy</h2>
+          <p class="muted">Add a type, set its days, who may take it and whether it needs a document. Maternity is restricted to female staff and paternity to male staff; approval checks it.</p>
+        </div>
+      </div>
+      <form class="form-grid form-grid-4" method="post" action="/app/settings/leave-types">
+        <input type="hidden" name="_token" value="{{ csrf_token() }}">
+        <label class="field">
+          <span>Type name</span>
+          <input type="text" name="name" maxlength="80" required placeholder="Study leave">
+        </label>
+        <label class="field">
+          <span>Days per year</span>
+          <input type="number" name="days_per_year" min="0" max="366" step="0.5" value="0" required>
+        </label>
+        <label class="field">
+          <span>Who may take it</span>
+          <select name="gender_restriction">
+            {% for key, label in genders %}<option value="{{ key }}">{{ label }}</option>{% endfor %}
+          </select>
+        </label>
+        <label class="field">
+          <span>Carry-over limit</span>
+          <input type="number" name="carry_over_max" min="0" max="366" step="0.5" value="0">
+        </label>
+        <div class="check-row">
+          <label><input type="checkbox" name="paid" value="1" checked> Paid</label>
+          <label><input type="checkbox" name="requires_document" value="1"> Document required</label>
+          <label><input type="checkbox" name="active" value="1" checked> Active</label>
+        </div>
+        <div class="form-actions">
+          <button class="btn-primary" type="submit">Add leave type</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel">
+      <h2>Configured types</h2>
+      <div class="setting-list">
+        {% for type in leave_types %}
+          <details class="setting-item">
+            <summary class="setting-summary">
+              <span class="setting-title">
+                <strong>{{ type.name }}</strong>
+                <small>
+                  {{ type.days_per_year == type.days_per_year|round ? type.days_per_year|number_format(0) : type.days_per_year|number_format(1) }} days
+                  · {{ genders[type.gender_restriction] ?? 'Everyone' }}
+                  {% if type.paid %} · paid{% endif %}
+                  {% if type.requires_document %} · document{% endif %}
+                  {% if type.carry_over_max > 0 %} · carry {{ type.carry_over_max|number_format(0) }}{% endif %}
+                </small>
+              </span>
+              <span class="status {{ type.active ? 'status-active' : 'status-exited' }}">{{ type.active ? 'Active' : 'Inactive' }}</span>
+            </summary>
+            <form class="form-grid form-grid-4 setting-form" method="post" action="/app/settings/leave-types">
+              <input type="hidden" name="_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="id" value="{{ type.id }}">
+              <label class="field">
+                <span>Type name</span>
+                <input type="text" name="name" value="{{ type.name }}" maxlength="80" required>
+              </label>
+              <label class="field">
+                <span>Days per year</span>
+                <input type="number" name="days_per_year" min="0" max="366" step="0.5" value="{{ type.days_per_year }}" required>
+              </label>
+              <label class="field">
+                <span>Who may take it</span>
+                <select name="gender_restriction">
+                  {% for key, label in genders %}<option value="{{ key }}"{% if type.gender_restriction == key %} selected{% endif %}>{{ label }}</option>{% endfor %}
+                </select>
+              </label>
+              <label class="field">
+                <span>Carry-over limit</span>
+                <input type="number" name="carry_over_max" min="0" max="366" step="0.5" value="{{ type.carry_over_max }}">
+              </label>
+              <div class="check-row">
+                <label><input type="checkbox" name="paid" value="1"{% if type.paid %} checked{% endif %}> Paid</label>
+                <label><input type="checkbox" name="requires_document" value="1"{% if type.requires_document %} checked{% endif %}> Document required</label>
+                <label><input type="checkbox" name="active" value="1"{% if type.active %} checked{% endif %}> Active</label>
+              </div>
+              <div class="form-actions">
+                <button class="btn-primary" type="submit">Save</button>
+              </div>
+            </form>
+            <form class="row-actions setting-toggle" method="post" action="/app/settings/leave-types/{{ type.id }}/toggle">
+              <input type="hidden" name="_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="active" value="{{ type.active ? '0' : '1' }}">
+              <button class="btn-ghost btn-xs" type="submit">{{ type.active ? 'Disable' : 'Enable' }}</button>
+            </form>
+          </details>
+        {% else %}
+          <p class="muted">No leave types yet. Add the first one above.</p>
+        {% endfor %}
+      </div>
+    </section>
+
+  {% elseif tab == 'holidays' %}
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>Public holidays</h2>
+          <p class="muted">Fixed statutory days are provisioned for each company. Add movable feasts and company days here; the roster marks them and the timesheet keeps holiday work separate from lost hours.</p>
+        </div>
+        <form class="row-actions" method="get" action="/app/settings">
+          <input type="hidden" name="tab" value="holidays">
+          <label class="field inline-field">
+            <span>Year</span>
+            <input type="number" name="year" min="2000" max="2100" step="1" value="{{ year }}">
+          </label>
+          <button class="btn-ghost btn-sm" type="submit">Open</button>
+        </form>
+      </div>
+
+      <form class="form-grid form-grid-4" method="post" action="/app/settings/holidays">
+        <input type="hidden" name="_token" value="{{ csrf_token() }}">
+        <label class="field">
+          <span>Date</span>
+          <input type="date" name="holiday_date" required>
+        </label>
+        <label class="field">
+          <span>Name</span>
+          <input type="text" name="name" maxlength="100" required placeholder="Idd ul-Fitr">
+        </label>
+        <div class="form-actions">
+          <button class="btn-primary" type="submit">Add holiday</button>
+        </div>
+      </form>
+
+      {% if holidays %}
+        <div class="table-wrap">
+          <table class="list">
+            <thead>
+              <tr><th>Date</th><th>Day</th><th>Holiday</th><th></th></tr>
+            </thead>
+            <tbody>
+              {% for holiday in holidays %}
+                <tr>
+                  <td class="mono">{{ holiday.holiday_date|date('d/m/Y') }}</td>
+                  <td>{{ holiday.holiday_date|date('D') }}</td>
+                  <td>{{ holiday.name }}</td>
+                  <td>
+                    <div class="row-actions">
+                      <form method="post" action="/app/settings/holidays/{{ holiday.id }}/delete">
+                        <input type="hidden" name="_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="year" value="{{ year }}">
+                        <button class="btn-ghost btn-xs" type="submit">Remove</button>
+                      </form>
+                    </div>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="muted">No public holidays recorded for {{ year }}.</p>
+      {% endif %}
+    </section>
+
+  {% elseif tab == 'shifts' %}
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>Shifts</h2>
+          <p class="muted">Start and end times, plus the unpaid break. The timesheet targets the shift length less the break. An end before the start means the shift runs past midnight.</p>
+        </div>
+      </div>
+      <form class="form-grid form-grid-4" method="post" action="/app/settings/shifts">
+        <input type="hidden" name="_token" value="{{ csrf_token() }}">
+        <label class="field">
+          <span>Shift name</span>
+          <input type="text" name="name" maxlength="80" required placeholder="Night">
+        </label>
+        <label class="field">
+          <span>Start time</span>
+          <input type="time" name="start_time" required>
+        </label>
+        <label class="field">
+          <span>End time</span>
+          <input type="time" name="end_time" required>
+        </label>
+        <label class="field">
+          <span>Break minutes</span>
+          <input type="number" name="break_minutes" min="0" max="480" step="5" value="0">
+        </label>
+        <div class="check-row">
+          <label><input type="checkbox" name="active" value="1" checked> Active</label>
+        </div>
+        <div class="form-actions">
+          <button class="btn-primary" type="submit">Add shift</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel">
+      <h2>Configured shifts</h2>
+      <div class="setting-list">
+        {% for shift in shifts %}
+          <details class="setting-item">
+            <summary class="setting-summary">
+              <span class="setting-title">
+                <strong>{{ shift.name }}</strong>
+                <small class="mono">{{ shift.start_time|slice(0, 5) }} – {{ shift.end_time|slice(0, 5) }}{% if shift.break_minutes > 0 %} · {{ shift.break_minutes }} min break{% endif %}</small>
+              </span>
+              <span class="status {{ shift.active ? 'status-active' : 'status-exited' }}">{{ shift.active ? 'Active' : 'Inactive' }}</span>
+            </summary>
+            <form class="form-grid form-grid-4 setting-form" method="post" action="/app/settings/shifts">
+              <input type="hidden" name="_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="id" value="{{ shift.id }}">
+              <label class="field">
+                <span>Shift name</span>
+                <input type="text" name="name" value="{{ shift.name }}" maxlength="80" required>
+              </label>
+              <label class="field">
+                <span>Start time</span>
+                <input type="time" name="start_time" value="{{ shift.start_time|slice(0, 5) }}" required>
+              </label>
+              <label class="field">
+                <span>End time</span>
+                <input type="time" name="end_time" value="{{ shift.end_time|slice(0, 5) }}" required>
+              </label>
+              <label class="field">
+                <span>Break minutes</span>
+                <input type="number" name="break_minutes" min="0" max="480" step="5" value="{{ shift.break_minutes }}">
+              </label>
+              <div class="check-row">
+                <label><input type="checkbox" name="active" value="1"{% if shift.active %} checked{% endif %}> Active</label>
+              </div>
+              <div class="form-actions">
+                <button class="btn-primary" type="submit">Save</button>
+              </div>
+            </form>
+            <form class="row-actions setting-toggle" method="post" action="/app/settings/shifts/{{ shift.id }}/toggle">
+              <input type="hidden" name="_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="active" value="{{ shift.active ? '0' : '1' }}">
+              <button class="btn-ghost btn-xs" type="submit">{{ shift.active ? 'Disable' : 'Enable' }}</button>
+            </form>
+          </details>
+        {% else %}
+          <p class="muted">No shifts yet. Add the first one above.</p>
+        {% endfor %}
+      </div>
+    </section>
+
+  {% elseif tab == 'devices' %}
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>Clock and meal devices</h2>
+          <p class="muted">Register the terminals on site. Clock devices post attendance with source biometric or face; meal devices record the lunch clock. The meal break itself is set on each shift.</p>
+        </div>
+      </div>
+      <form class="form-grid form-grid-4" method="post" action="/app/settings/devices">
+        <input type="hidden" name="_token" value="{{ csrf_token() }}">
+        <label class="field">
+          <span>Device name</span>
+          <input type="text" name="name" maxlength="80" required placeholder="Reception fingerprint">
+        </label>
+        <label class="field">
+          <span>Type</span>
+          <select name="kind">
+            {% for key, label in device_kinds %}<option value="{{ key }}">{{ label }}</option>{% endfor %}
+          </select>
+        </label>
+        <label class="field">
+          <span>Records</span>
+          <select name="purpose">
+            {% for key, label in device_purposes %}<option value="{{ key }}">{{ label }}</option>{% endfor %}
+          </select>
+        </label>
+        <label class="field">
+          <span>Serial number</span>
+          <input type="text" name="serial" maxlength="80" placeholder="Optional until installed">
+        </label>
+        <label class="field">
+          <span>Location</span>
+          <input type="text" name="location" maxlength="80" placeholder="Main entrance">
+        </label>
+        <div class="check-row">
+          <label><input type="checkbox" name="active" value="1" checked> Active</label>
+        </div>
+        <div class="form-actions">
+          <button class="btn-primary" type="submit">Add device</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel">
+      <h2>Registered devices</h2>
+      <div class="setting-list">
+        {% for device in devices %}
+          <details class="setting-item">
+            <summary class="setting-summary">
+              <span class="setting-title">
+                <strong>{{ device.name }}</strong>
+                <small>
+                  {{ device_kinds[device.kind] ?? device.kind }} · {{ device_purposes[device.purpose] ?? device.purpose }}
+                  {% if device.serial %} · <span class="mono">{{ device.serial }}</span>{% endif %}
+                  {% if device.location %} · {{ device.location }}{% endif %}
+                </small>
+              </span>
+              <span class="status {{ device.active ? 'status-active' : 'status-exited' }}">{{ device.active ? 'Active' : 'Inactive' }}</span>
+            </summary>
+            <form class="form-grid form-grid-4 setting-form" method="post" action="/app/settings/devices">
+              <input type="hidden" name="_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="id" value="{{ device.id }}">
+              <label class="field">
+                <span>Device name</span>
+                <input type="text" name="name" value="{{ device.name }}" maxlength="80" required>
+              </label>
+              <label class="field">
+                <span>Type</span>
+                <select name="kind">
+                  {% for key, label in device_kinds %}<option value="{{ key }}"{% if device.kind == key %} selected{% endif %}>{{ label }}</option>{% endfor %}
+                </select>
+              </label>
+              <label class="field">
+                <span>Records</span>
+                <select name="purpose">
+                  {% for key, label in device_purposes %}<option value="{{ key }}"{% if device.purpose == key %} selected{% endif %}>{{ label }}</option>{% endfor %}
+                </select>
+              </label>
+              <label class="field">
+                <span>Serial number</span>
+                <input type="text" name="serial" value="{{ device.serial }}" maxlength="80">
+              </label>
+              <label class="field">
+                <span>Location</span>
+                <input type="text" name="location" value="{{ device.location }}" maxlength="80">
+              </label>
+              <div class="check-row">
+                <label><input type="checkbox" name="active" value="1"{% if device.active %} checked{% endif %}> Active</label>
+              </div>
+              <div class="form-actions">
+                <button class="btn-primary" type="submit">Save</button>
+              </div>
+            </form>
+            <form class="row-actions setting-toggle" method="post" action="/app/settings/devices/{{ device.id }}/toggle">
+              <input type="hidden" name="_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="active" value="{{ device.active ? '0' : '1' }}">
+              <button class="btn-ghost btn-xs" type="submit">{{ device.active ? 'Disable' : 'Enable' }}</button>
+            </form>
+          </details>
+        {% else %}
+          <p class="muted">No devices registered. Attendance can still be marked by hand.</p>
+        {% endfor %}
+      </div>
+      <p class="hint">
+        {{ icons.svg('clock', 14) }} Meal configuration is split in two: a meal device records who went to lunch, and the break minutes on a shift decide how much of that time is unpaid.
+        <a class="text-link" href="/app/settings?tab=shifts">Open shifts</a>
+      </p>
+    </section>
+  {% endif %}
+{% endblock %}

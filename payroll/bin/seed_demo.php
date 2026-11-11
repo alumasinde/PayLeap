@@ -138,14 +138,24 @@ $banks = [
 ];
 
 $employeeIds = [];
+$femaleNames = [
+    'Mercy', 'Faith', 'Grace', 'Halima', 'Lilian', 'Ruth', 'Esther',
+    'Naomi', 'Lucy', 'Diana', 'Cynthia', 'Sharon', 'Irene',
+];
+$genderUpdate = $db->prepare(
+    'UPDATE employees SET gender = ?
+     WHERE company_id = ? AND employee_no = ? AND (gender IS NULL OR gender = \'\')',
+);
 
 foreach ($people as $index => [$first, $last, $department, $title, $type, $salary, $start]) {
     $number = sprintf('ACM-%03d', $index + 1);
+    $gender = in_array($first, $femaleNames, true) ? 'female' : 'male';
     $statement = $db->prepare('SELECT id FROM employees WHERE company_id = ? AND employee_no = ? LIMIT 1');
     $statement->execute([$companyId, $number]);
     $existing = $statement->fetchColumn();
 
     if ($existing !== false) {
+        $genderUpdate->execute([$gender, $companyId, $number]);
         $employeeIds[$number] = (int) $existing;
         continue;
     }
@@ -157,6 +167,7 @@ foreach ($people as $index => [$first, $last, $department, $title, $type, $salar
         'employee_no' => $number,
         'first_name' => $first,
         'last_name' => $last,
+        'gender' => $gender,
         'email' => strtolower($first . '.' . $last) . '@acme.test',
         'phone' => '+2547' . str_pad((string) (10000000 + $index * 137), 8, '0', STR_PAD_LEFT),
         'national_id' => (string) (20000000 + $index * 431),
@@ -177,6 +188,22 @@ foreach ($people as $index => [$first, $last, $department, $title, $type, $salar
 }
 
 echo 'Employees ready: ' . count($employeeIds) . "\n";
+
+/* Public holidays --------------------------------------------------------- */
+
+$app->attendance->holidays->provisionDefaults($companyId);
+$holidayDate = $today->modify('-6 days');
+
+while ((int) $holidayDate->format('N') >= 6) {
+    $holidayDate = $holidayDate->modify('-1 day');
+}
+
+$holidayName = 'Acme Founders Day';
+
+if (!$app->attendance->holidays->dateExists($companyId, $holidayDate->format('Y-m-d'))) {
+    $app->attendance->holidays->create($companyId, $holidayDate->format('Y-m-d'), $holidayName);
+    echo "Public holiday seeded: {$holidayName}\n";
+}
 
 /* Leave ------------------------------------------------------------------- */
 
@@ -258,11 +285,13 @@ if ($attendanceCount === 0) {
     }
 
     $marked = 0;
+    $holidayOn = $holidayDate->format('Y-m-d');
     $cursor = $today->modify('-13 days');
 
     while ($cursor <= $today) {
         $weekday = (int) $cursor->format('N');
         $date = $cursor->format('Y-m-d');
+        $isHoliday = $date === $holidayOn;
 
         if ($weekday <= 5) {
             $i = 0;
@@ -271,6 +300,16 @@ if ($attendanceCount === 0) {
                 if (isset($onLeave[$employeeId][$date])) {
                     $app->attendance->records->mark($companyId, $employeeId, $date, 'leave', null, null, $userId);
                     $marked++;
+                    $i++;
+                    continue;
+                }
+
+                if ($isHoliday) {
+                    if ($i % 4 === 0) {
+                        $app->attendance->records->mark($companyId, $employeeId, $date, 'present', '08:00:00', '16:00:00', $userId);
+                        $marked++;
+                    }
+
                     $i++;
                     continue;
                 }
@@ -344,6 +383,33 @@ if ($rosterCount === 0) {
 } else {
     echo "Roster already present ({$rosterCount}), skipped\n";
 }
+
+/* Clock and meal devices -------------------------------------------------- */
+
+$demoDevices = [
+    ['Reception fingerprint', 'biometric', 'attendance', 'BIO-001', 'Main entrance'],
+    ['Gate face scanner', 'face', 'attendance', 'FACE-001', 'Staff gate'],
+    ['Canteen meal terminal', 'terminal', 'meal', 'MEAL-001', 'Canteen'],
+];
+$devicesAdded = 0;
+
+foreach ($demoDevices as [$name, $kind, $purpose, $serial, $location]) {
+    if ($app->attendance->devices->serialExists($companyId, $serial)) {
+        continue;
+    }
+
+    $app->attendance->devices->create($companyId, [
+        'name' => $name,
+        'kind' => $kind,
+        'purpose' => $purpose,
+        'serial' => $serial,
+        'location' => $location,
+        'active' => 1,
+    ]);
+    $devicesAdded++;
+}
+
+echo "Devices ready: {$devicesAdded} added\n";
 
 /* Payroll ----------------------------------------------------------------- */
 

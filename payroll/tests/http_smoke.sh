@@ -89,6 +89,34 @@ role_url=$(grep -o 'href="/app/access/roles/[0-9]*"' "$APP_HTML" | head -1 | sed
 status=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR" "$BASE$role_url")
 expect "GET /app/access/roles/{id} is 200" "$status" "200"
 
+# ------------------------------------------------------------------- settings
+
+status=$(curl -s -b "$JAR" -o "$APP_HTML" -w '%{http_code}' "$BASE/app/settings")
+expect "GET /app/settings is 200" "$status" "200"
+if grep -q "Leave policy" "$APP_HTML" || grep -q "Company name" "$APP_HTML"; then
+  ok "settings opens on the organisation tab"
+else
+  bad "settings opens on the organisation tab"
+fi
+
+for tab in leave holidays shifts devices; do
+  status=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR" "$BASE/app/settings?tab=$tab")
+  expect "GET /app/settings?tab=$tab is 200" "$status" "200"
+done
+
+curl -s -b "$JAR" -o "$APP_HTML" "$BASE/app/settings?tab=holidays"
+if grep -q "New Year" "$APP_HTML"; then ok "new companies get statutory holidays"; else bad "new companies get statutory holidays"; fi
+
+stoken=$(grep -o 'name="_token" value="[^"]*"' "$APP_HTML" | head -1 | sed 's/.*value="//;s/"$//')
+status=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR" -c "$JAR" -X POST "$BASE/app/settings/holidays" \
+  --data-urlencode "_token=$stoken" \
+  --data-urlencode "holiday_date=2027-03-20" \
+  --data-urlencode "name=Idd ul-Fitr")
+expect "holiday creation redirects" "$status" "302"
+
+curl -s -b "$JAR" -o "$APP_HTML" "$BASE/app/settings?tab=holidays&year=2027"
+if grep -q "Idd ul-Fitr" "$APP_HTML"; then ok "the holiday is listed"; else bad "the holiday is listed"; fi
+
 # ------------------------------------------------------------------ employees
 
 status=$(curl -s -b "$JAR" -o "$APP_HTML" -w '%{http_code}' "$BASE/app/employees")

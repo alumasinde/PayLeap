@@ -23,8 +23,13 @@ final class EmployeeService
         'intern' => 'Intern',
     ];
 
+    public const GENDERS = [
+        'female' => 'Female',
+        'male' => 'Male',
+    ];
+
     private const NULLABLE = [
-        'employee_no', 'middle_name', 'email', 'phone', 'national_id', 'kra_pin',
+        'employee_no', 'middle_name', 'gender', 'email', 'phone', 'national_id', 'kra_pin',
         'nssf_number', 'shif_number', 'bank_name', 'bank_branch', 'bank_account',
         'job_title',
     ];
@@ -34,6 +39,7 @@ final class EmployeeService
         'first_name' => 80,
         'middle_name' => 80,
         'last_name' => 80,
+        'gender' => 10,
         'email' => 190,
         'phone' => 40,
         'national_id' => 30,
@@ -264,6 +270,16 @@ final class EmployeeService
             }
 
             $data['employment_type'] = $type;
+        }
+
+        if (array_key_exists('gender', $input)) {
+            $gender = is_scalar($input['gender']) ? trim((string) $input['gender']) : '';
+
+            if ($gender !== '' && !isset(self::GENDERS[$gender])) {
+                throw new HttpException(422, 'Choose a valid gender.');
+            }
+
+            $data['gender'] = $gender === '' ? null : $gender;
         }
 
         if (array_key_exists('monthly_salary', $input)) {

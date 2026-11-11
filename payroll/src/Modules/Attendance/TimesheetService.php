@@ -12,7 +12,9 @@ use Mshahara\Payroll\Modules\Leave\LeaveRepository;
  * worked, lost and overtime hours, plus the day and hour summaries.
  *
  * Worked time is clock-out minus clock-in; the roster supplies target hours
- * (shift length less the break). Leave overrides the roster for that day.
+ * (shift length less the break). Leave overrides the roster for that day, and a
+ * public holiday is never a target day: hours clocked on it are reported
+ * separately so payroll can treat them as holiday work.
  */
 final class TimesheetService
 {
@@ -20,6 +22,7 @@ final class TimesheetService
         private readonly AttendanceRepository $attendance,
         private readonly ShiftRepository $roster,
         private readonly LeaveRepository $leave,
+        private readonly HolidayRepository $holidays,
     ) {
     }
 
@@ -36,6 +39,7 @@ final class TimesheetService
         $records = $this->attendance->forEmployeeMonth($companyId, $employeeId, $from, $to);
         $roster = $this->roster->forEmployeeBetween($companyId, $employeeId, $from, $to);
         $leave = $this->leave->approvedDates($companyId, $employeeId, $from, $to);
+        $holidays = $this->holidays->between($companyId, $from, $to);
 
         $days = [
             'present' => 0,
@@ -43,11 +47,13 @@ final class TimesheetService
             'off' => 0,
             'on_leave' => 0,
             'single_clock' => 0,
+            'holiday' => 0,
         ];
         $target = 0;
         $workedTotal = 0;
         $lostTotal = 0;
         $otTotal = 0;
+        $holidayTotal = 0;
         $scheduledDays = 0;
         $rows = [];
 
@@ -58,9 +64,10 @@ final class TimesheetService
             $entry = $roster[$date] ?? null;
             $record = $records[$date] ?? null;
             $isLeave = isset($leave[$date]) || (($record['status'] ?? null) === 'leave');
+            $isHoliday = isset($holidays[$date]);
             $isWeekend = (int) $cursor->format('N') >= 6;
-            $isOff = !$isLeave && ($entry !== null ? $entry['roster_status'] === 'off' : $isWeekend);
-            $scheduled = !$isLeave && $entry !== null && $entry['roster_status'] === 'shift';
+            $isOff = !$isLeave && !$isHoliday && ($entry !== null ? $entry['roster_status'] === 'off' : $isWeekend);
+            $scheduled = !$isLeave && !$isHoliday && $entry !== null && $entry['roster_status'] === 'shift';
             $isFuture = $date > date('Y-m-d');
 
             if ($isLeave) {
@@ -69,6 +76,8 @@ final class TimesheetService
                 $status = (string) $record['status'];
             } elseif ($isFuture) {
                 $status = 'upcoming';
+            } elseif ($isHoliday) {
+                $status = 'holiday';
             } elseif ($isOff) {
                 $status = 'off';
             } else {
@@ -84,6 +93,7 @@ final class TimesheetService
             $worked = $in !== null && $out !== null ? self::span($in, $out) : 0;
             $lost = 0;
             $overtime = 0;
+            $holidayWorked = $isHoliday && !$isLeave ? $worked : 0;
 
             if (!$isFuture && $scheduled && $status !== 'holiday') {
                 $scheduledDays++;
@@ -95,6 +105,11 @@ final class TimesheetService
             $workedTotal += $worked;
             $lostTotal += $lost;
             $otTotal += $overtime;
+            $holidayTotal += $holidayWorked;
+
+            if ($isHoliday) {
+                $days['holiday']++;
+            }
 
             if ($status === 'present' || $status === 'late') {
                 $singleClock ? $days['single_clock']++ : $days['present']++;
@@ -110,22 +125,27 @@ final class TimesheetService
                 'date' => $date,
                 'day' => $cursor->format('D'),
                 'day_num' => $cursor->format('j'),
-                'shift' => $scheduled ? (string) $entry['shift_name'] : ($status === 'leave' ? 'Leave' : ($status === 'off' ? 'Off' : '—')),
+                'shift' => $isHoliday
+                    ? (string) $holidays[$date]
+                    : ($scheduled ? (string) $entry['shift_name'] : ($status === 'leave' ? 'Leave' : ($status === 'off' ? 'Off' : '—'))),
                 'shift_label' => $scheduled && $entry['start_time'] !== null
                     ? substr((string) $entry['start_time'], 0, 5) . ' – ' . substr((string) $entry['end_time'], 0, 5)
                     : '',
+                'holiday' => $isHoliday,
                 'status' => $status,
                 'clock_in' => $clockIn !== null ? substr((string) $clockIn, 0, 5) : '',
                 'clock_out' => $clockOut !== null ? substr((string) $clockOut, 0, 5) : '',
                 'worked' => $in !== null || $out !== null ? self::hours($worked) : '—',
                 'lost' => !$isFuture && $scheduled && $status !== 'holiday' ? self::hours($lost) : '—',
                 'ot' => !$isFuture && $scheduled && $status !== 'holiday' ? self::hours($overtime) : '—',
-                'row_class' => match ($status) {
-                    'leave' => 'row-leave',
-                    'off' => 'row-off',
-                    'absent' => 'row-absent',
-                    'unmarked' => 'row-unmarked',
-                    'upcoming' => 'row-upcoming',
+                'holiday_hours' => $isHoliday && $worked > 0 ? self::hours($holidayWorked) : '—',
+                'row_class' => match (true) {
+                    $status === 'leave' => 'row-leave',
+                    $status === 'off' => 'row-off',
+                    $status === 'absent' => 'row-absent',
+                    $status === 'unmarked' => 'row-unmarked',
+                    $status === 'upcoming' => 'row-upcoming',
+                    $isHoliday => 'row-holiday',
                     default => '',
                 },
             ];
@@ -139,12 +159,14 @@ final class TimesheetService
             'rows' => $rows,
             'scheduled_days' => $scheduledDays,
             'has_roster' => $roster !== [],
+            'has_holidays' => $holidays !== [],
             'summary' => [
                 'days' => $days,
                 'target' => self::hours($target),
                 'worked' => self::hours($workedTotal),
                 'lost' => self::hours($lostTotal),
                 'ot' => self::hours($otTotal),
+                'holiday' => self::hours($holidayTotal),
                 'target_minutes' => $target,
             ],
         ];

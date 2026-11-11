@@ -14,7 +14,7 @@ final class EmployeeRepository
 {
     /** Columns a caller may write. Status changes go through the service. */
     private const WRITABLE = [
-        'employee_no', 'first_name', 'middle_name', 'last_name', 'email', 'phone',
+        'employee_no', 'first_name', 'middle_name', 'last_name', 'gender', 'email', 'phone',
         'national_id', 'kra_pin', 'nssf_number', 'shif_number',
         'bank_name', 'bank_branch', 'bank_account',
         'department_id', 'job_title', 'employment_type',

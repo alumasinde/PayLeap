@@ -42,6 +42,17 @@
           <input type="text" name="last_name" maxlength="80" required value="{{ values.last_name ?? employee.last_name ?? '' }}">
         </label>
         <label class="field">
+          <span>Gender</span>
+          {% set currentGender = values.gender ?? employee.gender ?? '' %}
+          <select name="gender">
+            <option value="">Not recorded</option>
+            {% for key, label in genders %}
+              <option value="{{ key }}"{% if currentGender == key %} selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+          <small class="hint">Used for maternity and paternity eligibility.</small>
+        </label>
+        <label class="field">
           <span>Email</span>
           <input type="email" name="email" maxlength="190" value="{{ values.email ?? employee.email ?? '' }}">
         </label>

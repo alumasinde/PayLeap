@@ -59,6 +59,7 @@ final class AttendanceController
             'summary' => AttendanceService::summarise($rows),
             'statuses' => AttendanceRepository::STATUSES,
             'sources' => AttendanceRepository::SOURCES,
+            'holiday' => $this->app->attendance->holidays->onDate($companyId, $date),
             'employees' => $canEdit ? $employees : [],
             'can_edit' => $canEdit,
         ]);

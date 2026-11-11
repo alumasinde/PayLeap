@@ -36,6 +36,7 @@ final class RosterController
         $leave = $employee === null
             ? []
             : $this->app->leave->requests->approvedDates($companyId, (int) $employee['id'], $start->format('Y-m-d'), $end->format('Y-m-d'));
+        $holidays = $this->app->attendance->holidays->between($companyId, $start->format('Y-m-d'), $end->format('Y-m-d'));
 
         echo $this->app->render('app/roster/index.twig', [
             'employees' => $employees,
@@ -44,8 +45,9 @@ final class RosterController
             'label' => $start->format('F Y'),
             'prev_month' => $start->modify('-1 month')->format('Y-m'),
             'next_month' => $end->modify('+1 day')->format('Y-m'),
-            'weeks' => $this->weeks($start, $end, $roster, $leave),
+            'weeks' => $this->weeks($start, $end, $roster, $leave, $holidays),
             'shifts' => $this->app->attendance->shifts->all($companyId),
+            'holiday_count' => count($holidays),
             'can_edit' => $this->app->can('attendance.edit'),
         ]);
     }
@@ -79,9 +81,10 @@ final class RosterController
     /**
      * @param array<string,array<string,mixed>> $roster
      * @param array<string,true> $leave
+     * @param array<string,string> $holidays
      * @return list<list<array<string,mixed>>>
      */
-    private function weeks(DateTimeImmutable $start, DateTimeImmutable $end, array $roster, array $leave): array
+    private function weeks(DateTimeImmutable $start, DateTimeImmutable $end, array $roster, array $leave, array $holidays): array
     {
         $cursor = $start->modify('-' . ((int) $start->format('N') - 1) . ' days');
         $last = $end->modify('+' . (7 - (int) $end->format('N')) . ' days');
@@ -93,9 +96,10 @@ final class RosterController
             $date = $cursor->format('Y-m-d');
             $entry = $roster[$date] ?? null;
             $isLeave = isset($leave[$date]);
+            $holiday = $holidays[$date] ?? null;
             $weekend = (int) $cursor->format('N') >= 6;
             $shift = $entry !== null && $entry['roster_status'] === 'shift' ? $entry : null;
-            $off = !$isLeave && ($entry !== null ? $entry['roster_status'] === 'off' : $weekend);
+            $off = !$isLeave && $holiday === null && ($entry !== null ? $entry['roster_status'] === 'off' : $weekend);
 
             $week[] = [
                 'date' => $date,
@@ -105,6 +109,7 @@ final class RosterController
                 'shift' => $isLeave ? null : $shift,
                 'leave' => $isLeave,
                 'off' => $off,
+                'holiday' => $holiday,
             ];
 
             if (count($week) === 7) {

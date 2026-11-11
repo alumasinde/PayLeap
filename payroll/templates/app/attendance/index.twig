@@ -21,6 +21,13 @@
     {% if date != today %}<a class="text-link" href="/app/attendance">Today {{ icons.svg('arrow-right', 14) }}</a>{% endif %}
   </form>
 
+  {% if holiday %}
+    <p class="notice holiday-notice">
+      {{ icons.svg('calendar', 15) }} <strong>{{ holiday.name }}</strong> is a public holiday. Unmarked staff are not counted as absent, and anyone who clocks in has their hours counted as holiday work on the timesheet.
+      <a class="text-link" href="/app/settings?tab=holidays">Manage holidays</a>
+    </p>
+  {% endif %}
+
   <div class="stat-grid">
     <div class="stat"><span class="stat-label">Present</span><strong>{{ summary.present }}</strong></div>
     <div class="stat"><span class="stat-label">Absent</span><strong>{{ summary.absent }}</strong></div>
@@ -121,6 +128,8 @@
                     <span class="status status-{{ row.attendance_status }}">{{ statuses[row.attendance_status] ?? row.attendance_status }}</span>
                   {% elseif row.on_leave %}
                     <span class="status status-leave">On leave</span>
+                  {% elseif holiday %}
+                    <span class="status status-holiday">{{ holiday.name }}</span>
                   {% else %}
                     <span class="status">Not marked</span>
                   {% endif %}

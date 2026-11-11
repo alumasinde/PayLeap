@@ -14,6 +14,7 @@ use Mshahara\Payroll\Http\Controllers\PasswordController;
 use Mshahara\Payroll\Http\Controllers\PayrollController;
 use Mshahara\Payroll\Http\Controllers\RoleController;
 use Mshahara\Payroll\Http\Controllers\RosterController;
+use Mshahara\Payroll\Http\Controllers\SettingsController;
 use Mshahara\Payroll\Http\Controllers\WorkspaceController;
 
 /**
@@ -68,6 +69,17 @@ return [
     ['POST', '/app/roster', [RosterController::class, 'assign']],
     ['GET', '/app/leave', [LeaveController::class, 'index']],
     ['POST', '/app/leave/{id}/decide', [LeaveController::class, 'decide']],
+
+    ['GET', '/app/settings', [SettingsController::class, 'index']],
+    ['POST', '/app/settings/company', [SettingsController::class, 'saveCompany']],
+    ['POST', '/app/settings/leave-types', [SettingsController::class, 'saveLeaveType']],
+    ['POST', '/app/settings/leave-types/{id}/toggle', [SettingsController::class, 'toggleLeaveType']],
+    ['POST', '/app/settings/holidays', [SettingsController::class, 'addHoliday']],
+    ['POST', '/app/settings/holidays/{id}/delete', [SettingsController::class, 'removeHoliday']],
+    ['POST', '/app/settings/shifts', [SettingsController::class, 'saveShift']],
+    ['POST', '/app/settings/shifts/{id}/toggle', [SettingsController::class, 'toggleShift']],
+    ['POST', '/app/settings/devices', [SettingsController::class, 'saveDevice']],
+    ['POST', '/app/settings/devices/{id}/toggle', [SettingsController::class, 'toggleDevice']],
 
     ['GET', '/me', [WorkspaceController::class, 'me']],
     ['POST', '/me/profile', [AccountController::class, 'updateProfile']],

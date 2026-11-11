@@ -27,8 +27,8 @@ Conventions carried over from the README, applied to every table below:
 | Payslips (printable) | Built | Reads stored breakdown |
 | Payslip PDF, branding, email, password-protected | Next | See section 5 |
 | Self-service portal | Next | `/me` shell exists |
-| Leave | Built | Types, requests, approval decision, and derived balances (entitlement, taken, pending, remaining) |
-| Attendance, overtime | Built | Daily register, monthly timesheet against the roster, source-tagged capture; overtime is still a gap |
+| Leave | Built | Configurable types (days, gender eligibility, carry-over, documents), requests, approval decision, and derived balances (entitlement, taken, pending, remaining) |
+| Attendance, overtime | Built | Daily register, monthly timesheet against the roster, public holidays with separate holiday hours, source-tagged capture, clock and meal device registry; overtime rates still a gap |
 | Loans, advances | Gap | Needed before payroll is usable for real clients |
 | Allowances, earnings, deductions (recurring + one-off) | Gap | Critical: payroll is incomplete without it |
 | Statutory returns and exports | Gap | The main reason Kenyan employers pay |
@@ -132,16 +132,17 @@ Names are suggestions. Prefix is not needed; `company_id` on all unless marked g
 ### Time
 | Table | Key columns / purpose |
 | --- | --- |
-| `leave_types` | company_id, name, days_per_year, accrual_rule, paid, gender_restriction, carry_over_max, requires_document |
+| `leave_types` | company_id, name, days_per_year, accrual_rule, paid, gender_restriction, carry_over_max, requires_document, active |
 | `leave_policies` | leave_type_id, applies_to (employment type/grade), entitlement |
 | `leave_balances` (later) | employee_id, leave_type_id, year, entitled, taken, carried_over; today balances are derived from `leave_types` and approved requests |
 | `leave_requests` | employee_id, leave_type_id, start, end, days, reason, status, decided_by, decided_at |
 | `approval_workflows` | company_id, entity_type, step_no, approver (role or manager) |
 | `approvals` | entity_type, entity_id, step_no, approver_id, decision, at, note |
-| `public_holidays` (global + company) | date, name |
-| `shifts` | company_id, name, start, end, break_minutes |
+| `public_holidays` (company) | company_id, holiday_date, name; unique per company per date, fixed statutory days provisioned |
+| `shifts` | company_id, name, start, end, break_minutes, active |
 | `rosters` → `roster_entries` | employee_id, work_date, shift_id, status (shift/off), note; unique per person per day |
-| `attendance_records` | employee_id, date, clock_in, clock_out, source (manual/biometric/face/import), status |
+| `attendance_devices` | company_id, name, kind (biometric/face/terminal), purpose (attendance/meal), serial, location, active |
+| `attendance_records` | employee_id, date, clock_in, clock_out, source (manual/biometric/face/import), status; holiday is a day status |
 | `overtime_claims` | employee_id, date, hours, day_type (normal/rest/holiday), rate_multiplier, status |
 
 ### Pay structure and payroll
@@ -234,7 +235,7 @@ loans.view, loans.manage
 returns.view, returns.generate
 reports.view, reports.export
 users.invite, users.manage, roles.manage
-company.settings
+settings.manage
 audit.view
 ```
 
