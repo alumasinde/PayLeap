@@ -99,15 +99,15 @@ final class PayrollService
                 'employee_name' => trim($employee['first_name'] . ' ' . $employee['last_name']),
                 'gross_cents' => $grossCents,
                 'taxable_cents' => Money::fromShillings((float) $slip['taxable_pay']),
-                'nssf_cents' => Money::fromShillings((float) $slip['nssf']['total']),
+                'nssf_employee_cents' => Money::fromShillings((float) $slip['nssf']['total']),
                 'shif_cents' => Money::fromShillings((float) $slip['shif']),
-                'housing_levy_cents' => Money::fromShillings((float) $slip['housing_levy']),
+                'housing_levy_employee_cents' => Money::fromShillings((float) $slip['housing_levy']),
                 'paye_cents' => Money::fromShillings((float) $slip['paye']),
                 'deductions_cents' => Money::fromShillings((float) $slip['total_deductions']),
                 'net_cents' => Money::fromShillings((float) $slip['net']),
-                'employer_nssf_cents' => Money::fromShillings((float) $cost['nssf']),
-                'employer_housing_cents' => Money::fromShillings((float) $cost['housing_levy']),
-                'employer_nita_cents' => Money::fromShillings((float) $cost['nita']),
+                'nssf_employer_cents' => Money::fromShillings((float) $cost['nssf']),
+                'housing_levy_employer_cents' => Money::fromShillings((float) $cost['housing_levy']),
+                'nita_cents' => Money::fromShillings((float) $cost['nita']),
                 'employer_cost_cents' => Money::fromShillings((float) $cost['total_cost']),
                 'breakdown' => json_encode(
                     ['payslip' => $slip, 'employer' => $cost],
@@ -121,9 +121,9 @@ final class PayrollService
             $totals['gross_cents'] += $line['gross_cents'];
             $totals['deductions_cents'] += $line['deductions_cents'];
             $totals['net_cents'] += $line['net_cents'];
-            $totals['employer_nssf_cents'] += $line['employer_nssf_cents'];
-            $totals['employer_housing_cents'] += $line['employer_housing_cents'];
-            $totals['employer_nita_cents'] += $line['employer_nita_cents'];
+            $totals['employer_nssf_cents'] += $line['nssf_employer_cents'];
+            $totals['employer_housing_cents'] += $line['housing_levy_employer_cents'];
+            $totals['employer_nita_cents'] += $line['nita_cents'];
             $totals['employer_cost_cents'] += $line['employer_cost_cents'];
         }
 

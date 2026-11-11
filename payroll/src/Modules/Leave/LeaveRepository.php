@@ -285,10 +285,15 @@ final class LeaveRepository
         array_push($params, ...$scopeParams);
 
         $statement = $this->db->prepare(
-            'SELECT lr.*, e.employee_no, e.first_name, e.last_name, e.job_title,
+            'SELECT lr.*, e.employee_no, e.first_name, e.last_name, em.job_title,
                     lt.name AS leave_type, d.name AS department_name
              FROM leave_requests lr
              JOIN employees e ON e.id = lr.employee_id AND e.company_id = lr.company_id
+             LEFT JOIN employments em ON em.id = (
+                 SELECT em2.id FROM employments em2
+                 WHERE em2.employee_id = e.id AND em2.company_id = e.company_id
+                 ORDER BY em2.start_date DESC, em2.id DESC LIMIT 1
+             )
              JOIN leave_types lt ON lt.id = lr.leave_type_id AND lt.company_id = lr.company_id
              LEFT JOIN departments d ON d.id = e.department_id
              ' . $where . '

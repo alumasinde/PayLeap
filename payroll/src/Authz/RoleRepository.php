@@ -141,14 +141,17 @@ final class RoleRepository
     public function assign(int $userId, int $companyId, int $roleId): void
     {
         $this->db
-            ->prepare('INSERT IGNORE INTO user_roles (user_id, company_id, role_id) VALUES (?, ?, ?)')
-            ->execute([$userId, $companyId, $roleId]);
+            ->prepare('INSERT IGNORE INTO user_roles (membership_id, role_id)
+                       SELECT m.id, ? FROM memberships m WHERE m.user_id = ? AND m.company_id = ?')
+            ->execute([$roleId, $userId, $companyId]);
     }
 
     public function unassign(int $userId, int $companyId, int $roleId): void
     {
         $this->db
-            ->prepare('DELETE FROM user_roles WHERE user_id = ? AND company_id = ? AND role_id = ?')
+            ->prepare('DELETE ur FROM user_roles ur
+                       JOIN memberships m ON m.id = ur.membership_id
+                       WHERE m.user_id = ? AND m.company_id = ? AND ur.role_id = ?')
             ->execute([$userId, $companyId, $roleId]);
     }
 
@@ -158,8 +161,9 @@ final class RoleRepository
         $statement = $this->db->prepare(
             'SELECT r.id, r.`key`, r.name
              FROM user_roles ur
+             JOIN memberships m ON m.id = ur.membership_id
              JOIN roles r ON r.id = ur.role_id
-             WHERE ur.user_id = ? AND ur.company_id = ?
+             WHERE m.user_id = ? AND m.company_id = ?
              ORDER BY r.name',
         );
         $statement->execute([$userId, $companyId]);
@@ -170,14 +174,21 @@ final class RoleRepository
     public function clearForUser(int $userId, int $companyId): void
     {
         $this->db
-            ->prepare('DELETE FROM user_roles WHERE user_id = ? AND company_id = ?')
+            ->prepare('DELETE ur FROM user_roles ur
+                       JOIN memberships m ON m.id = ur.membership_id
+                       WHERE m.user_id = ? AND m.company_id = ?')
             ->execute([$userId, $companyId]);
     }
 
     /** @return array<int,list<int>> role ids keyed by user id */
     public function roleIdsByUser(int $companyId): array
     {
-        $statement = $this->db->prepare('SELECT user_id, role_id FROM user_roles WHERE company_id = ?');
+        $statement = $this->db->prepare(
+            'SELECT m.user_id, ur.role_id
+             FROM user_roles ur
+             JOIN memberships m ON m.id = ur.membership_id
+             WHERE m.company_id = ?',
+        );
         $statement->execute([$companyId]);
 
         $assigned = [];
@@ -192,10 +203,11 @@ final class RoleRepository
     public function holderCount(int $companyId, string $roleKey): int
     {
         $statement = $this->db->prepare(
-            'SELECT COUNT(DISTINCT ur.user_id)
+            'SELECT COUNT(DISTINCT m.user_id)
              FROM user_roles ur
+             JOIN memberships m ON m.id = ur.membership_id
              JOIN roles r ON r.id = ur.role_id
-             WHERE ur.company_id = ? AND r.company_id = ? AND r.`key` = ?',
+             WHERE m.company_id = ? AND r.company_id = ? AND r.`key` = ?',
         );
         $statement->execute([$companyId, $companyId, $roleKey]);
 

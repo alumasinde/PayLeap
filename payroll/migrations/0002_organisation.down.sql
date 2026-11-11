@@ -1,0 +1,4 @@
+DROP TABLE IF EXISTS job_titles;
+DROP TABLE IF EXISTS branches;
+DROP TABLE IF EXISTS departments;
+DROP TABLE IF EXISTS grades;

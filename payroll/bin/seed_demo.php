@@ -59,12 +59,16 @@ if ($userId === false) {
 $db->prepare('INSERT IGNORE INTO memberships (company_id, user_id, status) VALUES (?, ?, \'active\')')
     ->execute([$companyId, $userId]);
 
+$membershipStatement = $db->prepare('SELECT id FROM memberships WHERE company_id = ? AND user_id = ? LIMIT 1');
+$membershipStatement->execute([$companyId, $userId]);
+$membershipId = (int) $membershipStatement->fetchColumn();
+
 $roleId = (int) $db->query(
     'SELECT id FROM roles WHERE company_id = ' . $companyId . ' AND `key` = \'owner\' LIMIT 1',
 )->fetchColumn();
 
-$db->prepare('INSERT IGNORE INTO user_roles (user_id, company_id, role_id) VALUES (?, ?, ?)')
-    ->execute([$userId, $companyId, $roleId]);
+$db->prepare('INSERT IGNORE INTO user_roles (membership_id, role_id) VALUES (?, ?)')
+    ->execute([$membershipId, $roleId]);
 
 /* Departments ------------------------------------------------------------- */
 
@@ -115,9 +119,9 @@ $people = [
     ['Victor', 'Ochieng', 'Operations', 'Driver', 'permanent', 55000, '2019-09-23'],
     ['Lucy', 'Muthoni', 'Operations', 'Office Administrator', 'permanent', 75000, '2017-02-27'],
     ['Diana', 'Kerubo', 'Sales & Marketing', 'Sales Manager', 'permanent', 200000, '2019-01-14'],
-    ['Michael', 'Omondi', 'Sales & Marketing', 'Account Executive', 'contract', 120000, '2024-02-05'],
+    ['Michael', 'Omondi', 'Sales & Marketing', 'Account Executive', 'fixed_term', 120000, '2024-02-05'],
     ['Cynthia', 'Wairimu', 'Sales & Marketing', 'Marketing Specialist', 'permanent', 125000, '2022-08-08'],
-    ['Elvis', 'Barasa', 'Sales & Marketing', 'Sales Representative', 'contract', 90000, '2023-11-20'],
+    ['Elvis', 'Barasa', 'Sales & Marketing', 'Sales Representative', 'fixed_term', 90000, '2023-11-20'],
     ['Sharon', 'Atieno', 'Customer Support', 'Support Lead', 'permanent', 140000, '2020-06-01'],
     ['Hassan', 'Mohamed', 'Customer Support', 'Support Agent', 'permanent', 70000, '2021-07-19'],
     ['Irene', 'Nekesa', 'Customer Support', 'Support Agent', 'permanent', 72000, '2022-04-11'],

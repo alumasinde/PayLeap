@@ -20,7 +20,7 @@ final class PermissionRepository
         $rows = $this->db
             ->query("SELECT p.`key`, p.name, p.description, COALESCE(m.name, 'Company') AS module_name
                      FROM permissions p
-                     LEFT JOIN modules m ON m.id = p.module_id
+                     LEFT JOIN modules m ON m.`key` = p.module_key
                      ORDER BY (m.sort_order IS NULL), m.sort_order, p.name")
             ->fetchAll();
 

@@ -78,6 +78,7 @@ final class EmployeeController
             'employee' => $employee,
             'types' => EmployeeService::TYPES,
             'genders' => EmployeeService::GENDERS,
+            'marital_statuses' => EmployeeService::MARITAL_STATUSES,
             'service_years' => $this->serviceYears($employee),
             'can_edit' => $this->app->can('employees.edit'),
             'can_salary' => $this->app->can('employees.salary.view'),
@@ -244,7 +245,8 @@ final class EmployeeController
         $input = [];
 
         $fields = [
-            'employee_no', 'first_name', 'middle_name', 'last_name', 'gender', 'email', 'phone',
+            'employee_no', 'first_name', 'middle_name', 'last_name', 'dob', 'gender',
+            'email', 'phone', 'address', 'marital_status',
             'national_id', 'kra_pin', 'nssf_number', 'shif_number',
             'department_id', 'manager_id', 'user_id', 'job_title', 'employment_type',
             'start_date', 'exit_date',
@@ -289,6 +291,7 @@ final class EmployeeController
             'portal_users' => $this->app->employees->register->portalUsers((int) $company['company_id']),
             'types' => EmployeeService::TYPES,
             'genders' => EmployeeService::GENDERS,
+            'marital_statuses' => EmployeeService::MARITAL_STATUSES,
             'can_salary' => $this->app->can('employees.salary.view'),
             'can_bank' => $this->app->can('employees.bank.view'),
             'salary_display' => Money::format($cents === null ? null : (int) $cents),

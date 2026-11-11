@@ -1,0 +1,12 @@
+DROP TABLE IF EXISTS loss_damage_claims;
+DROP TABLE IF EXISTS expense_claims;
+DROP TABLE IF EXISTS final_dues;
+DROP TABLE IF EXISTS service_charge_shares;
+DROP TABLE IF EXISTS service_charge_pools;
+DROP TABLE IF EXISTS commission_entries;
+DROP TABLE IF EXISTS commission_rules;
+DROP TABLE IF EXISTS advance_requests;
+DROP TABLE IF EXISTS loan_schedule;
+DROP TABLE IF EXISTS loans;
+DROP TABLE IF EXISTS exchange_rates;
+DROP TABLE IF EXISTS currencies;

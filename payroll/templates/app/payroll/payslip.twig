@@ -52,9 +52,9 @@
         <h3>Deductions</h3>
         <table class="list payslip-table">
           <tbody>
-            <tr><td>NSSF</td><td class="num mono">{{ line.nssf_cents|money }}</td></tr>
+            <tr><td>NSSF</td><td class="num mono">{{ line.nssf_employee_cents|money }}</td></tr>
             <tr><td>SHIF</td><td class="num mono">{{ line.shif_cents|money }}</td></tr>
-            <tr><td>Housing levy</td><td class="num mono">{{ line.housing_levy_cents|money }}</td></tr>
+            <tr><td>Housing levy</td><td class="num mono">{{ line.housing_levy_employee_cents|money }}</td></tr>
             <tr><td>PAYE</td><td class="num mono">{{ line.paye_cents|money }}</td></tr>
             <tr class="total"><td>Total deductions</td><td class="num mono">{{ line.deductions_cents|money }}</td></tr>
           </tbody>
@@ -105,9 +105,9 @@
     <div class="payslip-section">
       <h3>Employer contributions (not deducted from pay)</h3>
       <dl class="facts">
-        <div><dt>NSSF</dt><dd class="mono">{{ line.employer_nssf_cents|money }}</dd></div>
-        <div><dt>Housing levy</dt><dd class="mono">{{ line.employer_housing_cents|money }}</dd></div>
-        <div><dt>NITA</dt><dd class="mono">{{ line.employer_nita_cents|money }}</dd></div>
+        <div><dt>NSSF</dt><dd class="mono">{{ line.nssf_employer_cents|money }}</dd></div>
+        <div><dt>Housing levy</dt><dd class="mono">{{ line.housing_levy_employer_cents|money }}</dd></div>
+        <div><dt>NITA</dt><dd class="mono">{{ line.nita_cents|money }}</dd></div>
       </dl>
     </div>
 

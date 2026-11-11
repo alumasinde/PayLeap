@@ -156,13 +156,13 @@ $expectedCost = $calculator->employerCost(50000.0, $rate);
 
 check('gross is the register salary', (int) $lineLow['gross_cents'] === 5000000);
 check('PAYE matches the engine', (int) $lineLow['paye_cents'] === Money::fromShillings((float) $expected['paye']));
-check('NSSF matches the engine', (int) $lineLow['nssf_cents'] === Money::fromShillings((float) $expected['nssf']['total']));
+check('NSSF matches the engine', (int) $lineLow['nssf_employee_cents'] === Money::fromShillings((float) $expected['nssf']['total']));
 check('SHIF matches the engine', (int) $lineLow['shif_cents'] === Money::fromShillings((float) $expected['shif']));
-check('housing levy matches the engine', (int) $lineLow['housing_levy_cents'] === Money::fromShillings((float) $expected['housing_levy']));
+check('housing levy matches the engine', (int) $lineLow['housing_levy_employee_cents'] === Money::fromShillings((float) $expected['housing_levy']));
 check('taxable pay matches the engine', (int) $lineLow['taxable_cents'] === Money::fromShillings((float) $expected['taxable_pay']));
 check('net matches the engine', (int) $lineLow['net_cents'] === Money::fromShillings((float) $expected['net']));
 check('deductions match the engine', (int) $lineLow['deductions_cents'] === Money::fromShillings((float) $expected['total_deductions']));
-check('employer NSSF matches the engine', (int) $lineLow['employer_nssf_cents'] === Money::fromShillings((float) $expectedCost['nssf']));
+check('employer NSSF matches the engine', (int) $lineLow['nssf_employer_cents'] === Money::fromShillings((float) $expectedCost['nssf']));
 check('employer cost matches the engine', (int) $lineLow['employer_cost_cents'] === Money::fromShillings((float) $expectedCost['total_cost']));
 
 $breakdown = json_decode((string) $lineLow['breakdown'], true);

@@ -105,7 +105,7 @@ final class AttendanceRepository
     public function day(int $companyId, string $workDate): array
     {
         $statement = $this->db->prepare(
-            'SELECT e.id, e.employee_no, e.first_name, e.last_name, e.job_title,
+            'SELECT e.id, e.employee_no, e.first_name, e.last_name, em.job_title,
                     d.name AS department_name,
                     a.status AS attendance_status, a.clock_in, a.clock_out, a.source,
                     EXISTS (
@@ -115,6 +115,11 @@ final class AttendanceRepository
                           AND ? BETWEEN lr.start_date AND lr.end_date
                     ) AS on_leave
              FROM employees e
+             LEFT JOIN employments em ON em.id = (
+                 SELECT em2.id FROM employments em2
+                 WHERE em2.employee_id = e.id AND em2.company_id = e.company_id
+                 ORDER BY em2.start_date DESC, em2.id DESC LIMIT 1
+             )
              LEFT JOIN departments d ON d.id = e.department_id
              LEFT JOIN attendance_records a
                     ON a.employee_id = e.id AND a.company_id = e.company_id AND a.work_date = ?

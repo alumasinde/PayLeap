@@ -36,7 +36,7 @@ final class AuditLogger
 
         $this->db
             ->prepare('INSERT INTO audit_log
-                (company_id, actor_user_id, action, subject_type, subject_id, meta, ip, user_agent, created_at)
+                (company_id, user_id, action, entity, entity_id, meta, ip, user_agent, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP())')
             ->execute([
                 $companyId,

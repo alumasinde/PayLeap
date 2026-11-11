@@ -20,16 +20,21 @@ final class DashboardRepository
     public function headcount(int $companyId, string $monthStart, bool $includeSalary): array
     {
         $sql = 'SELECT COUNT(*) AS total,
-                       COALESCE(SUM(status = \'active\'), 0) AS active,
-                       COALESCE(SUM(status = \'exited\'), 0) AS exited,
-                       COALESCE(SUM(status = \'active\' AND start_date >= ?), 0) AS new_this_month';
+                       COALESCE(SUM(e.status = \'active\'), 0) AS active,
+                       COALESCE(SUM(e.status = \'exited\'), 0) AS exited,
+                       COALESCE(SUM(e.status = \'active\' AND em.start_date >= ?), 0) AS new_this_month';
 
         if ($includeSalary) {
-            $sql .= ', COALESCE(SUM(CASE WHEN status = \'active\'
-                                          THEN COALESCE(monthly_salary_cents, 0) ELSE 0 END), 0) AS monthly_cents';
+            $sql .= ', COALESCE(SUM(CASE WHEN e.status = \'active\'
+                                          THEN COALESCE(em.salary_cents, 0) ELSE 0 END), 0) AS monthly_cents';
         }
 
-        $statement = $this->db->prepare($sql . ' FROM employees WHERE company_id = ?');
+        $statement = $this->db->prepare(
+            $sql . ' FROM employees e
+                     LEFT JOIN employments em ON em.id = ('
+            . $this->latestEmployment() . ')
+                     WHERE e.company_id = ?',
+        );
         $statement->execute([$monthStart, $companyId]);
         $row = $statement->fetch() ?: [];
 
@@ -63,12 +68,14 @@ final class DashboardRepository
     public function recentEmployees(int $companyId, int $limit = 5): array
     {
         $statement = $this->db->prepare(
-            'SELECT e.id, e.employee_no, e.first_name, e.last_name, e.job_title,
-                    e.employment_type, e.start_date, e.created_at, d.name AS department_name
+            'SELECT e.id, e.employee_no, e.first_name, e.last_name,
+                    em.job_title, em.type AS employment_type, em.start_date, e.created_at,
+                    d.name AS department_name
              FROM employees e
+             LEFT JOIN employments em ON em.id = (' . $this->latestEmployment() . ')
              LEFT JOIN departments d ON d.id = e.department_id
              WHERE e.company_id = ? AND e.status = \'active\'
-             ORDER BY e.start_date DESC, e.id DESC
+             ORDER BY em.start_date DESC, e.id DESC
              LIMIT ' . max(1, min(20, $limit)),
         );
         $statement->execute([$companyId]);
@@ -98,9 +105,9 @@ final class DashboardRepository
     {
         $statement = $this->db->prepare(
             'SELECT COALESCE(SUM(paye_cents), 0) AS paye,
-                    COALESCE(SUM(nssf_cents), 0) AS nssf,
+                    COALESCE(SUM(nssf_employee_cents), 0) AS nssf,
                     COALESCE(SUM(shif_cents), 0) AS shif,
-                    COALESCE(SUM(housing_levy_cents), 0) AS housing
+                    COALESCE(SUM(housing_levy_employee_cents), 0) AS housing
              FROM payroll_lines
              WHERE run_id = ?',
         );
@@ -265,5 +272,14 @@ final class DashboardRepository
         }
 
         return $count;
+    }
+
+    /** Correlated subquery that picks the employee's latest employment row. */
+    private function latestEmployment(): string
+    {
+        return 'SELECT em2.id FROM employments em2
+                WHERE em2.employee_id = e.id AND em2.company_id = e.company_id
+                ORDER BY em2.start_date DESC, em2.id DESC
+                LIMIT 1';
     }
 }

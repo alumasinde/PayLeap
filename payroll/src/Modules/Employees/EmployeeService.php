@@ -18,8 +18,9 @@ final class EmployeeService
 {
     public const TYPES = [
         'permanent' => 'Permanent',
-        'contract' => 'Contract',
+        'fixed_term' => 'Fixed term',
         'casual' => 'Casual',
+        'consultant' => 'Consultant',
         'intern' => 'Intern',
     ];
 
@@ -28,10 +29,18 @@ final class EmployeeService
         'male' => 'Male',
     ];
 
+    public const MARITAL_STATUSES = [
+        'single' => 'Single',
+        'married' => 'Married',
+        'divorced' => 'Divorced',
+        'widowed' => 'Widowed',
+        'separated' => 'Separated',
+    ];
+
     private const NULLABLE = [
-        'employee_no', 'middle_name', 'gender', 'email', 'phone', 'national_id', 'kra_pin',
-        'nssf_number', 'shif_number', 'bank_name', 'bank_branch', 'bank_account',
-        'job_title',
+        'employee_no', 'middle_name', 'gender', 'email', 'phone', 'national_id', 'address',
+        'marital_status', 'kra_pin', 'nssf_number', 'shif_number', 'bank_name', 'bank_branch',
+        'bank_account', 'job_title',
     ];
 
     private const TEXT_FIELDS = [
@@ -43,6 +52,8 @@ final class EmployeeService
         'email' => 190,
         'phone' => 40,
         'national_id' => 30,
+        'address' => 255,
+        'marital_status' => 20,
         'kra_pin' => 20,
         'nssf_number' => 30,
         'shif_number' => 30,
@@ -136,6 +147,7 @@ final class EmployeeService
         $this->employees->update($companyId, $employeeId, [
             'status' => 'exited',
             'exit_date' => $date,
+            'archived_at' => date('Y-m-d H:i:s'),
         ]);
 
         $this->auditLogger->record($companyId, $actorId, 'employee.archived', 'employee', (string) $employeeId, [
@@ -159,6 +171,7 @@ final class EmployeeService
         $this->employees->update($companyId, $employeeId, [
             'status' => 'active',
             'exit_date' => null,
+            'archived_at' => null,
         ]);
 
         $this->auditLogger->record($companyId, $actorId, 'employee.reinstated', 'employee', (string) $employeeId, [
@@ -322,6 +335,32 @@ final class EmployeeService
             }
 
             $data['gender'] = $gender === '' ? null : $gender;
+        }
+
+        if (array_key_exists('marital_status', $input)) {
+            $status = is_scalar($input['marital_status']) ? trim((string) $input['marital_status']) : '';
+
+            if ($status !== '' && !isset(self::MARITAL_STATUSES[$status])) {
+                throw new HttpException(422, 'Choose a valid marital status.');
+            }
+
+            $data['marital_status'] = $status === '' ? null : $status;
+        }
+
+        if (array_key_exists('dob', $input)) {
+            $raw = trim((string) $input['dob']);
+
+            if ($raw === '') {
+                $data['dob'] = null;
+            } else {
+                $dob = $this->date($raw, 'Date of birth');
+
+                if ($dob > date('Y-m-d')) {
+                    throw new HttpException(422, 'The date of birth cannot be in the future.');
+                }
+
+                $data['dob'] = $dob;
+            }
         }
 
         if (array_key_exists('monthly_salary', $input)) {

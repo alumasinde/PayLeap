@@ -37,7 +37,7 @@ final class CompanyRepository
                     GROUP_CONCAT(r.name ORDER BY r.name SEPARATOR ", ") AS role_names
              FROM memberships m
              JOIN companies c ON c.id = m.company_id
-             LEFT JOIN user_roles ur ON ur.user_id = m.user_id AND ur.company_id = m.company_id
+             LEFT JOIN user_roles ur ON ur.membership_id = m.id
              LEFT JOIN roles r ON r.id = ur.role_id
              WHERE m.user_id = ? AND m.status = ?
              GROUP BY m.company_id, m.status, c.name, c.slug
@@ -88,7 +88,7 @@ final class CompanyRepository
                     GROUP_CONCAT(r.name ORDER BY r.name SEPARATOR ", ") AS role_names
              FROM memberships m
              JOIN companies c ON c.id = m.company_id
-             LEFT JOIN user_roles ur ON ur.user_id = m.user_id AND ur.company_id = m.company_id
+             LEFT JOIN user_roles ur ON ur.membership_id = m.id
              LEFT JOIN roles r ON r.id = ur.role_id
              WHERE m.user_id = ? AND m.company_id = ? AND m.status = ?
              GROUP BY m.company_id, m.status, c.name, c.slug
@@ -108,7 +108,7 @@ final class CompanyRepository
                     GROUP_CONCAT(r.name ORDER BY r.name SEPARATOR ", ") AS role_names
              FROM memberships m
              JOIN users u ON u.id = m.user_id
-             LEFT JOIN user_roles ur ON ur.user_id = m.user_id AND ur.company_id = m.company_id
+             LEFT JOIN user_roles ur ON ur.membership_id = m.id
              LEFT JOIN roles r ON r.id = ur.role_id
              WHERE m.company_id = ?
              GROUP BY u.id, u.first_name, u.last_name, u.email, m.status, m.created_at

@@ -34,9 +34,10 @@ final class PermissionGate
             $statement = $this->db->prepare(
                 'SELECT DISTINCT p.`key`
                  FROM user_roles ur
+                 JOIN memberships m ON m.id = ur.membership_id
                  JOIN role_permissions rp ON rp.role_id = ur.role_id
                  JOIN permissions p ON p.id = rp.permission_id
-                 WHERE ur.user_id = ? AND ur.company_id = ?',
+                 WHERE m.user_id = ? AND m.company_id = ?',
             );
             $statement->execute([$userId, $companyId]);
             $this->cache[$cacheKey] = array_fill_keys($statement->fetchAll(PDO::FETCH_COLUMN), true);

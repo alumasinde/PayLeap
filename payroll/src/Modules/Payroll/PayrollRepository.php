@@ -50,9 +50,9 @@ final class PayrollRepository
     {
         $statement = $this->db->prepare('INSERT INTO payroll_lines
             (run_id, employee_id, employee_no, employee_name, gross_cents, taxable_cents,
-             nssf_cents, shif_cents, housing_levy_cents, paye_cents,
+             nssf_employee_cents, shif_cents, housing_levy_employee_cents, paye_cents,
              deductions_cents, net_cents,
-             employer_nssf_cents, employer_housing_cents, employer_nita_cents,
+             nssf_employer_cents, housing_levy_employer_cents, nita_cents,
              employer_cost_cents, breakdown)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
 
@@ -64,15 +64,15 @@ final class PayrollRepository
                 $line['employee_name'],
                 $line['gross_cents'],
                 $line['taxable_cents'],
-                $line['nssf_cents'],
+                $line['nssf_employee_cents'],
                 $line['shif_cents'],
-                $line['housing_levy_cents'],
+                $line['housing_levy_employee_cents'],
                 $line['paye_cents'],
                 $line['deductions_cents'],
                 $line['net_cents'],
-                $line['employer_nssf_cents'],
-                $line['employer_housing_cents'],
-                $line['employer_nita_cents'],
+                $line['nssf_employer_cents'],
+                $line['housing_levy_employer_cents'],
+                $line['nita_cents'],
                 $line['employer_cost_cents'],
                 $line['breakdown'],
             ]);

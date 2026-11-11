@@ -60,6 +60,24 @@
           <span>Phone</span>
           <input type="text" name="phone" maxlength="40" value="{{ values.phone ?? employee.phone ?? '' }}" placeholder="0712 345 678">
         </label>
+        <label class="field">
+          <span>Date of birth</span>
+          <input type="date" name="dob" value="{{ values.dob ?? employee.dob ?? '' }}">
+        </label>
+        <label class="field">
+          <span>Marital status</span>
+          {% set currentMarital = values.marital_status ?? employee.marital_status ?? '' %}
+          <select name="marital_status">
+            <option value="">Not recorded</option>
+            {% for key, label in marital_statuses %}
+              <option value="{{ key }}"{% if currentMarital == key %} selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label class="field">
+          <span>Address</span>
+          <input type="text" name="address" maxlength="255" value="{{ values.address ?? employee.address ?? '' }}">
+        </label>
       </div>
     </fieldset>
 
