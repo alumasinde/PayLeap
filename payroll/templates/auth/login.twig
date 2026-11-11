@@ -1,0 +1,41 @@
+{% extends 'layout.twig' %}
+
+{% block title %}Sign in — {{ app_name }}{% endblock %}
+
+{% block body %}
+  <div class="auth-wrap">
+    <div class="auth-card">
+      <span class="brand-mark big">M</span>
+      <span class="kicker">Mshahara Payroll</span>
+      <h1>Sign in</h1>
+      <p class="muted">Use the email your company invited.</p>
+
+      {% if signed_out %}
+        <p class="hint">Signed out on every device. Sign in again to continue.</p>
+      {% endif %}
+
+      {% if error %}
+        <div class="alert">{{ error }}</div>
+      {% endif %}
+
+      <form method="post" action="/login" class="stack">
+        <input type="hidden" name="_token" value="{{ csrf_token() }}">
+        {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+
+        <label class="field">
+          <span>Email</span>
+          <input type="email" name="email" value="{{ email }}" autocomplete="username" required autofocus>
+        </label>
+
+        <label class="field">
+          <span>Password</span>
+          <input type="password" name="password" autocomplete="current-password" required>
+        </label>
+
+        <button class="btn-primary" type="submit">Sign in</button>
+      </form>
+
+      <p class="auth-links"><a href="/forgot">Forgot your password?</a></p>
+    </div>
+  </div>
+{% endblock %}

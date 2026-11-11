@@ -1,0 +1,63 @@
+{% extends 'layout.twig' %}
+
+{% block title %}{{ current_company.company_name }} — {{ app_name }}{% endblock %}
+
+{% block body %}
+  <section class="page-head">
+    <span class="kicker">Workspace</span>
+    <h1>{{ current_company.company_name }}</h1>
+    <p class="muted">{{ current_user.email }} · {{ role_label }}</p>
+  </section>
+
+  <div class="grid-2">
+    <section class="panel">
+      <h2>Company</h2>
+      <dl class="facts">
+        <div><dt>Name</dt><dd>{{ current_company.company_name }}</dd></div>
+        <div><dt>Workspace</dt><dd class="mono">{{ current_company.slug }}</dd></div>
+        <div><dt>Your role</dt><dd>{{ role_label }}</dd></div>
+      </dl>
+    </section>
+
+    <section class="panel">
+      <h2>Team</h2>
+      <table class="list">
+        <thead>
+          <tr><th>Name</th><th>Email</th><th>Role</th></tr>
+        </thead>
+        <tbody>
+          {% for member in members %}
+            <tr>
+              <td>{{ member.name }}</td>
+              <td class="muted">{{ member.email }}</td>
+              <td>{{ member.role|capitalize }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+  </div>
+
+  <section class="panel">
+    <h2>Modules</h2>
+    <div class="module-grid">
+      {% for key, module in modules %}
+        <div class="module-tile">
+          <span class="module-status">{{ module.status }}</span>
+          <h3>{{ module.name }}</h3>
+          <p class="muted">{{ module.note }}</p>
+          {% if can(module.permission) %}
+            <span class="chip on">In your role</span>
+          {% else %}
+            <span class="chip">Not in your role</span>
+          {% endif %}
+        </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>What this build is</h2>
+    <p class="muted">Identity, invitations, company access and audit. Employee records are the next module; nothing here pretends to run payroll yet.</p>
+  </section>
+{% endblock %}

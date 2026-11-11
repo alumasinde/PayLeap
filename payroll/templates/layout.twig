@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ app_name }}{% endblock %}</title>
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body class="{% block body_class %}{% endblock %}">
+{% if current_user %}
+  <header class="app-header">
+    <div class="header-inner">
+      <a class="brand" href="/app"><span class="brand-mark">M</span>{{ app_name }}</a>
+      {% if current_company %}<span class="company-chip">{{ current_company.company_name }}</span>{% endif %}
+
+      <nav class="app-nav">
+        <a href="/app">Workspace</a>
+        <a href="/me">My account</a>
+      </nav>
+
+      {% if memberships|length > 1 %}
+        <form class="company-switch" method="post" action="/app/company">
+          <input type="hidden" name="_token" value="{{ csrf_token() }}">
+          <select name="company_id" aria-label="Company">
+            {% for membership in memberships %}
+              <option value="{{ membership.company_id }}"{% if current_company and membership.company_id == current_company.company_id %} selected{% endif %}>{{ membership.company_name }}</option>
+            {% endfor %}
+          </select>
+          <button class="btn-ghost btn-sm" type="submit">Switch</button>
+        </form>
+      {% endif %}
+
+      <div class="header-user">
+        <span class="user-email">{{ current_user.email }}</span>
+        <form method="post" action="/logout">
+          <input type="hidden" name="_token" value="{{ csrf_token() }}">
+          <button class="btn-ghost btn-sm" type="submit">Sign out</button>
+        </form>
+      </div>
+    </div>
+  </header>
+{% endif %}
+
+{% for flash in flashes %}
+  <div class="flash {{ flash.type }}">{{ flash.message }}</div>
+{% endfor %}
+
+<main class="shell">
+  {% block body %}{% endblock %}
+</main>
+</body>
+</html>

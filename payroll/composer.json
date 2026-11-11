@@ -1,0 +1,22 @@
+{
+  "name": "mshahara/payroll",
+  "description": "Mshahara Payroll — multi-company Kenyan payroll on the shared statutory engine.",
+  "type": "project",
+  "license": "proprietary",
+  "require": {
+    "php": ">=8.2",
+    "ext-pdo": "*",
+    "ext-pdo_mysql": "*",
+    "twig/twig": "^3.14"
+  },
+  "autoload": {
+    "psr-4": {
+      "Mshahara\\Payroll\\": "src/",
+      "Mshahara\\Paye\\": "../engine/src/"
+    }
+  },
+  "config": {
+    "sort-packages": true,
+    "optimize-autoloader": true
+  }
+}

@@ -1,0 +1,58 @@
+{% extends 'layout.twig' %}
+
+{% block title %}Join {{ invite.company_name }} — {{ app_name }}{% endblock %}
+
+{% block body %}
+  <div class="auth-wrap">
+    <div class="auth-card">
+      <span class="kicker">Invitation</span>
+      <h1>Join {{ invite.company_name }}</h1>
+      <p class="muted">{{ invite.email }} · {{ role_label }}</p>
+
+      {% if error %}
+        <div class="alert">{{ error }}</div>
+      {% endif %}
+
+      {% if existing %}
+        {% if current_user %}
+          <p class="muted">You are signed in as {{ current_user.email }}. Accepting adds {{ invite.company_name }} to your account.</p>
+          <form method="post" action="/invite/{{ token }}" class="stack">
+            <input type="hidden" name="_token" value="{{ csrf_token() }}">
+            <button class="btn-primary" type="submit">Accept invitation</button>
+          </form>
+        {% else %}
+          <p class="muted">An account already uses this email. Sign in as {{ invite.email }} to accept.</p>
+          <form method="post" action="/invite/{{ token }}" class="stack">
+            <input type="hidden" name="_token" value="{{ csrf_token() }}">
+            <a class="btn-primary" href="/login?next={{ ('/invite/' ~ token)|url_encode }}">Sign in to accept</a>
+          </form>
+        {% endif %}
+      {% else %}
+        <form method="post" action="/invite/{{ token }}" class="stack">
+          <input type="hidden" name="_token" value="{{ csrf_token() }}">
+
+          <label class="field">
+            <span>Full name</span>
+            <input type="text" name="name" value="{{ name|default('') }}" autocomplete="name" required autofocus>
+          </label>
+
+          <label class="field">
+            <span>Password</span>
+            <input type="password" name="password" autocomplete="new-password" required>
+          </label>
+
+          <label class="field">
+            <span>Confirm password</span>
+            <input type="password" name="password_confirmation" autocomplete="new-password" required>
+          </label>
+
+          <p class="hint">At least 10 characters.</p>
+
+          <button class="btn-primary" type="submit">Create account</button>
+        </form>
+      {% endif %}
+
+      <p class="auth-links">Already have an account? <a href="/login">Sign in</a></p>
+    </div>
+  </div>
+{% endblock %}

@@ -1,0 +1,36 @@
+{% extends 'layout.twig' %}
+
+{% block title %}My account — {{ app_name }}{% endblock %}
+
+{% block body %}
+  <section class="page-head">
+    <span class="kicker">My account</span>
+    <h1>{{ current_user.name }}</h1>
+    <p class="muted">{{ current_company.company_name }} · {{ role_label }}</p>
+  </section>
+
+  <div class="grid-2">
+    <section class="panel">
+      <h2>Your record</h2>
+      <p class="muted">No employee record is linked to this login yet. When the Employees module ships, HR links your record here and this page becomes your payslips, leave and timesheet.</p>
+      <dl class="facts">
+        <div><dt>Name</dt><dd>{{ current_user.name }}</dd></div>
+        <div><dt>Email</dt><dd>{{ current_user.email }}</dd></div>
+        <div><dt>Role</dt><dd>{{ role_label }}</dd></div>
+      </dl>
+    </section>
+
+    <section class="panel">
+      <h2>Access</h2>
+      <p class="muted">This page is yours. It shows only your own data — never the workspace tools, even when your role has them.</p>
+      <a class="btn-ghost" href="/app">Back to workspace</a>
+
+      <h3>Sign out everywhere</h3>
+      <p class="muted">Ends every session for this account, including this one. Use it if a device was lost or borrowed.</p>
+      <form method="post" action="/me/sign-out-everywhere">
+        <input type="hidden" name="_token" value="{{ csrf_token() }}">
+        <button class="btn-ghost" type="submit">Sign out everywhere</button>
+      </form>
+    </section>
+  </div>
+{% endblock %}

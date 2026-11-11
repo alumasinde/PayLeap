@@ -1,0 +1,14 @@
+{% extends 'layout.twig' %}
+
+{% block title %}{{ title }} — {{ app_name }}{% endblock %}
+
+{% block body %}
+  <div class="auth-wrap">
+    <div class="auth-card">
+      <span class="kicker">Error {{ code }}</span>
+      <h1>{{ title }}</h1>
+      <p class="muted">{{ message }}</p>
+      <p><a class="btn-ghost" href="/">Back to the start</a></p>
+    </div>
+  </div>
+{% endblock %}
