@@ -1891,3 +1891,87 @@ progress::-moz-progress-bar { background: var(--green); border-radius: 999px; }
   a { color: inherit; text-decoration: none; }
   .payslip-net { background: transparent; }
 }
+
+/* Self service -------------------------------------------------------------- */
+
+.page-head-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.page-head-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+.leave-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.leave-strip-main { display: flex; align-items: center; gap: 12px; }
+.leave-strip .stat-label { display: block; }
+.leave-figure { display: block; font-size: 19px; letter-spacing: -0.02em; }
+.leave-strip small { display: block; margin-top: 2px; font-size: 11.5px; }
+
+.list tfoot td { background: #f5f8f6; font-weight: 700; }
+
+.modal {
+  width: min(560px, calc(100vw - 32px));
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.modal::backdrop { background: rgba(18, 28, 23, 0.45); }
+
+.modal-form { padding: 18px 20px 20px; }
+
+.modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 12px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.modal-head h2 { margin: 2px 0 0; }
+
+.modal-close {
+  padding: 4px;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.modal-close:hover { background: var(--paper); color: var(--ink); }
+
+.modal-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+}
+
+.modal-grid .field-wide { grid-column: 1 / -1; }
+.modal-form .hint { margin-top: 12px; }
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+@media (max-width: 620px) {
+  .modal-grid { grid-template-columns: minmax(0, 1fr); }
+  .leave-strip .btn-primary { width: 100%; }
+}

@@ -71,6 +71,29 @@
 (function () {
   'use strict';
 
+  document.querySelectorAll('[data-modal-open]').forEach(function (button) {
+    button.addEventListener('click', function () {
+      var dialog = document.getElementById(button.getAttribute('data-modal-open'));
+      if (dialog && typeof dialog.showModal === 'function') dialog.showModal();
+    });
+  });
+
+  document.querySelectorAll('dialog.modal').forEach(function (dialog) {
+    dialog.querySelectorAll('[data-modal-close]').forEach(function (button) {
+      button.addEventListener('click', function () { dialog.close(); });
+    });
+
+    dialog.addEventListener('click', function (event) {
+      if (event.target === dialog) dialog.close();
+    });
+
+    if (dialog.hasAttribute('data-autoopen')) dialog.showModal();
+  });
+})();
+
+(function () {
+  'use strict';
+
   var reader = document.querySelector('[data-document-reader]');
   if (!reader) return;
 

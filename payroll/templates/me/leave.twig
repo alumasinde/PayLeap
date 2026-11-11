@@ -3,62 +3,159 @@
 
 {% macro days(value) %}{{ value == value|round ? value|number_format(0) : value|number_format(2) }}{% endmacro %}
 
-{% block title %}My leave — {{ app_name }}{% endblock %}
+{% block title %}Leave — {{ app_name }}{% endblock %}
 
 {% block body %}
-  <section class="page-head">
-    <span class="kicker">My account</span>
-    <h1>My leave</h1>
-    <p class="muted">{{ employee.first_name }} {{ employee.last_name }} ({{ employee.employee_no }}) · {{ year }} balances and your own requests.</p>
-  </section>
-
-  <div class="stat-grid">
-    <div class="stat"><span class="stat-label">Available days</span><strong>{{ _self.days(available_days) }}</strong></div>
-    <div class="stat"><span class="stat-label">Taken this year</span><strong>{{ _self.days(taken_days) }}</strong></div>
-    <div class="stat"><span class="stat-label">Pending requests</span><strong>{{ pending_count }}</strong></div>
-    <div class="stat"><span class="stat-label">Leave types</span><strong>{{ balances|length }}</strong></div>
-  </div>
-
-  <div class="grid-2">
-    <section class="panel">
-      <h2>Your balance</h2>
+  <header class="page-head page-head-row">
+    <div>
+      <span class="kicker">My account</span>
+      <h1>Leave</h1>
+      <p class="muted">{{ employee.first_name }} {{ employee.last_name }} ({{ employee.employee_no }}) · {{ year }} balances and your own requests.</p>
+    </div>
+    <div class="page-head-actions">
       {% if balances %}
+        <button class="btn-primary" type="button" data-modal-open="leave-modal">{{ icons.svg('calendar', 16) }} Request leave</button>
+      {% endif %}
+    </div>
+  </header>
+
+  <div class="ts-layout">
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>My requests</h2>
+          <p class="muted">Newest application first.</p>
+        </div>
+        <span class="chip">{{ total_requests }} total</span>
+      </div>
+
+      {% if requests %}
         <div class="table-wrap">
           <table class="list">
             <thead>
               <tr>
-                <th>Leave type</th>
-                <th class="num">Entitlement</th>
-                <th class="num">Taken</th>
-                <th class="num">Pending</th>
-                <th class="num">Available</th>
+                <th>Type</th>
+                <th>Dates</th>
+                <th>Resumes</th>
+                <th class="num">Days</th>
+                <th>Status</th>
+                <th>Requested</th>
+                <th>Decision</th>
               </tr>
             </thead>
             <tbody>
-              {% for balance in balances %}
+              {% for request in requests %}
                 <tr>
-                  <td>{{ balance.name }}</td>
-                  <td class="num mono">{{ _self.days(balance.days_per_year) }}</td>
-                  <td class="num mono">{{ _self.days(balance.taken) }}</td>
-                  <td class="num mono">{{ _self.days(balance.pending) }}</td>
-                  <td class="num mono">{{ _self.days(balance.available) }}</td>
+                  <td>
+                    {{ request.leave_type }}
+                    {% if request.reason %}<br><span class="muted">{{ request.reason }}</span>{% endif %}
+                  </td>
+                  <td class="mono">{{ request.start_date|date('j M Y') }} – {{ request.end_date|date('j M Y') }}</td>
+                  <td class="mono">{{ request.end_date|date_modify('+1 day')|date('j M Y') }}</td>
+                  <td class="num mono">{{ _self.days(request.days) }}</td>
+                  <td><span class="status status-{{ request.status }}">{{ request.status|capitalize }}</span></td>
+                  <td class="mono">{{ request.created_at|date('j M Y') }}</td>
+                  <td>
+                    {% if request.decision_note %}
+                      {{ request.decision_note }}
+                    {% elseif request.decided_at %}
+                      <span class="muted">Decided {{ request.decided_at|date('j M Y') }}</span>
+                    {% else %}
+                      <span class="muted">Awaiting decision</span>
+                    {% endif %}
+                  </td>
                 </tr>
               {% endfor %}
             </tbody>
           </table>
         </div>
-        <p class="hint">Available is entitlement less approved and pending days for {{ year }}. Maternity and paternity appear only when they apply to your record.</p>
+        {% include 'partials/pager.twig' with {
+          'page': page,
+          'pages': pages,
+          'total': total_requests,
+          'label': 'requests'
+        } only %}
       {% else %}
-        <p class="muted">No leave types are configured for you yet. Ask HR.</p>
+        <div class="empty-inline">
+          <p class="muted">You have not requested leave yet.</p>
+          {% if balances %}<p class="hint">Use Request leave to send your first one.</p>{% endif %}
+        </div>
       {% endif %}
     </section>
 
-    <section class="panel">
-      <h2>Apply for leave</h2>
-      {% if balances %}
-        <form class="stack" method="post" action="/me/leave">
-          <input type="hidden" name="_token" value="{{ csrf_token() }}">
-          <label class="field">
+    <aside class="ts-side">
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Balance</h2>
+          <span class="chip">{{ year }}</span>
+        </div>
+
+        {% if balances %}
+          {% set entitlement_total = 0 %}
+          {% set taken_total = 0 %}
+          {% set available_total = 0 %}
+          <table class="list summary-table">
+            <thead>
+              <tr>
+                <th>Type</th>
+                <th class="num">Entitled</th>
+                <th class="num">Taken</th>
+                <th class="num">Balance</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for balance in balances %}
+                {% set entitlement_total = entitlement_total + balance.days_per_year %}
+                {% set taken_total = taken_total + balance.taken %}
+                {% set available_total = available_total + balance.available %}
+                <tr>
+                  <td>{{ balance.name }}</td>
+                  <td class="num mono">{{ _self.days(balance.days_per_year) }}</td>
+                  <td class="num mono">
+                    {{ _self.days(balance.taken) }}
+                    {% if balance.pending > 0 %}<small class="muted">+{{ _self.days(balance.pending) }} pending</small>{% endif %}
+                  </td>
+                  <td class="num mono">{{ _self.days(balance.available) }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td>Total</td>
+                <td class="num mono">{{ _self.days(entitlement_total) }}</td>
+                <td class="num mono">{{ _self.days(taken_total) }}</td>
+                <td class="num mono">{{ _self.days(available_total) }}</td>
+              </tr>
+            </tfoot>
+          </table>
+          <p class="hint">Balance is entitlement less approved and pending days for {{ year }}. Pending days sit beside the taken days.</p>
+        {% else %}
+          <p class="muted">No leave types are configured for you yet. Ask HR.</p>
+        {% endif %}
+      </section>
+    </aside>
+  </div>
+
+  {% if balances %}
+    <dialog class="modal" id="leave-modal"{% if open_apply %} data-autoopen{% endif %}>
+      <form class="modal-form" method="post" action="/me/leave/request">
+        <input type="hidden" name="_token" value="{{ csrf_token() }}">
+        <div class="modal-head">
+          <div>
+            <span class="kicker">Leave</span>
+            <h2>Request leave</h2>
+          </div>
+          <button class="modal-close" type="button" data-modal-close aria-label="Close">{{ icons.svg('x', 18) }}</button>
+        </div>
+
+        {% for flash in flashes %}
+          {% if flash.type == 'error' %}
+            <div class="flash {{ flash.type }}">{{ flash.message }}</div>
+          {% endif %}
+        {% endfor %}
+
+        <div class="modal-grid">
+          <label class="field field-wide">
             <span>Leave type</span>
             <select name="leave_type_id" required>
               {% for balance in balances %}
@@ -76,69 +173,21 @@
             <span>End date</span>
             <input type="date" name="end_date" min="{{ today }}" required>
           </label>
-          <label class="field">
+          <label class="field field-wide">
             <span>Reason</span>
             <textarea name="reason" rows="3" maxlength="255" placeholder="Optional note for your approver"></textarea>
           </label>
-          <p class="hint">Dates are calendar days, inclusive. A request needs a free date range and enough available days. Your manager or HR decides it; you cannot approve your own leave.</p>
+        </div>
+
+        <p class="hint">Dates are calendar days, inclusive. A request needs a free date range and enough available days. Your manager or HR decides it; you cannot approve your own leave.</p>
+
+        <div class="modal-actions">
+          <button class="btn-ghost" type="button" data-modal-close>Cancel</button>
           <button class="btn-primary" type="submit">Send request</button>
-        </form>
-      {% else %}
-        <p class="muted">Leave types must be set up before you can apply.</p>
-      {% endif %}
-    </section>
-  </div>
-
-  <section class="panel">
-    <div class="panel-head">
-      <div>
-        <h2>My requests</h2>
-        <p class="muted">Everything you have asked for, newest first.</p>
-      </div>
-    </div>
-
-    {% if requests %}
-      <div class="table-wrap">
-        <table class="list">
-          <thead>
-            <tr>
-              <th>Type</th>
-              <th>Dates</th>
-              <th class="num">Days</th>
-              <th>Status</th>
-              <th>Requested</th>
-              <th>Decision</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for request in requests %}
-              <tr>
-                <td>{{ request.leave_type }}{% if request.reason %}<br><span class="muted">{{ request.reason }}</span>{% endif %}</td>
-                <td class="mono">{{ request.start_date|date('j M Y') }} – {{ request.end_date|date('j M Y') }}</td>
-                <td class="num mono">{{ _self.days(request.days) }}</td>
-                <td><span class="status status-{{ request.status }}">{{ request.status|capitalize }}</span></td>
-                <td class="mono">{{ request.created_at|date('j M Y') }}</td>
-                <td>
-                  {% if request.decision_note %}
-                    {{ request.decision_note }}
-                  {% elseif request.decided_at %}
-                    <span class="muted">Decided {{ request.decided_at|date('j M Y') }}</span>
-                  {% else %}
-                    <span class="muted">Awaiting decision</span>
-                  {% endif %}
-                </td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    {% else %}
-      <div class="empty-inline">
-        <p class="muted">You have not requested leave yet.</p>
-        <p class="hint">Use the form above to send your first request.</p>
-      </div>
-    {% endif %}
-  </section>
+        </div>
+      </form>
+    </dialog>
+  {% endif %}
 
   <p class="back-link"><a href="/me">Back to my account</a></p>
 {% endblock %}

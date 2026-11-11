@@ -218,23 +218,33 @@ final class LeaveRepository
     }
 
     /**
-     * One person's own request history, newest first.
+     * One person's own request history, newest application first.
      *
      * @return list<array<string,mixed>>
      */
-    public function listForEmployee(int $companyId, int $employeeId, int $limit = 100): array
+    public function listForEmployee(int $companyId, int $employeeId, int $limit = 100, int $offset = 0): array
     {
         $statement = $this->db->prepare(
             'SELECT lr.*, lt.name AS leave_type
              FROM leave_requests lr
              JOIN leave_types lt ON lt.id = lr.leave_type_id AND lt.company_id = lr.company_id
              WHERE lr.company_id = ? AND lr.employee_id = ?
-             ORDER BY lr.start_date DESC, lr.id DESC
-             LIMIT ' . max(1, min(200, $limit)),
+             ORDER BY lr.created_at DESC, lr.id DESC
+             LIMIT ' . max(1, min(200, $limit)) . ' OFFSET ' . max(0, $offset),
         );
         $statement->execute([$companyId, $employeeId]);
 
         return $statement->fetchAll();
+    }
+
+    public function countForEmployee(int $companyId, int $employeeId): int
+    {
+        $statement = $this->db->prepare(
+            'SELECT COUNT(*) FROM leave_requests WHERE company_id = ? AND employee_id = ?',
+        );
+        $statement->execute([$companyId, $employeeId]);
+
+        return (int) $statement->fetchColumn();
     }
 
     /** A pending or approved request that shares any day with the range. */

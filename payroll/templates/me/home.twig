@@ -1,6 +1,8 @@
 {% extends 'layout.twig' %}
 {% import 'partials/icons.twig' as icons %}
 
+{% macro days(value) %}{{ value == value|round ? value|number_format(0) : value|number_format(2) }}{% endmacro %}
+
 {% block title %}My account — {{ app_name }}{% endblock %}
 
 {% block body %}
@@ -13,6 +15,20 @@
     <h1>{{ current_user.first_name }} {{ current_user.last_name }}</h1>
     <p class="muted">{{ current_company.company_name }} · {{ role_label }}</p>
   </section>
+
+  {% if leave %}
+    <section class="panel leave-strip">
+      <div class="leave-strip-main">
+        <span class="action-icon">{{ icons.svg('calendar', 18) }}</span>
+        <div>
+          <span class="stat-label">Annual leave</span>
+          <strong class="leave-figure">{{ _self.days(leave.available) }} day{{ leave.available == 1 ? '' : 's' }} available</strong>
+          <small class="muted">Taken {{ _self.days(leave.taken) }} · Pending {{ _self.days(leave.pending) }} · {{ leave.year }}</small>
+        </div>
+      </div>
+      <a class="btn-primary btn-sm" href="/me/leave?apply=1">Request leave</a>
+    </section>
+  {% endif %}
 
   {% if employee %}
     <section class="panel">

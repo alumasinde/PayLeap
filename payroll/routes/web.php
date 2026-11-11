@@ -93,7 +93,7 @@ return [
     ['GET', '/me/attendance', [SelfServiceController::class, 'attendance']],
     ['GET', '/me/timesheet', [SelfServiceController::class, 'timesheet']],
     ['GET', '/me/leave', [SelfServiceController::class, 'leave']],
-    ['POST', '/me/leave', [SelfServiceController::class, 'submitLeave']],
+    ['POST', '/me/leave/request', [SelfServiceController::class, 'submitLeave']],
     ['POST', '/me/password', [AccountController::class, 'changePassword']],
     ['GET', '/me/documents', [DocumentController::class, 'index']],
     ['GET', '/me/documents/{id}', [DocumentController::class, 'show']],

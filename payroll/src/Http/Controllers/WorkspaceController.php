@@ -140,10 +140,31 @@ final class WorkspaceController
         $employee = $linked === null
             ? null
             : $this->app->employees->register->find($companyId, (int) $linked['id']);
+        $leave = null;
+
+        if ($employee !== null) {
+            $year = (int) date('Y');
+
+            foreach ($this->app->leave->requests->balances($companyId, (int) $employee['id'], $year) as $balance) {
+                if ($balance['name'] !== 'Annual leave') {
+                    continue;
+                }
+
+                $leave = [
+                    'available' => (float) $balance['days_per_year'] - (float) $balance['taken'] - (float) $balance['pending'],
+                    'taken' => (float) $balance['taken'],
+                    'pending' => (float) $balance['pending'],
+                    'year' => $year,
+                ];
+
+                break;
+            }
+        }
 
         echo $this->app->render('me/home.twig', [
             'role_label' => $this->app->roleLabel(),
             'employee' => $employee,
+            'leave' => $leave,
         ]);
     }
 

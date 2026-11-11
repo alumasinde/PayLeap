@@ -288,6 +288,12 @@ check('submitted days are calendar days inclusive', (int) $submittedRow['days'] 
 
 $ownList = $app->leave->requests->listForEmployee($companyId, $staffA);
 check('the submission appears in the employee history', in_array($submitted, array_map(static fn (array $row): int => (int) $row['id'], $ownList), true));
+check('the history count matches the rows', $app->leave->requests->countForEmployee($companyId, $staffA) === 2);
+
+$historyPageOne = $app->leave->requests->listForEmployee($companyId, $staffA, 1);
+$historyPageTwo = $app->leave->requests->listForEmployee($companyId, $staffA, 1, 1);
+check('the history can be paged one row at a time', count($historyPageOne) === 1 && count($historyPageTwo) === 1);
+check('the history applies the offset', (int) $historyPageOne[0]['id'] !== (int) $historyPageTwo[0]['id']);
 
 check(
     'an overlapping request is refused',

@@ -5,8 +5,8 @@
     <section class="panel">
       <div class="panel-head">
         <div>
-          <h2>{{ employee.first_name }} {{ employee.last_name }}</h2>
-          <p class="muted">{{ employee.employee_no }} · {{ timesheet.label }} · {{ timesheet.scheduled_days }} rostered day{{ timesheet.scheduled_days == 1 ? '' : 's' }}</p>
+          <h2>{{ title|default(employee.first_name ~ ' ' ~ employee.last_name) }}</h2>
+          <p class="muted">{% if title is not defined %}{{ employee.employee_no }} · {% endif %}{{ timesheet.label }} · {{ timesheet.scheduled_days }} rostered day{{ timesheet.scheduled_days == 1 ? '' : 's' }}</p>
         </div>
         {% if can_edit %}
           <a class="btn-ghost btn-sm" href="/app/roster?month={{ month }}&employee_id={{ employee.id }}">{{ icons.svg('calendar', 15) }} Open roster</a>
@@ -63,6 +63,10 @@
           </tbody>
         </table>
       </div>
+
+      {% if pager is defined and pager %}
+        {% include 'partials/pager.twig' with pager only %}
+      {% endif %}
     </section>
 
     <aside class="ts-side">

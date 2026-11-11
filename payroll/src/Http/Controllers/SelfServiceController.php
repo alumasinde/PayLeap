@@ -17,6 +17,9 @@ use Mshahara\Payroll\Support\HttpException;
  */
 final class SelfServiceController
 {
+    private const LEAVE_ROWS = 10;
+    private const MONTH_ROWS = 15;
+
     public function __construct(private readonly App $app)
     {
     }
@@ -47,13 +50,20 @@ final class SelfServiceController
         $companyId = (int) $company['company_id'];
         $employee = $this->linkedEmployee($companyId);
         $month = $this->month((string) $this->app->request->query('month', date('Y-m')));
+        $timesheet = $this->app->attendance->timesheet->month($companyId, (int) $employee['id'], $month);
+        $totalRows = count($timesheet['rows']);
+        [$page, $pages] = $this->pager($totalRows, self::MONTH_ROWS);
+        $timesheet['rows'] = array_slice($timesheet['rows'], ($page - 1) * self::MONTH_ROWS, self::MONTH_ROWS);
 
         echo $this->app->render('me/attendance.twig', [
             'employee' => $employee,
             'month' => $month,
-            'timesheet' => $this->app->attendance->timesheet->month($companyId, (int) $employee['id'], $month),
+            'timesheet' => $timesheet,
             'statuses' => AttendanceRepository::STATUSES,
             'sources' => AttendanceRepository::SOURCES,
+            'page' => $page,
+            'pages' => $pages,
+            'total_rows' => $totalRows,
         ]);
     }
 
@@ -63,11 +73,18 @@ final class SelfServiceController
         $companyId = (int) $company['company_id'];
         $employee = $this->linkedEmployee($companyId);
         $month = $this->month((string) $this->app->request->query('month', date('Y-m')));
+        $timesheet = $this->app->attendance->timesheet->month($companyId, (int) $employee['id'], $month);
+        $totalRows = count($timesheet['rows']);
+        [$page, $pages] = $this->pager($totalRows, self::MONTH_ROWS);
+        $timesheet['rows'] = array_slice($timesheet['rows'], ($page - 1) * self::MONTH_ROWS, self::MONTH_ROWS);
 
         echo $this->app->render('me/timesheet.twig', [
             'employee' => $employee,
             'month' => $month,
-            'timesheet' => $this->app->attendance->timesheet->month($companyId, (int) $employee['id'], $month),
+            'timesheet' => $timesheet,
+            'page' => $page,
+            'pages' => $pages,
+            'total_rows' => $totalRows,
         ]);
     }
 
@@ -88,7 +105,14 @@ final class SelfServiceController
             $taken += (float) $balance['taken'];
         }
 
-        $requests = $this->app->leave->requests->listForEmployee($companyId, (int) $employee['id']);
+        $total = $this->app->leave->requests->countForEmployee($companyId, (int) $employee['id']);
+        [$page, $pages] = $this->pager($total, self::LEAVE_ROWS);
+        $requests = $this->app->leave->requests->listForEmployee(
+            $companyId,
+            (int) $employee['id'],
+            self::LEAVE_ROWS,
+            ($page - 1) * self::LEAVE_ROWS,
+        );
         $pending = 0;
 
         foreach ($requests as $request) {
@@ -105,6 +129,10 @@ final class SelfServiceController
             'available_days' => $available,
             'taken_days' => $taken,
             'pending_count' => $pending,
+            'total_requests' => $total,
+            'page' => $page,
+            'pages' => $pages,
+            'open_apply' => $this->app->request->query('apply', '') === '1',
         ]);
     }
 
@@ -126,7 +154,7 @@ final class SelfServiceController
             );
         } catch (HttpException $error) {
             $this->app->flash->add('error', $error->getMessage());
-            $this->app->redirect('/me/leave');
+            $this->app->redirect('/me/leave?apply=1');
         }
 
         $this->app->flash->add('success', 'Leave request sent for approval.');
@@ -149,6 +177,15 @@ final class SelfServiceController
         }
 
         return $employee;
+    }
+
+    /** @return array{0:int,1:int} page number and total pages, clamped to the data */
+    private function pager(int $total, int $perPage): array
+    {
+        $pages = max(1, (int) ceil($total / $perPage));
+        $page = max(1, min($pages, (int) $this->app->request->query('page', '1')));
+
+        return [$page, $pages];
     }
 
     private function month(string $value): string

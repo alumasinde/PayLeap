@@ -1,13 +1,16 @@
 {% extends 'layout.twig' %}
+{% import 'partials/icons.twig' as icons %}
 
-{% block title %}My timesheet — {{ app_name }}{% endblock %}
+{% block title %}Timesheet — {{ app_name }}{% endblock %}
 
 {% block body %}
-  <section class="page-head">
+  <header class="page-head">
     <span class="kicker">My account</span>
-    <h1>My timesheet</h1>
+    <h1>Timesheet</h1>
     <p class="muted">{{ employee.first_name }} {{ employee.last_name }} ({{ employee.employee_no }}) · rostered shift, clock times and the hours won or lost against the roster.</p>
-  </section>
+  </header>
+
+  {% include 'partials/me_time_tabs.twig' %}
 
   <form class="filter-bar" method="get" action="/me/timesheet">
     <label class="field inline-field">
@@ -21,7 +24,15 @@
     'employee': employee,
     'timesheet': timesheet,
     'month': month,
-    'can_edit': false
+    'can_edit': false,
+    'title': 'Daily record',
+    'pager': {
+      'page': page,
+      'pages': pages,
+      'total': total_rows,
+      'label': 'days',
+      'query': 'month=' ~ month
+    }
   } only %}
 
   <p class="back-link"><a href="/me">Back to my account</a></p>

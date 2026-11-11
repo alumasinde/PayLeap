@@ -1,0 +1,9 @@
+{% import 'partials/icons.twig' as icons %}
+<nav class="page-tabs" aria-label="My time">
+  <a class="{{ current_path == '/me/attendance' ? 'is-active' : '' }}" href="/me/attendance">
+    {{ icons.svg('clock', 16) }} Attendance
+  </a>
+  <a class="{{ current_path == '/me/timesheet' ? 'is-active' : '' }}" href="/me/timesheet">
+    {{ icons.svg('file', 16) }} Timesheet
+  </a>
+</nav>
