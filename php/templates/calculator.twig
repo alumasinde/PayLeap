@@ -1,0 +1,150 @@
+{% extends 'layout.twig' %}
+
+{% block body %}
+  <header class="topbar">
+    <span class="brand">Mshahara Check</span>
+    <span class="where">Kenya</span>
+  </header>
+
+  <h1>Your gross salary is not your salary.</h1>
+  <p class="lede">
+    See what an offer actually pays after NSSF, SHIF, the Housing Levy and PAYE —
+    and what to ask for if you want a particular take-home. The figures update as
+    you type.
+  </p>
+
+  {% if source == 'file' %}
+    <p class="banner">
+      Demo mode: rates are coming from <code>config/rates.php</code>. Set up MySQL
+      and run the migration to serve them from the database.
+    </p>
+  {% endif %}
+
+  <form id="calc"
+        hx-post="/preview"
+        hx-target="#result"
+        hx-swap="innerHTML"
+        hx-trigger="submit, change, input changed delay:450ms from:#gross">
+
+    <section class="period">
+      <div class="period-head">
+        <h2 class="eyebrow">Pay period</h2>
+        <span class="mono small">{{ rules.id }}</span>
+      </div>
+
+      <div class="period-fields">
+        <label class="field">
+          <span class="eyebrow">Month</span>
+          <select id="month" name="month">
+            {% for value in month_options %}
+              <option value="{{ value }}"{% if value == month %} selected{% endif %}>{{ value|month_name }}</option>
+            {% endfor %}
+          </select>
+        </label>
+
+        <label class="field year">
+          <span class="eyebrow">Year</span>
+          <select id="year" name="year">
+            {% for value in years %}
+              <option value="{{ value }}"{% if value == year %} selected{% endif %}>{{ value }}</option>
+            {% endfor %}
+          </select>
+        </label>
+      </div>
+
+      <p class="hint">
+        {{ rules.label }} rules, in force from {{ rules.effective_from|long_date }}.
+        Every figure below uses them.
+      </p>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel-title">Your payroll data</h2>
+
+      <label class="field">
+        <span class="eyebrow">Monthly salary</span>
+        <span class="amount-box">
+          <span class="cur">KSh</span>
+          <input id="gross" name="gross" inputmode="numeric" autocomplete="off"
+                 value="{{ gross|number_format(0, '.', '') }}">
+        </span>
+      </label>
+
+      <div class="presets">
+        {% for preset in [30000, 60000, 100000, 250000] %}
+          <button type="button" class="chip{% if gross == preset %} on{% endif %}"
+                  data-preset="{{ preset }}">{{ preset|number_format(0) }}</button>
+        {% endfor %}
+      </div>
+
+      <details class="extras">
+        <summary>Pension, benefits, HELB, SACCO <span>Add</span></summary>
+
+        <div class="grid2">
+          <label class="field">
+            <span class="eyebrow">Pension</span>
+            <span class="amount-box small">
+              <span class="cur">KSh</span>
+              <input name="pension" inputmode="numeric" value="{{ options.pension ?: '' }}">
+            </span>
+          </label>
+          <label class="field">
+            <span class="eyebrow">Mortgage interest</span>
+            <span class="amount-box small">
+              <span class="cur">KSh</span>
+              <input name="mortgage" inputmode="numeric" value="{{ options.mortgage_interest ?: '' }}">
+            </span>
+          </label>
+          <label class="field">
+            <span class="eyebrow">Insurance</span>
+            <span class="amount-box small">
+              <span class="cur">KSh</span>
+              <input name="insurance" inputmode="numeric" value="{{ options.insurance_premium ?: '' }}">
+            </span>
+          </label>
+          <label class="field">
+            <span class="eyebrow">Benefits in kind</span>
+            <span class="amount-box small">
+              <span class="cur">KSh</span>
+              <input name="benefits" inputmode="numeric" value="{{ options.benefits_in_kind ?: '' }}">
+            </span>
+          </label>
+          <label class="field">
+            <span class="eyebrow">HELB</span>
+            <span class="amount-box small">
+              <span class="cur">KSh</span>
+              <input name="helb" inputmode="numeric" value="{{ options.helb ?: '' }}">
+            </span>
+          </label>
+          <label class="field">
+            <span class="eyebrow">SACCO</span>
+            <span class="amount-box small">
+              <span class="cur">KSh</span>
+              <input name="sacco" inputmode="numeric" value="{{ options.sacco ?: '' }}">
+            </span>
+          </label>
+        </div>
+
+        <p class="hint">
+          Pension and interest on your own home come off before PAYE, up to
+          KSh {{ rules.reliefs.pension_cap_monthly|number_format(0) }} each.
+          Insurance earns relief at {{ rules.reliefs.insurance_relief_rate|pct }}.
+          Benefits in kind are taxed in full above
+          KSh {{ rules.paye.non_cash_benefit_threshold_monthly|number_format(0) }}.
+        </p>
+      </details>
+
+      <button class="calculate" type="submit">Calculate</button>
+    </section>
+  </form>
+
+  <div id="result">
+    {% include 'payslip.twig' %}
+  </div>
+
+  <footer class="foot">
+    Deductions appear in the order payroll works them out: NSSF, SHIF and the
+    Housing Levy first, then pension and mortgage interest, then PAYE; insurance,
+    HELB and SACCO come off after tax. Estimates only, not tax advice.
+  </footer>
+{% endblock %}

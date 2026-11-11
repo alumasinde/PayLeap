@@ -1,0 +1,21 @@
+{% extends 'layout.twig' %}
+
+{% block title %}Saved payslip {{ id }} — Mshahara Check{% endblock %}
+
+{% block body %}
+  <header class="topbar">
+    <span class="brand">Mshahara Check</span>
+    <span class="where"><a href="/">New calculation</a></span>
+  </header>
+
+  <p class="hint saved-note">
+    Saved with the {{ rules.id }} rules. This is a snapshot: it keeps the figures
+    that applied when it was saved, even after rates change.
+  </p>
+
+  {% include 'sheet.twig' %}
+
+  <footer class="foot">
+    Estimates only, not tax advice.
+  </footer>
+{% endblock %}

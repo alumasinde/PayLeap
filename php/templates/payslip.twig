@@ -1,0 +1,86 @@
+{% if slip.gross > 0 %}
+  {% include 'sheet.twig' %}
+
+  <section class="bands">
+    <h3 class="eyebrow">How the PAYE was banded</h3>
+    <div class="band-list">
+      {% for band in slip.bands %}
+        {% if band.taxable > 0 %}
+          <div class="band">
+            <span class="soft"><span class="mono">{{ band.taxable|number_format(0) }}</span> at {{ band.rate|pct }}</span>
+            <span class="mono">{{ band.tax|money }}</span>
+          </div>
+        {% endif %}
+      {% endfor %}
+      <div class="band">
+        <span class="soft">Less personal relief</span>
+        <span class="mono">−{{ slip.personal_relief|money }}</span>
+      </div>
+      {% if slip.insurance_relief > 0 %}
+        <div class="band">
+          <span class="soft">Less insurance relief</span>
+          <span class="mono">−{{ slip.insurance_relief|money }}</span>
+        </div>
+      {% endif %}
+    </div>
+  </section>
+
+  <section class="rules">
+    <h3 class="eyebrow">Rules in force</h3>
+    <dl>
+      <div>
+        <dt>NSSF</dt>
+        <dd>{{ rules.nssf.employee_rate|pct }} of pay up to
+          KSh {{ rules.nssf.upper_earnings_limit|number_format(0) }}, so at most
+          KSh {{ (rules.nssf.upper_earnings_limit * rules.nssf.employee_rate)|number_format(0) }} a month</dd>
+      </div>
+      <div>
+        <dt>SHIF</dt>
+        <dd>{{ rules.shif.employee_rate|pct }} of gross, minimum
+          KSh {{ rules.shif.minimum_monthly|number_format(0) }}</dd>
+      </div>
+      <div>
+        <dt>Housing Levy</dt>
+        <dd>{{ rules.housing_levy.employee_rate|pct }} of gross</dd>
+      </div>
+      <div>
+        <dt>PAYE</dt>
+        <dd>{{ rules.paye.bands[0].rate|pct }} to
+          {{ rules.paye.bands[(rules.paye.bands|length) - 1].rate|pct }} on taxable pay,
+          less KSh {{ rules.paye.personal_relief_monthly|number_format(0) }} relief</dd>
+      </div>
+      <div>
+        <dt>Pension</dt>
+        <dd>allowed against PAYE up to KSh {{ rules.reliefs.pension_cap_monthly|number_format(0) }} a month</dd>
+      </div>
+      <div>
+        <dt>Mortgage interest</dt>
+        <dd>owner-occupied, allowed up to KSh {{ rules.reliefs.mortgage_interest_cap_monthly|number_format(0) }} a month</dd>
+      </div>
+      <div>
+        <dt>Insurance relief</dt>
+        <dd>{{ rules.reliefs.insurance_relief_rate|pct }} of premiums, up to
+          KSh {{ rules.reliefs.insurance_relief_cap_monthly|number_format(0) }} of relief a month</dd>
+      </div>
+      <div>
+        <dt>Employer</dt>
+        <dd>{{ rules.nssf.employer_rate|pct }} NSSF, {{ rules.housing_levy.employer_rate|pct }}
+          Housing Levy and KSh {{ rules.nita.employer_monthly|number_format(0) }} NITA on top of gross</dd>
+      </div>
+    </dl>
+    <p class="hint">
+      {{ rules.id }} applies from {{ rules.effective_from|long_date }} to resident
+      employees on monthly pay. Verified {{ rules.verified_on|long_date }}; estimates
+      only, not tax advice.
+    </p>
+  </section>
+
+  <div class="actions">
+    <button class="save" type="button" hx-post="/save" hx-include="#calc" hx-target="#saved">
+      Save this payslip
+    </button>
+    <div id="saved" aria-live="polite"></div>
+  </div>
+{% else %}
+  <p class="empty">Enter a monthly salary to see the payslip.</p>
+{% endif %}

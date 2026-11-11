@@ -1,0 +1,19 @@
+{
+  "name": "mshahara/check",
+  "description": "Kenyan take-home pay calculator, PHP + htmx + Twig, rates in MySQL.",
+  "type": "project",
+  "require": {
+    "php": ">=8.2",
+    "ext-pdo": "*",
+    "ext-pdo_mysql": "*",
+    "twig/twig": "^3.14"
+  },
+  "autoload": {
+    "psr-4": {
+      "Mshahara\\": "src/"
+    }
+  },
+  "config": {
+    "sort-packages": true
+  }
+}
