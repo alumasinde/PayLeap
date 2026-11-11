@@ -14,10 +14,11 @@
 {% if current_user %}
   {% set on_timesheet = 'view=timesheet' in current_query %}
   {% set on_balances = 'view=balances' in current_query %}
+  {% set self_service = current_employee and not has_workspace %}
   <div class="app-layout">
     <aside class="sidebar" id="sidebar" aria-label="Sidebar">
       <div class="sidebar-top">
-        <a class="side-brand" href="/app">
+        <a class="side-brand" href="{{ self_service ? '/me' : '/app' }}">
           <span class="side-logo">{{ icons.svg('briefcase', 18) }}</span>
           <span class="side-brand-text">
             <strong>{{ app_name }}</strong>
@@ -37,9 +38,15 @@
       </div>
 
       <nav class="side-nav" aria-label="Main">
-        <a class="side-link{{ current_path == '/app' ? ' is-active' : '' }}" href="/app">
-          {{ icons.svg('grid', 18) }}<span>Dashboard</span>
-        </a>
+        {% if has_workspace %}
+          <a class="side-link{{ current_path == '/app' ? ' is-active' : '' }}" href="/app">
+            {{ icons.svg('grid', 18) }}<span>Dashboard</span>
+          </a>
+        {% else %}
+          <a class="side-link{{ current_path == '/me' ? ' is-active' : '' }}" href="/me">
+            {{ icons.svg('grid', 18) }}<span>Overview</span>
+          </a>
+        {% endif %}
 
         {% if can('employees.view') %}
           <details class="side-group"{{ current_path starts with '/app/employees' ? ' open' }}>
@@ -99,9 +106,26 @@
           </details>
         {% endif %}
 
-        <a class="side-link{{ current_path starts with '/me' ? ' is-active' : '' }}" href="/me">
-          {{ icons.svg('user', 18) }}<span>My account</span>
-        </a>
+        {% if self_service %}
+          <details class="side-group"{{ current_path starts with '/me/' ? ' open' }}>
+            <summary class="side-group-head">
+              {{ icons.svg('user', 18) }}<span>My workspace</span>{{ icons.svg('chevron-down', 14) }}
+            </summary>
+            <div class="side-group-body">
+              <a class="side-sub{{ current_path == '/me/profile' ? ' is-active' : '' }}" href="/me/profile">My profile</a>
+              <a class="side-sub{{ current_path == '/me/leave' ? ' is-active' : '' }}" href="/me/leave">Leave</a>
+              <a class="side-sub{{ current_path == '/me/attendance' ? ' is-active' : '' }}" href="/me/attendance">Attendance</a>
+              <a class="side-sub{{ current_path == '/me/timesheet' ? ' is-active' : '' }}" href="/me/timesheet">Timesheet</a>
+              <a class="side-sub{{ current_path starts with '/me/documents' ? ' is-active' : '' }}" href="/me/documents">Documents</a>
+            </div>
+          </details>
+        {% endif %}
+
+        {% if has_workspace %}
+          <a class="side-link{{ current_path starts with '/me' ? ' is-active' : '' }}" href="/me">
+            {{ icons.svg('user', 18) }}<span>My account</span>
+          </a>
+        {% endif %}
       </nav>
 
       <div class="side-foot">
@@ -140,12 +164,14 @@
         {% endif %}
 
         <div class="topbar-actions">
-          {% set approvals = pending_approvals() %}
-          {% set bell_href = can('leave.view') ? '/app/leave' : (can('payroll.view') ? '/app/payroll' : '/me') %}
-          <a class="icon-btn" href="{{ bell_href }}" aria-label="Pending approvals{% if approvals > 0 %} ({{ approvals }}){% endif %}">
-            {{ icons.svg('bell', 19) }}
-            {% if approvals > 0 %}<span class="icon-badge">{{ approvals }}</span>{% endif %}
-          </a>
+          {% if not self_service %}
+            {% set approvals = pending_approvals() %}
+            {% set bell_href = can('leave.view') ? '/app/leave' : (can('payroll.view') ? '/app/payroll' : '/me') %}
+            <a class="icon-btn" href="{{ bell_href }}" aria-label="Pending approvals{% if approvals > 0 %} ({{ approvals }}){% endif %}">
+              {{ icons.svg('bell', 19) }}
+              {% if approvals > 0 %}<span class="icon-badge">{{ approvals }}</span>{% endif %}
+            </a>
+          {% endif %}
 
           <details class="user-menu">
             <summary class="user-summary">

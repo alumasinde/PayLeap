@@ -15,6 +15,7 @@ use Mshahara\Payroll\Http\Controllers\PasswordController;
 use Mshahara\Payroll\Http\Controllers\PayrollController;
 use Mshahara\Payroll\Http\Controllers\RoleController;
 use Mshahara\Payroll\Http\Controllers\RosterController;
+use Mshahara\Payroll\Http\Controllers\SelfServiceController;
 use Mshahara\Payroll\Http\Controllers\SettingsController;
 use Mshahara\Payroll\Http\Controllers\WorkspaceController;
 
@@ -33,8 +34,6 @@ return [
 
     ['GET', '/forgot', [PasswordController::class, 'showForgot']],
     ['POST', '/forgot', [PasswordController::class, 'send']],
-    ['GET', '/reset/{token}', [PasswordController::class, 'showReset']],
-    ['POST', '/reset/{token}', [PasswordController::class, 'reset']],
 
     ['GET', '/invite/{token}', [InviteController::class, 'show']],
     ['POST', '/invite/{token}', [InviteController::class, 'accept']],
@@ -89,7 +88,12 @@ return [
     ['POST', '/app/settings/documents/{id}/delete', [DocumentController::class, 'destroy']],
 
     ['GET', '/me', [WorkspaceController::class, 'me']],
+    ['GET', '/me/profile', [SelfServiceController::class, 'profile']],
     ['POST', '/me/profile', [AccountController::class, 'updateProfile']],
+    ['GET', '/me/attendance', [SelfServiceController::class, 'attendance']],
+    ['GET', '/me/timesheet', [SelfServiceController::class, 'timesheet']],
+    ['GET', '/me/leave', [SelfServiceController::class, 'leave']],
+    ['POST', '/me/leave', [SelfServiceController::class, 'submitLeave']],
     ['POST', '/me/password', [AccountController::class, 'changePassword']],
     ['GET', '/me/documents', [DocumentController::class, 'index']],
     ['GET', '/me/documents/{id}', [DocumentController::class, 'show']],

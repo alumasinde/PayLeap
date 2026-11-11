@@ -187,6 +187,8 @@ final class App
             'current_path' => $this->request->path(),
             'current_query' => $this->request->queryString(),
             'today' => date('Y-m-d'),
+            'current_employee' => $this->currentEmployee(),
+            'has_workspace' => $this->hasWorkspace(),
         ];
 
         return $this->twig->render($template, $data + $defaults);
@@ -201,6 +203,40 @@ final class App
     public function abort(int $status, string $message = ''): never
     {
         throw new HttpException($status, $message);
+    }
+
+    /** @return array<string,mixed>|null */
+    private function currentEmployee(): ?array
+    {
+        if ($this->user === [] || $this->company === null) {
+            return null;
+        }
+
+        return $this->employees->register->forUser(
+            (int) $this->company['company_id'],
+            (int) $this->user['id'],
+        );
+    }
+
+    private function hasWorkspace(): bool
+    {
+        if ($this->user === [] || $this->company === null) {
+            return false;
+        }
+
+        $permissions = [
+            'employees.view', 'payroll.view', 'leave.view', 'leave.approve.team',
+            'leave.approve.all', 'attendance.view', 'users.manage', 'users.invite',
+            'roles.manage', 'audit.view',
+        ];
+
+        foreach ($permissions as $permission) {
+            if ($this->can($permission)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public function errorPage(int $status, string $message = ''): void

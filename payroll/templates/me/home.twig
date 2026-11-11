@@ -1,22 +1,78 @@
 {% extends 'layout.twig' %}
+{% import 'partials/icons.twig' as icons %}
 
 {% block title %}My account — {{ app_name }}{% endblock %}
 
 {% block body %}
+  {% if current_user.must_change_password %}
+    <div class="alert">You signed in with a temporary password. Choose a new password below to continue.</div>
+  {% endif %}
+
   <section class="page-head">
     <span class="kicker">My account</span>
     <h1>{{ current_user.first_name }} {{ current_user.last_name }}</h1>
     <p class="muted">{{ current_company.company_name }} · {{ role_label }}</p>
   </section>
 
+  {% if employee %}
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>Self service</h2>
+          <p class="muted">Your own record, leave and time — read-only except where you apply or update your password.</p>
+        </div>
+      </div>
+      <div class="action-grid">
+        <a class="action-card" href="/me/profile">
+          <span class="action-icon">{{ icons.svg('user', 18) }}</span>
+          <span><strong>My profile</strong><small>Personal and job details</small></span>
+          {{ icons.svg('arrow-up-right', 15) }}
+        </a>
+        <a class="action-card" href="/me/leave">
+          <span class="action-icon">{{ icons.svg('calendar', 18) }}</span>
+          <span><strong>Leave</strong><small>Balance and apply</small></span>
+          {{ icons.svg('arrow-up-right', 15) }}
+        </a>
+        <a class="action-card" href="/me/attendance">
+          <span class="action-icon">{{ icons.svg('clock', 18) }}</span>
+          <span><strong>Attendance</strong><small>Your daily record</small></span>
+          {{ icons.svg('arrow-up-right', 15) }}
+        </a>
+        <a class="action-card" href="/me/timesheet">
+          <span class="action-icon">{{ icons.svg('file', 18) }}</span>
+          <span><strong>Timesheet</strong><small>Hours against the roster</small></span>
+          {{ icons.svg('arrow-up-right', 15) }}
+        </a>
+        <a class="action-card" href="/me/documents">
+          <span class="action-icon">{{ icons.svg('file', 18) }}</span>
+          <span><strong>Documents</strong><small>Reading assigned to you</small></span>
+          {{ icons.svg('arrow-up-right', 15) }}
+        </a>
+      </div>
+    </section>
+  {% endif %}
+
   <div class="grid-2">
     <section class="panel">
       <h2>Your record</h2>
-      <p class="muted">This login is not linked to an employee record yet. When HR links it, your payslips and leave will appear here.</p>
-      <dl class="facts">
-        <div><dt>Email</dt><dd>{{ current_user.email }}</dd></div>
-        <div><dt>Role</dt><dd>{{ role_label }}</dd></div>
-      </dl>
+      {% if employee %}
+        <p class="muted">Your employee record is linked. HR keeps the details below up to date.</p>
+        <dl class="facts">
+          <div><dt>Staff no.</dt><dd class="mono">{{ employee.employee_no }}</dd></div>
+          <div><dt>Job title</dt><dd>{{ employee.job_title ?: '—' }}</dd></div>
+          <div><dt>Department</dt><dd>{{ employee.department_name ?: '—' }}</dd></div>
+          <div><dt>Hired</dt><dd>{{ employee.start_date|date('d/m/Y') }}</dd></div>
+          <div><dt>Email</dt><dd>{{ current_user.email }}</dd></div>
+          <div><dt>Role</dt><dd>{{ role_label }}</dd></div>
+        </dl>
+        <p class="hint"><a class="text-link" href="/me/profile">Open my profile</a> for the full read-only record.</p>
+      {% else %}
+        <p class="muted">This login is not linked to an employee record yet. Ask HR to link it so your payslips and leave show here.</p>
+        <dl class="facts">
+          <div><dt>Email</dt><dd>{{ current_user.email }}</dd></div>
+          <div><dt>Role</dt><dd>{{ role_label }}</dd></div>
+        </dl>
+      {% endif %}
 
       <h3>Edit your name</h3>
       <form class="stack" method="post" action="/me/profile">
@@ -37,7 +93,7 @@
       <h2>Access</h2>
       <p class="muted">This page is yours. It shows only your own data — never the workspace tools, even when your role has them.</p>
       <p class="row-actions">
-        <a class="btn-ghost" href="/app">Back to workspace</a>
+        {% if has_workspace %}<a class="btn-ghost" href="/app">Back to workspace</a>{% endif %}
         <a class="btn-ghost" href="/me/documents">Documents to read</a>
       </p>
 
@@ -56,7 +112,7 @@
           <span>Confirm new password</span>
           <input type="password" name="password_confirmation" autocomplete="new-password" required>
         </label>
-        <p class="hint">At least 10 characters. This signs out your other devices.</p>
+        <p class="hint">At least 8 characters. This signs out your other devices.</p>
         <button class="btn-primary" type="submit">Change password</button>
       </form>
 

@@ -97,6 +97,108 @@ final class LeaveService
         );
     }
 
+    /**
+     * An employee raises their own request. The type must be active and suit
+     * them, the range must be free of other pending or approved leave, and the
+     * days asked for must fit what is left of the entitlement.
+     */
+    public function submit(
+        int $companyId,
+        int $employeeId,
+        int $typeId,
+        string $startDate,
+        string $endDate,
+        string $reason,
+        int $actorId,
+    ): int {
+        $employee = $this->employees->find($companyId, $employeeId);
+
+        if ($employee === null || $employee['status'] !== 'active') {
+            throw new HttpException(403, 'Your employee record is not active.');
+        }
+
+        $type = $this->requests->findType($companyId, $typeId);
+
+        if ($type === null || (int) $type['active'] !== 1) {
+            throw new HttpException(422, 'Choose a leave type that is currently available.');
+        }
+
+        $start = $this->date($startDate, 'start date');
+        $end = $this->date($endDate, 'end date');
+
+        if ($end < $start) {
+            throw new HttpException(422, 'The end date cannot be before the start date.');
+        }
+
+        if ($start < new \DateTimeImmutable('today')) {
+            throw new HttpException(422, 'Leave cannot start in the past.');
+        }
+
+        $days = (int) $start->diff($end)->days + 1;
+
+        if ($days > 366) {
+            throw new HttpException(422, 'A request cannot cover more than 366 days.');
+        }
+
+        $reason = trim($reason);
+
+        if (mb_strlen($reason) > 255) {
+            throw new HttpException(422, 'Keep the reason to 255 characters.');
+        }
+
+        $restriction = (string) $type['gender_restriction'];
+        $gender = (string) ($employee['gender'] ?? '');
+
+        if ($restriction !== 'any' && $gender !== $restriction) {
+            if ($gender === '') {
+                throw new HttpException(422, 'Ask HR to record your gender before applying for ' . $type['name'] . '.');
+            }
+
+            throw new HttpException(422, $type['name'] . ' is only available to ' . $restriction . ' employees.');
+        }
+
+        if ($this->requests->overlaps($companyId, $employeeId, $start->format('Y-m-d'), $end->format('Y-m-d'))) {
+            throw new HttpException(422, 'You already have leave covering one of those days.');
+        }
+
+        $balance = null;
+
+        foreach ($this->requests->balances($companyId, $employeeId, (int) $start->format('Y')) as $row) {
+            if ((int) $row['id'] === $typeId) {
+                $balance = $row;
+                break;
+            }
+        }
+
+        if ($balance === null) {
+            throw new HttpException(422, 'That leave type is not available to you.');
+        }
+
+        $available = (float) $balance['days_per_year'] - (float) $balance['taken'] - (float) $balance['pending'];
+
+        if ($days > $available + 0.0001) {
+            throw new HttpException(
+                422,
+                'That is more than your available balance of ' . self::days($available) . ' day(s) for ' . $type['name'] . '.',
+            );
+        }
+
+        $requestId = $this->requests->createRequest($companyId, $employeeId, $typeId, [
+            'start_date' => $start->format('Y-m-d'),
+            'end_date' => $end->format('Y-m-d'),
+            'days' => $days,
+            'reason' => $reason === '' ? null : $reason,
+        ]);
+
+        $this->auditLogger->record($companyId, $actorId, 'leave.request.submitted', 'leave_request', (string) $requestId, [
+            'employee_id' => $employeeId,
+            'leave_type_id' => $typeId,
+            'days' => $days,
+        ]);
+
+        return $requestId;
+    }
+
     /** @param array<string,mixed> $input */
     public function saveType(int $companyId, array $input, int $actorId): int
     {
@@ -226,6 +328,24 @@ final class LeaveService
         if ($gender !== $restriction) {
             throw new HttpException(422, $type . ' is only available to ' . $restriction . ' employees.');
         }
+    }
+
+    private function date(string $value, string $label): \DateTimeImmutable
+    {
+        $date = \DateTimeImmutable::createFromFormat('!Y-m-d', $value);
+
+        if ($date === false || $date->format('Y-m-d') !== $value) {
+            throw new HttpException(422, 'Choose a valid ' . $label . '.');
+        }
+
+        return $date;
+    }
+
+    private static function days(float $days): string
+    {
+        $formatted = number_format($days, 2, '.', '');
+
+        return rtrim(rtrim($formatted, '0'), '.');
     }
 
     private function decimal(mixed $value, string $label): float

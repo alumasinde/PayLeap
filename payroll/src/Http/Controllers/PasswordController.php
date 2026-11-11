@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Mshahara\Payroll\Http\Controllers;
 
 use Mshahara\Payroll\App;
-use Mshahara\Payroll\Auth\PasswordHasher;
 
 final class PasswordController
 {
@@ -35,55 +34,11 @@ final class PasswordController
             return;
         }
 
-        $this->app->passwordResetService->request($email, $ip);
+        $this->app->passwordResetService->request($email);
 
         // Always the same response, whether or not the address exists.
-        $this->app->flash->add('success', 'If that email is on file, a reset link is on its way.');
+        $this->app->flash->add('success', 'If that email is on file, a temporary password is on its way.');
 
         $this->app->redirect('/forgot');
-    }
-
-    public function showReset(array $params): void
-    {
-        $reset = $this->app->passwordResetService->find((string) ($params['token'] ?? ''));
-
-        if ($reset === null) {
-            $this->app->abort(410, 'This reset link has expired. Request a new one from the sign-in page.');
-        }
-
-        echo $this->app->render('auth/reset.twig', [
-            'token' => $params['token'],
-            'email' => $reset['email'],
-        ]);
-    }
-
-    public function reset(array $params): void
-    {
-        $token = (string) ($params['token'] ?? '');
-        $reset = $this->app->passwordResetService->find($token);
-
-        if ($reset === null) {
-            $this->app->abort(410, 'This reset link has expired. Request a new one from the sign-in page.');
-        }
-
-        $password = $this->app->request->string('password');
-        $confirmation = $this->app->request->string('password_confirmation');
-        $error = PasswordHasher::error($password, $confirmation);
-
-        if ($error !== null) {
-            echo $this->app->render('auth/reset.twig', [
-                'token' => $token,
-                'email' => $reset['email'],
-                'error' => $error,
-            ], 422);
-
-            return;
-        }
-
-        $this->app->passwordResetService->complete($reset, $password);
-
-        $this->app->flash->add('success', 'Password updated. Sign in with the new one.');
-
-        $this->app->redirect('/login');
     }
 }

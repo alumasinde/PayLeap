@@ -1,0 +1,235 @@
+{% extends 'layout.twig' %}
+{% import 'partials/icons.twig' as icons %}
+
+{% block title %}My profile — {{ app_name }}{% endblock %}
+
+{% block body %}
+  <section class="page-head">
+    <span class="kicker">My account</span>
+    <h1>My profile</h1>
+    <p class="muted">{{ current_company.company_name }} · Your record is read-only. Ask HR to correct any detail.</p>
+  </section>
+
+  <div class="profile-shell">
+    <aside class="profile-rail">
+      <span class="profile-avatar" aria-hidden="true">{{ (employee.first_name|first ~ employee.last_name|first)|upper }}</span>
+      <span class="kicker">Staff no. {{ employee.employee_no }}</span>
+      <h2>{{ employee.first_name }}{% if employee.middle_name %} {{ employee.middle_name }}{% endif %} {{ employee.last_name }}</h2>
+      <p class="rail-role">{{ employee.job_title ?: (types[employee.employment_type] ?? employee.employment_type) }}</p>
+      <span class="status status-{{ employee.status }}">{{ employee.status == 'active' ? 'Active' : 'Archived' }}</span>
+
+      <div class="rail-list">
+        <div class="rail-item"><span>Hired</span><strong class="mono">{{ employee.start_date|date('d/m/Y') }}</strong></div>
+        <div class="rail-item"><span>Service</span><strong>{{ service_years }}</strong></div>
+        <div class="rail-item"><span>Type</span><strong>{{ types[employee.employment_type] ?? employee.employment_type }}</strong></div>
+        <div class="rail-item"><span>Department</span><strong>{{ employee.department_name ?: '—' }}</strong></div>
+        <div class="rail-item">
+          <span>Manager</span>
+          <strong>{% if employee.manager_first_name %}{{ employee.manager_first_name }} {{ employee.manager_last_name }}{% else %}—{% endif %}</strong>
+        </div>
+      </div>
+
+      <p class="hint">Read-only view. HR maintains these details.</p>
+    </aside>
+
+    <div class="profile-main">
+      <nav class="profile-tabs" data-tabs aria-label="My record">
+        <button class="profile-tab is-active" type="button" data-tab="personal">{{ icons.svg('user', 16) }} Personal</button>
+        <button class="profile-tab" type="button" data-tab="employment">{{ icons.svg('briefcase', 16) }} Employment</button>
+        <button class="profile-tab" type="button" data-tab="statutory">{{ icons.svg('shield', 16) }} Statutory</button>
+        <button class="profile-tab" type="button" data-tab="benevolence">{{ icons.svg('user', 16) }} Emergency</button>
+        <button class="profile-tab" type="button" data-tab="education">{{ icons.svg('briefcase', 16) }} Education</button>
+        <button class="profile-tab" type="button" data-tab="hierarchy">{{ icons.svg('users', 16) }} Reporting</button>
+        <button class="profile-tab" type="button" data-tab="payment">{{ icons.svg('wallet', 16) }} Pay &amp; bank</button>
+        <button class="profile-tab" type="button" data-tab="documents">{{ icons.svg('file', 16) }} Documents</button>
+      </nav>
+
+      <section class="profile-panel" data-tab-panel="personal">
+        <div class="section-bar">{{ icons.svg('user', 15) }} Basic information</div>
+        <div class="detail-grid">
+          <div class="detail"><span>Full name</span><strong>{{ employee.first_name }}{% if employee.middle_name %} {{ employee.middle_name }}{% endif %} {{ employee.last_name }}</strong></div>
+          <div class="detail"><span>Date of birth</span><strong class="mono">{{ employee.dob ? employee.dob|date('d/m/Y') : '—' }}</strong></div>
+          <div class="detail"><span>Gender</span><strong>{{ genders[employee.gender] ?? '—' }}</strong></div>
+          <div class="detail"><span>Marital status</span><strong>{{ marital_statuses[employee.marital_status] ?? '—' }}</strong></div>
+          <div class="detail"><span>Nationality</span><strong>{{ employee.nationality ?: '—' }}</strong></div>
+          <div class="detail"><span>Telephone</span><strong class="mono">{{ employee.phone ?: '—' }}</strong></div>
+          <div class="detail"><span>Email</span><strong>{{ employee.email ?: '—' }}</strong></div>
+          <div class="detail"><span>Address</span><strong>{{ employee.address ?: '—' }}</strong></div>
+        </div>
+      </section>
+
+      <section class="profile-panel" data-tab-panel="employment" hidden>
+        <div class="section-bar">{{ icons.svg('briefcase', 15) }} Employment</div>
+        <div class="detail-grid">
+          <div class="detail"><span>Employee number</span><strong class="mono">{{ employee.employee_no }}</strong></div>
+          <div class="detail"><span>Department</span><strong>{{ employee.department_name ?: '—' }}</strong></div>
+          <div class="detail"><span>Reports to</span><strong>{% if employee.manager_first_name %}{{ employee.manager_first_name }} {{ employee.manager_last_name }}{% else %}—{% endif %}</strong></div>
+          <div class="detail"><span>Job title</span><strong>{{ employee.job_title ?: '—' }}</strong></div>
+          <div class="detail"><span>Employment type</span><strong>{{ types[employee.employment_type] ?? employee.employment_type }}</strong></div>
+          <div class="detail"><span>Cost center</span><strong>{{ employee.cost_center ?: '—' }}</strong></div>
+          <div class="detail"><span>Start date</span><strong class="mono">{{ employee.start_date|date('d/m/Y') }}</strong></div>
+          <div class="detail"><span>Exit date</span><strong class="mono">{{ employee.exit_date ? employee.exit_date|date('d/m/Y') : '—' }}</strong></div>
+          <div class="detail"><span>Years of service</span><strong>{{ service_years }}</strong></div>
+        </div>
+      </section>
+
+      <section class="profile-panel" data-tab-panel="statutory" hidden>
+        <div class="section-bar">{{ icons.svg('shield', 15) }} Statutory</div>
+        <div class="detail-grid">
+          <div class="detail"><span>National ID</span><strong class="mono">{{ employee.national_id ?: '—' }}</strong></div>
+          <div class="detail"><span>KRA PIN</span><strong class="mono">{{ employee.kra_pin ?: '—' }}</strong></div>
+          <div class="detail"><span>NSSF number</span><strong class="mono">{{ employee.nssf_number ?: '—' }}</strong></div>
+          <div class="detail"><span>SHIF number</span><strong class="mono">{{ employee.shif_number ?: '—' }}</strong></div>
+        </div>
+        <p class="hint">These numbers feed your PAYE, NSSF, SHIF and Housing Levy deductions.</p>
+      </section>
+
+      <section class="profile-panel" data-tab-panel="benevolence" hidden>
+        <div class="section-bar">{{ icons.svg('user', 15) }} Emergency contact</div>
+        {% if next_of_kin %}
+          <div class="detail-grid">
+            <div class="detail"><span>Name</span><strong>{{ next_of_kin.name }}</strong></div>
+            <div class="detail"><span>Relationship</span><strong>{{ next_of_kin.relationship ?: '—' }}</strong></div>
+            <div class="detail"><span>Phone</span><strong class="mono">{{ next_of_kin.phone ?: '—' }}</strong></div>
+            <div class="detail"><span>Email</span><strong>{{ next_of_kin.email ?: '—' }}</strong></div>
+            <div class="detail"><span>Address</span><strong>{{ next_of_kin.address ?: '—' }}</strong></div>
+          </div>
+        {% else %}
+          <p class="muted">No emergency contact recorded. Ask HR to add one.</p>
+        {% endif %}
+
+        <div class="section-bar">{{ icons.svg('users', 15) }} Dependants</div>
+        {% if dependants %}
+          <div class="table-wrap">
+            <table class="list">
+              <thead><tr><th>Name</th><th>Relationship</th><th>Date of birth</th></tr></thead>
+              <tbody>
+                {% for dependant in dependants %}
+                  <tr>
+                    <td>{{ dependant.name }}</td>
+                    <td>{{ dependant.relationship ?: '—' }}</td>
+                    <td class="mono">{{ dependant.dob ? dependant.dob|date('d/m/Y') : '—' }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <p class="muted">No dependants recorded.</p>
+        {% endif %}
+      </section>
+
+      <section class="profile-panel" data-tab-panel="education" hidden>
+        <div class="section-bar">{{ icons.svg('briefcase', 15) }} Education</div>
+        {% if education %}
+          <div class="table-wrap">
+            <table class="list">
+              <thead><tr><th>Institution</th><th>Qualification</th><th>Field</th><th>Dates</th><th>Grade</th></tr></thead>
+              <tbody>
+                {% for record in education %}
+                  <tr>
+                    <td><strong>{{ record.institution }}</strong>{% if record.level %}<br><span class="muted">{{ record.level }}</span>{% endif %}</td>
+                    <td>{{ record.qualification ?: '—' }}</td>
+                    <td>{{ record.field_of_study ?: '—' }}</td>
+                    <td class="mono">{{ record.start_date ? record.start_date|date('m/Y') : '—' }} – {{ record.end_date ? record.end_date|date('m/Y') : 'Present' }}</td>
+                    <td>{{ record.grade ?: '—' }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <p class="muted">No education records yet.</p>
+        {% endif %}
+      </section>
+
+      <section class="profile-panel" data-tab-panel="hierarchy" hidden>
+        <div class="section-bar">{{ icons.svg('users', 15) }} Reporting line</div>
+        <div class="detail-grid">
+          <div class="detail"><span>Manager</span><strong>{% if employee.manager_first_name %}{{ employee.manager_first_name }} {{ employee.manager_last_name }}{% else %}—{% endif %}</strong></div>
+          <div class="detail"><span>Department</span><strong>{{ employee.department_name ?: '—' }}</strong></div>
+        </div>
+
+        <div class="section-bar">{{ icons.svg('users', 15) }} Direct reports</div>
+        {% if reports %}
+          <div class="table-wrap">
+            <table class="list">
+              <thead><tr><th>No.</th><th>Name</th><th>Job title</th><th>Department</th></tr></thead>
+              <tbody>
+                {% for report in reports %}
+                  <tr>
+                    <td class="mono">{{ report.employee_no }}</td>
+                    <td>{{ report.first_name }} {{ report.last_name }}</td>
+                    <td>{{ report.job_title ?: '—' }}</td>
+                    <td>{{ report.department_name ?: '—' }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <p class="muted">No direct reports.</p>
+        {% endif %}
+      </section>
+
+      <section class="profile-panel" data-tab-panel="payment" hidden>
+        <div class="section-bar">{{ icons.svg('wallet', 15) }} Pay</div>
+        <div class="detail-grid">
+          <div class="detail">
+            <span>Monthly salary</span>
+            <strong class="mono">
+              {% if employee.monthly_salary_cents is not null %}
+                KES {{ (employee.monthly_salary_cents / 100)|number_format(2) }}
+              {% else %}
+                —
+              {% endif %}
+            </strong>
+          </div>
+        </div>
+
+        <div class="section-bar">{{ icons.svg('banknote', 15) }} Bank</div>
+        <div class="detail-grid">
+          <div class="detail"><span>Bank</span><strong>{{ employee.bank_name ?: '—' }}</strong></div>
+          <div class="detail"><span>Branch</span><strong>{{ employee.bank_branch ?: '—' }}</strong></div>
+          <div class="detail"><span>Account number</span><strong class="mono">{{ employee.bank_account ?: '—' }}</strong></div>
+        </div>
+        <p class="hint">Shown only to you. Ask HR to change your salary or bank details.</p>
+      </section>
+
+      <section class="profile-panel" data-tab-panel="documents" hidden>
+        <div class="section-bar">{{ icons.svg('file', 15) }} Company documents</div>
+        {% if documents %}
+          <div class="table-wrap">
+            <table class="list">
+              <thead><tr><th>Document</th><th>Category</th><th>Minimum</th><th>Progress</th><th>Status</th><th></th></tr></thead>
+              <tbody>
+                {% for document in documents %}
+                  {% set read_status = document.read_status ?? 'unread' %}
+                  <tr>
+                    <td><strong>{{ document.title }}</strong>{% if document.description %}<br><span class="muted">{{ document.description }}</span>{% endif %}</td>
+                    <td>{{ document.category ?: 'General' }}</td>
+                    <td class="mono">{{ document.min_read_seconds }}s</td>
+                    <td>
+                      <progress value="{{ document.progress_percent ?? 0 }}" max="100">{{ document.progress_percent ?? 0 }}%</progress>
+                      <span class="muted">{{ document.progress_percent ?? 0 }}%</span>
+                    </td>
+                    <td>
+                      <span class="status {{ read_status == 'completed' ? 'status-active' : (read_status == 'reading' ? 'status-pending' : 'status-exited') }}">
+                        {{ read_status == 'completed' ? 'Complete' : (read_status == 'reading' ? 'Reading' : 'Not started') }}
+                      </span>
+                    </td>
+                    <td><a class="btn-ghost btn-xs" href="/me/documents/{{ document.id }}">{{ read_status == 'completed' ? 'Review' : 'Read' }}</a></td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <p class="muted">No company documents published yet.</p>
+        {% endif %}
+      </section>
+    </div>
+  </div>
+
+  <p class="back-link"><a href="/me">Back to my account</a></p>
+{% endblock %}

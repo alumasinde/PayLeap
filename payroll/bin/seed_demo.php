@@ -193,6 +193,48 @@ foreach ($people as $index => [$first, $last, $department, $title, $type, $salar
 
 echo 'Employees ready: ' . count($employeeIds) . "\n";
 
+/* Employee self-service login --------------------------------------------- */
+
+$employeeEmail = 'employee@mshahara.test';
+$employeePassword = 'EmployeePass!2026';
+$statement = $db->prepare('SELECT id FROM users WHERE email = ? LIMIT 1');
+$statement->execute([$employeeEmail]);
+$employeeUserId = $statement->fetchColumn();
+$employeeCreated = false;
+
+if ($employeeUserId === false) {
+    $db->prepare(
+        'INSERT INTO users (first_name, last_name, email, password_hash, email_verified_at, status)
+         VALUES (?, ?, ?, ?, UTC_TIMESTAMP(), \'active\')',
+    )->execute(['Mercy', 'Njeri', $employeeEmail, PasswordHasher::hash($employeePassword)]);
+    $employeeUserId = (int) $db->lastInsertId();
+    $employeeCreated = true;
+    echo "Created employee login {$employeeEmail}\n";
+} else {
+    $employeeUserId = (int) $employeeUserId;
+}
+
+$db->prepare('INSERT IGNORE INTO memberships (company_id, user_id, status) VALUES (?, ?, \'active\')')
+    ->execute([$companyId, $employeeUserId]);
+
+$employeeMembership = $db->prepare('SELECT id FROM memberships WHERE company_id = ? AND user_id = ? LIMIT 1');
+$employeeMembership->execute([$companyId, $employeeUserId]);
+$employeeMembershipId = (int) $employeeMembership->fetchColumn();
+
+$employeeRoleId = (int) $db->query(
+    'SELECT id FROM roles WHERE company_id = ' . $companyId . ' AND `key` = \'employee\' LIMIT 1',
+)->fetchColumn();
+
+$db->prepare('INSERT IGNORE INTO user_roles (membership_id, role_id) VALUES (?, ?)')
+    ->execute([$employeeMembershipId, $employeeRoleId]);
+
+$db->prepare(
+    'UPDATE employees SET user_id = ?
+     WHERE company_id = ? AND employee_no = ? AND (user_id IS NULL OR user_id = ?)',
+)->execute([$employeeUserId, $companyId, 'ACM-002', $employeeUserId]);
+
+echo "Employee login ready for ACM-002\n";
+
 /* Reporting lines --------------------------------------------------------- */
 
 $teamRows = $db->prepare(
@@ -471,8 +513,8 @@ if ($statement->fetchColumn() === false) {
 
 /* Done -------------------------------------------------------------------- */
 
-echo "\nDemo login\n";
+echo "\nDemo logins\n";
 echo "  URL:      " . rtrim((string) $app->config['url'], '/') . "/login\n";
-echo "  Email:    {$email}\n";
-echo "  Password: " . ($createdUser ? $password : '(unchanged from the first seed)') . "\n";
+echo "  Admin:    {$email} / " . ($createdUser ? $password : '(unchanged from the first seed)') . "\n";
+echo "  Employee: {$employeeEmail} / " . ($employeeCreated ? $employeePassword : '(unchanged from the first seed)') . "\n";
 echo "  Company:  Acme Ltd\n";

@@ -1,0 +1,28 @@
+{% extends 'layout.twig' %}
+
+{% block title %}My timesheet — {{ app_name }}{% endblock %}
+
+{% block body %}
+  <section class="page-head">
+    <span class="kicker">My account</span>
+    <h1>My timesheet</h1>
+    <p class="muted">{{ employee.first_name }} {{ employee.last_name }} ({{ employee.employee_no }}) · rostered shift, clock times and the hours won or lost against the roster.</p>
+  </section>
+
+  <form class="filter-bar" method="get" action="/me/timesheet">
+    <label class="field inline-field">
+      <span>Month</span>
+      <input type="month" name="month" value="{{ month }}">
+    </label>
+    <button class="btn-primary" type="submit">View timesheet</button>
+  </form>
+
+  {% include 'partials/timesheet_detail.twig' with {
+    'employee': employee,
+    'timesheet': timesheet,
+    'month': month,
+    'can_edit': false
+  } only %}
+
+  <p class="back-link"><a href="/me">Back to my account</a></p>
+{% endblock %}

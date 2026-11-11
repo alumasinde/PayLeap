@@ -117,30 +117,21 @@ foreach ($secondMembership as $membership) {
 }
 check('second company keeps its own role', $otherRole === 'Head of department');
 
-// ---------------------------------------------------------------------- resets
-
-$token = $app->passwordResetService->request('ada@example.test');
-check('reset token is issued', is_string($token) && strlen((string) $token) >= 40);
-
-$reset = $app->passwordResetService->find((string) $token);
-check('reset token resolves', $reset !== null);
-check('old password works before reset', $app->authentication->attempt('ada@example.test', 'correct horse battery') !== null);
+// ----------------------------------------------------------- temporary password
 
 $epochBefore = (int) $app->db->query('SELECT session_epoch FROM users WHERE id = ' . (int) $user['id'])->fetchColumn();
-$app->passwordResetService->complete($reset, 'a newer password 2');
+$temporary = $app->passwordResetService->request('ada@example.test');
 $epochAfter = (int) $app->db->query('SELECT session_epoch FROM users WHERE id = ' . (int) $user['id'])->fetchColumn();
 
-check('reset token is single use', $app->passwordResetService->find((string) $token) === null);
-check('old password rejected after reset', $app->authentication->attempt('ada@example.test', 'correct horse battery') === null);
-check('new password accepted after reset', $app->authentication->attempt('ada@example.test', 'a newer password 2') !== null);
-check('reset bumps the session epoch', $epochAfter === $epochBefore + 1);
+check('temporary password is six characters', is_string($temporary) && strlen((string) $temporary) === 6);
+check('temporary password avoids ambiguous characters', preg_match('/^[A-HJ-NP-Z2-9]{6}$/', (string) $temporary) === 1);
+check('temporary password bumps the session epoch', $epochAfter === $epochBefore + 1);
 
-$reusedReset = $app->passwordResetService->request('ada@example.test');
-$app->db
-    ->prepare('UPDATE password_resets SET expires_at = DATE_SUB(UTC_TIMESTAMP(), INTERVAL 1 MINUTE) WHERE token_hash = ?')
-    ->execute([Token::hash((string) $reusedReset)]);
-check('expired reset is rejected', $app->passwordResetService->find((string) $reusedReset) === null);
-check('unknown email gets no token', $app->passwordResetService->request('nobody@example.test') === null);
+$tempLogin = $app->authentication->attempt('ada@example.test', (string) $temporary);
+check('temporary password signs in', $tempLogin !== null);
+check('temporary login is flagged for a change', $tempLogin !== null && (int) $tempLogin['must_change_password'] === 1);
+check('old password rejected after temporary password', $app->authentication->attempt('ada@example.test', 'correct horse battery') === null);
+check('unknown email gets no temporary password', $app->passwordResetService->request('nobody@example.test') === null);
 
 // ------------------------------------------------------------------------ csrf
 
@@ -241,9 +232,13 @@ try {
 }
 check('password change requires the current password', $wrongCurrent);
 
-$epoch = $app->accountService->changePassword((int) $user['id'], 'a newer password 2', 'changed password 3', 'changed password 3', $companyId);
+$epoch = $app->accountService->changePassword((int) $user['id'], (string) $temporary, 'changed password 3', 'changed password 3', $companyId);
 check('password change bumps the session epoch', $epoch >= 2);
 check('new password authenticates', $app->authentication->attempt('ada@example.test', 'changed password 3') !== null);
+check(
+    'password change clears the temporary flag',
+    (int) $app->db->query('SELECT must_change_password FROM users WHERE id = ' . (int) $user['id'])->fetchColumn() === 0,
+);
 
 // ------------------------------------------------------------------ signed urls
 
@@ -313,11 +308,13 @@ check('sign out everywhere bumps the epoch', $epochAfter === $epochBefore + 1);
 $actions = $app->db->query('SELECT DISTINCT action FROM audit_log')->fetchAll(PDO::FETCH_COLUMN);
 check('audit records invite creation', in_array('invite.created', $actions, true));
 check('audit records acceptance', in_array('invite.accepted', $actions, true));
-check('audit records reset completion', in_array('password.reset.completed', $actions, true));
+check('audit records a temporary password', in_array('password.temp.issued', $actions, true));
 
 // --------------------------------------------------------------------- password
 
 check('short passwords are rejected', PasswordHasher::error('short', 'short') !== null);
+check('seven characters are rejected', PasswordHasher::error('1234567', '1234567') !== null);
+check('eight characters are accepted', PasswordHasher::error('12345678', '12345678') === null);
 check('mismatched passwords are rejected', PasswordHasher::error('long enough 1', 'long enough 2') !== null);
 check('a valid password passes', PasswordHasher::error('long enough 1', 'long enough 1') === null);
 

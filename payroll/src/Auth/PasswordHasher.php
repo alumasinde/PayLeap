@@ -10,7 +10,7 @@ namespace Mshahara\Payroll\Auth;
  */
 final class PasswordHasher
 {
-    public const MIN_LENGTH = 10;
+    public const MIN_LENGTH = 8;
     private const MAX_LENGTH = 200;
 
     public static function algo(): int|string

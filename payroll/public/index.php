@@ -41,6 +41,15 @@ try {
 
 $app->resolveContext();
 
+if ($app->user !== [] && (int) ($app->user['must_change_password'] ?? 0) === 1) {
+    $allowed = ['/me', '/me/password', '/logout', '/me/sign-out-everywhere'];
+
+    if (!in_array($request->path(), $allowed, true)) {
+        $app->flash->add('error', 'Choose a new password to continue.');
+        $app->redirect('/me');
+    }
+}
+
 if ($request->isPost()) {
     $token = $request->input('_token') ?? $request->header('x-csrf-token');
 

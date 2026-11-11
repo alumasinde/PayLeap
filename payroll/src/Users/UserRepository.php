@@ -42,7 +42,7 @@ final class UserRepository
     public function changePassword(int $userId, string $hash): int
     {
         $this->db
-            ->prepare('UPDATE users SET password_hash = ?, session_epoch = session_epoch + 1 WHERE id = ?')
+            ->prepare('UPDATE users SET password_hash = ?, session_epoch = session_epoch + 1, must_change_password = 0 WHERE id = ?')
             ->execute([$hash, $userId]);
 
         $statement = $this->db->prepare('SELECT session_epoch FROM users WHERE id = ?');

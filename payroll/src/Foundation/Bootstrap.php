@@ -176,7 +176,7 @@ final class Bootstrap
             (string) $config['url'],
             $app->roleRepository,
         );
-        $app->passwordResetService = new PasswordResetService($app->db, $app->mailer, $app->auditLogger, (string) $config['url']);
+        $app->passwordResetService = new PasswordResetService($app->db, $app->mailer, $app->auditLogger);
         $app->router = new Router();
         $app->modules = $app->moduleRepository->all();
 

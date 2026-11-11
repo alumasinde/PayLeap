@@ -7,7 +7,7 @@
     <div class="auth-card">
       <span class="kicker">Password</span>
       <h1>Reset it</h1>
-      <p class="muted">Enter the email you use for Mshahara. If it is on file, a link arrives within a minute.</p>
+      <p class="muted">Enter the email you use for Mshahara. If it is on file, a six-character temporary password arrives within a minute.</p>
 
       {% if error %}
         <div class="alert">{{ error }}</div>
@@ -21,7 +21,7 @@
           <input type="email" name="email" value="{{ email|default('') }}" autocomplete="username" required autofocus>
         </label>
 
-        <button class="btn-primary" type="submit">Send the link</button>
+        <button class="btn-primary" type="submit">Send temporary password</button>
       </form>
 
       <p class="auth-links"><a href="/login">Back to sign in</a></p>

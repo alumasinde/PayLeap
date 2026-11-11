@@ -217,6 +217,62 @@ final class LeaveRepository
         return $rows;
     }
 
+    /**
+     * One person's own request history, newest first.
+     *
+     * @return list<array<string,mixed>>
+     */
+    public function listForEmployee(int $companyId, int $employeeId, int $limit = 100): array
+    {
+        $statement = $this->db->prepare(
+            'SELECT lr.*, lt.name AS leave_type
+             FROM leave_requests lr
+             JOIN leave_types lt ON lt.id = lr.leave_type_id AND lt.company_id = lr.company_id
+             WHERE lr.company_id = ? AND lr.employee_id = ?
+             ORDER BY lr.start_date DESC, lr.id DESC
+             LIMIT ' . max(1, min(200, $limit)),
+        );
+        $statement->execute([$companyId, $employeeId]);
+
+        return $statement->fetchAll();
+    }
+
+    /** A pending or approved request that shares any day with the range. */
+    public function overlaps(int $companyId, int $employeeId, string $startDate, string $endDate): bool
+    {
+        $statement = $this->db->prepare(
+            'SELECT 1 FROM leave_requests
+             WHERE company_id = ? AND employee_id = ?
+               AND status IN (\'pending\', \'approved\')
+               AND start_date <= ? AND end_date >= ?
+             LIMIT 1',
+        );
+        $statement->execute([$companyId, $employeeId, $endDate, $startDate]);
+
+        return $statement->fetchColumn() !== false;
+    }
+
+    public function createRequest(int $companyId, int $employeeId, int $typeId, array $data): int
+    {
+        $this->db
+            ->prepare(
+                'INSERT INTO leave_requests
+                    (company_id, employee_id, leave_type_id, start_date, end_date, days, reason, status)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, \'pending\')',
+            )
+            ->execute([
+                $companyId,
+                $employeeId,
+                $typeId,
+                $data['start_date'],
+                $data['end_date'],
+                $data['days'],
+                $data['reason'],
+            ]);
+
+        return (int) $this->db->lastInsertId();
+    }
+
     /** @return array<string,mixed>|null */
     public function find(int $companyId, int $requestId): ?array
     {

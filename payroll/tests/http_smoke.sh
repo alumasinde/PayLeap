@@ -267,33 +267,31 @@ status=$(curl -s -o /dev/null -w '%{http_code}' -c "$JAR" -b "$JAR" -X POST "$BA
 expect "unknown email gets the same answer" "$status" "302"
 
 mail=$(ls -t "$ROOT"/storage/mail/*.eml 2>/dev/null | head -1)
-reset_url=$(grep -o 'http[^ ]*/reset/[A-Za-z0-9_-]*' "$mail" | head -1)
-if [ -n "$reset_url" ]; then ok "reset email contains a link"; else bad "reset email contains a link"; fi
-
-curl -s -c "$JAR" -b "$JAR" -o /tmp/reset.html "$reset_url"
-rtoken=$(grep -o 'name="_token" value="[^"]*"' /tmp/reset.html | head -1 | sed 's/.*value="//;s/"$//')
-
-status=$(curl -s -o /dev/null -w '%{http_code}' -c "$JAR" -b "$JAR" -X POST "$reset_url" \
-  --data-urlencode "_token=$rtoken" \
-  --data-urlencode "password=brand new password 2" \
-  --data-urlencode "password_confirmation=brand new password 2")
-expect "reset completes with a redirect" "$status" "302"
-
-status=$(curl -s -o /dev/null -w '%{http_code}' -c "$JAR" -b "$JAR" -X POST "$reset_url" \
-  --data-urlencode "_token=$rtoken" \
-  --data-urlencode "password=another password 3" \
-  --data-urlencode "password_confirmation=another password 3")
-expect "used reset link is rejected" "$status" "410"
+temp_password=$(grep -E '^  [A-HJ-NP-Z2-9]{6}$' "$mail" | head -1 | tr -d ' ')
+if [ -n "$temp_password" ]; then ok "reset email carries a six-character password"; else bad "reset email carries a six-character password"; fi
 
 curl -s -c "$JAR" -b "$JAR" -o "$LOGIN_HTML" "$BASE/login"
 ltoken=$(grep -o 'name="_token" value="[^"]*"' "$LOGIN_HTML" | head -1 | sed 's/.*value="//;s/"$//')
 
 status=$(curl -s -o /dev/null -w '%{http_code}' -c "$JAR" -b "$JAR" -X POST "$BASE/login" \
-  --data-urlencode "_token=$ltoken" --data-urlencode "email=$email" --data-urlencode "password=brand new password 2")
-expect "login with the new password works" "$status" "302"
+  --data-urlencode "_token=$ltoken" --data-urlencode "email=$email" --data-urlencode "password=$temp_password")
+expect "temporary password signs in" "$status" "302"
 
 status=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR" "$BASE/app")
-expect "workspace opens after the new login" "$status" "200"
+expect "workspace is blocked until the password changes" "$status" "302"
+
+curl -s -b "$JAR" -o "$APP_HTML" "$BASE/me"
+mtoken=$(grep -o 'name="_token" value="[^"]*"' "$APP_HTML" | head -1 | sed 's/.*value="//;s/"$//')
+
+status=$(curl -s -o /dev/null -w '%{http_code}' -c "$JAR" -b "$JAR" -X POST "$BASE/me/password" \
+  --data-urlencode "_token=$mtoken" \
+  --data-urlencode "current_password=$temp_password" \
+  --data-urlencode "password=brand new password 2" \
+  --data-urlencode "password_confirmation=brand new password 2")
+expect "choosing a new password redirects" "$status" "302"
+
+status=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR" "$BASE/app")
+expect "workspace opens after choosing a new password" "$status" "200"
 
 # ------------------------------------------------------- sign out everywhere
 

@@ -134,10 +134,16 @@ final class WorkspaceController
 
     public function me(): void
     {
-        $this->app->requireCompany();
+        $company = $this->app->requireCompany();
+        $companyId = (int) $company['company_id'];
+        $linked = $this->app->employees->register->forUser($companyId, (int) $this->app->user['id']);
+        $employee = $linked === null
+            ? null
+            : $this->app->employees->register->find($companyId, (int) $linked['id']);
 
         echo $this->app->render('me/home.twig', [
             'role_label' => $this->app->roleLabel(),
+            'employee' => $employee,
         ]);
     }
 

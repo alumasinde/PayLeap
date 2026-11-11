@@ -6,26 +6,27 @@ namespace Mshahara\Payroll\Auth;
 
 use Mshahara\Payroll\Support\AuditLogger;
 use Mshahara\Payroll\Support\Mailer;
-use Mshahara\Payroll\Support\Token;
 use PDO;
 
 /**
- * Password resets. Tokens are single-use, hashed at rest, expire in an hour,
- * and completing a reset increments the user's session epoch so every other
- * session (and every other outstanding reset link) dies with it.
+ * Forgotten passwords. A six-character temporary password is emailed, stored
+ * hashed, and flagged so the account must choose a new password before it can
+ * use the workspace. Replacing the hash also revokes every other session.
  */
 final class PasswordResetService
 {
+    private const TEMP_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    private const TEMP_LENGTH = 6;
+
     public function __construct(
         private readonly PDO $db,
         private readonly Mailer $mailer,
         private readonly AuditLogger $auditLogger,
-        private readonly string $baseUrl,
     ) {
     }
 
-    /** Returns the token for local development and tests; null for unknown emails. */
-    public function request(string $email, ?string $ip = null): ?string
+    /** Returns the temporary password for local development and tests; null for unknown emails. */
+    public function request(string $email): ?string
     {
         $statement = $this->db->prepare("SELECT id, email FROM users WHERE email = ? AND status <> 'suspended' LIMIT 1");
         $statement->execute([strtolower(trim($email))]);
@@ -35,74 +36,39 @@ final class PasswordResetService
             return null;
         }
 
-        $this->db
-            ->prepare('UPDATE password_resets SET used_at = UTC_TIMESTAMP() WHERE user_id = ? AND used_at IS NULL')
-            ->execute([$user['id']]);
-
-        $token = Token::generate();
+        $temporary = $this->temporaryPassword();
 
         $this->db
-            ->prepare('INSERT INTO password_resets (user_id, token_hash, expires_at, ip)
-                       VALUES (?, ?, DATE_ADD(UTC_TIMESTAMP(), INTERVAL 60 MINUTE), ?)')
-            ->execute([$user['id'], Token::hash($token), $ip]);
-
-        $url = rtrim($this->baseUrl, '/') . '/reset/' . $token;
+            ->prepare('UPDATE users
+                       SET password_hash = ?, must_change_password = 1,
+                           session_epoch = session_epoch + 1, status = ?,
+                           email_verified_at = COALESCE(email_verified_at, UTC_TIMESTAMP())
+                       WHERE id = ?')
+            ->execute([PasswordHasher::hash($temporary), 'active', $user['id']]);
 
         $this->mailer->send(
             (string) $user['email'],
-            'Reset your Mshahara password',
-            "Hello,\n\nUse this link within an hour to choose a new password:\n{$url}\n\n"
-            . "If you did not ask for this, ignore the email. Nothing has changed.\n",
+            'Your temporary Mshahara password',
+            "Hello,\n\nUse this temporary password to sign in:\n\n  {$temporary}\n\n"
+            . 'You will be asked to choose a new password (at least ' . PasswordHasher::MIN_LENGTH . " characters) after signing in.\n\n"
+            . "If you did not ask for this, contact your administrator.\n",
         );
 
-        $this->auditLogger->record(null, (int) $user['id'], 'password.reset.requested', 'user', (string) $user['id']);
+        $this->auditLogger->record(null, (int) $user['id'], 'password.temp.issued', 'user', (string) $user['id']);
 
-        return $token;
+        return $temporary;
     }
 
-    /** @return array<string,mixed>|null */
-    public function find(string $token): ?array
+    private function temporaryPassword(): string
     {
-        $statement = $this->db->prepare(
-            'SELECT r.*, u.email
-             FROM password_resets r
-             JOIN users u ON u.id = r.user_id
-             WHERE r.token_hash = ? AND r.used_at IS NULL AND r.expires_at > UTC_TIMESTAMP()
-             LIMIT 1',
-        );
-        $statement->execute([Token::hash($token)]);
-        $row = $statement->fetch();
+        $alphabet = self::TEMP_ALPHABET;
+        $last = strlen($alphabet) - 1;
+        $password = '';
 
-        return $row === false ? null : $row;
-    }
-
-    /** @param array<string,mixed> $reset */
-    public function complete(array $reset, string $password): int
-    {
-        $userId = (int) $reset['user_id'];
-
-        $this->db->beginTransaction();
-
-        try {
-            $this->db
-                ->prepare('UPDATE users
-                           SET password_hash = ?, session_epoch = session_epoch + 1, status = ?,
-                               email_verified_at = COALESCE(email_verified_at, UTC_TIMESTAMP())
-                           WHERE id = ?')
-                ->execute([PasswordHasher::hash($password), 'active', $userId]);
-
-            $this->db
-                ->prepare('UPDATE password_resets SET used_at = UTC_TIMESTAMP() WHERE user_id = ? AND used_at IS NULL')
-                ->execute([$userId]);
-
-            $this->db->commit();
-        } catch (\Throwable $error) {
-            $this->db->rollBack();
-            throw $error;
+        for ($i = 0; $i < self::TEMP_LENGTH; $i++) {
+            $password .= $alphabet[random_int(0, $last)];
         }
 
-        $this->auditLogger->record(null, $userId, 'password.reset.completed', 'user', (string) $userId);
-
-        return $userId;
+        return $password;
     }
 }

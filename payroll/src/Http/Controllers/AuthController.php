@@ -67,6 +67,11 @@ final class AuthController
 
         $this->app->auditLogger->record(null, (int) $user['id'], 'auth.login', 'user', (string) $user['id']);
 
+        if ((int) ($user['must_change_password'] ?? 0) === 1) {
+            $this->app->flash->add('error', 'You signed in with a temporary password. Choose a new one to continue.');
+            $this->app->redirect('/me');
+        }
+
         $this->app->redirect($next ?? '/app');
     }
 

@@ -1,0 +1,102 @@
+{% extends 'layout.twig' %}
+{% import 'partials/icons.twig' as icons %}
+
+{% block title %}My attendance — {{ app_name }}{% endblock %}
+
+{% block body %}
+  <section class="page-head">
+    <span class="kicker">My account</span>
+    <h1>My attendance</h1>
+    <p class="muted">{{ employee.first_name }} {{ employee.last_name }} ({{ employee.employee_no }}) · {{ timesheet.label }}</p>
+  </section>
+
+  <form class="filter-bar" method="get" action="/me/attendance">
+    <label class="field inline-field">
+      <span>Month</span>
+      <input type="month" name="month" value="{{ month }}">
+    </label>
+    <button class="btn-primary" type="submit">View month</button>
+  </form>
+
+  <div class="stat-grid">
+    <div class="stat"><span class="stat-label">Present</span><strong>{{ timesheet.summary.days.present }}</strong></div>
+    <div class="stat"><span class="stat-label">Absent</span><strong>{{ timesheet.summary.days.absent }}</strong></div>
+    <div class="stat"><span class="stat-label">On leave</span><strong>{{ timesheet.summary.days.on_leave }}</strong></div>
+    <div class="stat"><span class="stat-label">Rest days</span><strong>{{ timesheet.summary.days.off }}</strong></div>
+    <div class="stat"><span class="stat-label">Public holidays</span><strong>{{ timesheet.summary.days.holiday }}</strong></div>
+    <div class="stat"><span class="stat-label">Single clock</span><strong>{{ timesheet.summary.days.single_clock }}</strong></div>
+  </div>
+
+  <section class="panel">
+    <div class="panel-head">
+      <div>
+        <h2>Daily record</h2>
+        <p class="muted">Clock times are written by the terminal or corrected by HR. This page is read-only.</p>
+      </div>
+    </div>
+
+    {% set labels = {
+      'present': 'Present',
+      'late': 'Late',
+      'absent': 'Absent',
+      'leave': 'On leave',
+      'holiday': 'Public holiday',
+      'off': 'Rest day',
+      'unmarked': 'Not marked',
+      'upcoming': 'Upcoming'
+    } %}
+
+    <div class="table-wrap">
+      <table class="list">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Day</th>
+            <th>Shift</th>
+            <th>Status</th>
+            <th>Clock in</th>
+            <th>Clock out</th>
+            <th>Source</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in timesheet.rows %}
+            <tr class="{{ row.row_class }}">
+              <td class="mono">{{ row.date|date('d/m/Y') }}</td>
+              <td>{{ row.day }}</td>
+              <td>
+                {% if row.holiday %}
+                  <span class="shift-tag holiday">{{ row.shift }}</span>
+                {% elseif row.status == 'leave' %}
+                  <span class="shift-tag leave">{{ row.shift }}</span>
+                {% elseif row.status == 'off' %}
+                  <span class="shift-tag off">{{ row.shift }}</span>
+                {% elseif row.shift != '—' %}
+                  <span class="shift-tag">{{ row.shift }}</span>
+                  <small class="mono muted">{{ row.shift_label }}</small>
+                {% else %}
+                  <span class="muted">—</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if row.status in ['present', 'late', 'absent', 'leave', 'holiday', 'off'] %}
+                  <span class="status status-{{ row.status }}">{{ labels[row.status] }}</span>
+                {% elseif row.status == 'upcoming' %}
+                  <span class="status">{{ labels[row.status] }}</span>
+                {% else %}
+                  <span class="status">{{ labels[row.status] ?? 'Not marked' }}</span>
+                {% endif %}
+              </td>
+              <td class="mono">{{ row.clock_in ?: '—' }}</td>
+              <td class="mono">{{ row.clock_out ?: '—' }}</td>
+              <td class="muted">{{ row.source ? (sources[row.source] ?? row.source|capitalize) : '—' }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="hint">Unmarked days are shown for past weekdays. Approved leave and public holidays are never counted as absence.</p>
+  </section>
+
+  <p class="back-link"><a href="/me">Back to my account</a></p>
+{% endblock %}

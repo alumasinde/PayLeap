@@ -135,6 +135,8 @@ final class TimesheetService
                 'status' => $status,
                 'clock_in' => $clockIn !== null ? substr((string) $clockIn, 0, 5) : '',
                 'clock_out' => $clockOut !== null ? substr((string) $clockOut, 0, 5) : '',
+                'source' => $record['source'] ?? null,
+                'note' => $record['note'] ?? null,
                 'worked' => $in !== null || $out !== null ? self::hours($worked) : '—',
                 'lost' => !$isFuture && $scheduled && $status !== 'holiday' ? self::hours($lost) : '—',
                 'ot' => !$isFuture && $scheduled && $status !== 'holiday' ? self::hours($overtime) : '—',

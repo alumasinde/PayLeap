@@ -256,6 +256,84 @@ check(
     statusOf(static fn () => $service->update($companyId, $staffB, ['user_id' => 99999], 1)) === 422,
 );
 
+// ------------------------------------------------------------ employee apply
+
+$types = $app->leave->requests->types($companyId);
+$maternityId = 0;
+
+foreach ($types as $type) {
+    if ($type['name'] === 'Maternity leave') {
+        $maternityId = (int) $type['id'];
+    }
+}
+
+$service->update($companyId, $staffA, ['gender' => 'female'], 1);
+$service->update($companyId, $staffB, ['gender' => 'male'], 1);
+
+$today = new DateTimeImmutable('today');
+$start = $today->modify('+60 days');
+$end = $start->modify('+2 days');
+$submitted = $leave->submit(
+    $companyId,
+    $staffA,
+    $annualId,
+    $start->format('Y-m-d'),
+    $end->format('Y-m-d'),
+    'Family time',
+    $hodUserId,
+);
+$submittedRow = $db->query('SELECT * FROM leave_requests WHERE id = ' . $submitted)->fetch();
+check('an employee can submit leave', $submittedRow !== false && $submittedRow['status'] === 'pending');
+check('submitted days are calendar days inclusive', (int) $submittedRow['days'] === 3);
+
+$ownList = $app->leave->requests->listForEmployee($companyId, $staffA);
+check('the submission appears in the employee history', in_array($submitted, array_map(static fn (array $row): int => (int) $row['id'], $ownList), true));
+
+check(
+    'an overlapping request is refused',
+    statusOf(static fn () => $leave->submit($companyId, $staffA, $annualId, $start->modify('+1 day')->format('Y-m-d'), $end->modify('+1 day')->format('Y-m-d'), '', $hodUserId)) === 422,
+);
+check(
+    'leave cannot start in the past',
+    statusOf(static fn () => $leave->submit($companyId, $staffA, $annualId, $today->modify('-2 days')->format('Y-m-d'), $today->modify('-1 day')->format('Y-m-d'), '', $hodUserId)) === 422,
+);
+check(
+    'a reversed date range is refused',
+    statusOf(static fn () => $leave->submit($companyId, $staffA, $annualId, $end->format('Y-m-d'), $start->format('Y-m-d'), '', $hodUserId)) === 422,
+);
+check(
+    'an impossible date is refused',
+    statusOf(static fn () => $leave->submit($companyId, $staffA, $annualId, '2027-02-31', '2027-03-01', '', $hodUserId)) === 422,
+);
+check(
+    'a request above the available balance is refused',
+    statusOf(static fn () => $leave->submit($companyId, $staffA, $annualId, $start->modify('+10 days')->format('Y-m-d'), $start->modify('+40 days')->format('Y-m-d'), '', $hodUserId)) === 422,
+);
+check(
+    'a gender-restricted type is refused for a male employee',
+    statusOf(static fn () => $leave->submit($companyId, $staffB, $maternityId, $start->format('Y-m-d'), $end->format('Y-m-d'), '', $hodUserId)) === 422,
+);
+check(
+    'a gender-restricted type is allowed for a female employee',
+    statusOf(static fn () => $leave->submit($companyId, $staffA, $maternityId, $start->modify('+80 days')->format('Y-m-d'), $start->modify('+82 days')->format('Y-m-d'), '', $hodUserId)) === 0,
+);
+check(
+    'leave cannot be taken over an approved request',
+    statusOf(static fn () => $leave->submit($companyId, $staffA, $annualId, '2026-12-02', '2026-12-04', '', $hodUserId)) === 422,
+);
+check(
+    'an inactive leave type is refused',
+    (static function () use ($app, $companyId, $annualId, $staffA, $start, $end, $leave, $hodUserId): bool {
+        $app->leave->requests->setTypeActive($companyId, $annualId, false);
+
+        try {
+            return statusOf(static fn () => $leave->submit($companyId, $staffA, $annualId, $start->format('Y-m-d'), $end->format('Y-m-d'), '', $hodUserId)) === 422;
+        } finally {
+            $app->leave->requests->setTypeActive($companyId, $annualId, true);
+        }
+    })(),
+);
+
 echo "\n";
 if ($failures !== 0) {
     echo $failures . ' of ' . $checks . " leave checks failed.\n";
