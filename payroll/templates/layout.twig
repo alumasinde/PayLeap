@@ -18,7 +18,7 @@
   <div class="app-layout">
     <aside class="sidebar" id="sidebar" aria-label="Sidebar">
       <div class="sidebar-top">
-        <a class="side-brand" href="{{ portal == 'finance' ? '/finance' : (portal == 'ess' ? '/ess' : '/hr') }}">
+        <a class="side-brand" href="{{ portal == 'finance' ? '/finance' : (portal == 'ess' ? '/ess' : '/hr') }}" aria-label="{{ app_name }} home" title="{{ app_name }}">
           <span class="side-logo">{{ icons.svg('briefcase', 18) }}</span>
           <span class="side-brand-text">
             <strong>{{ app_name }}</strong>
@@ -40,7 +40,7 @@
       <nav class="side-nav" aria-label="Main">
         {% if portal == 'ess' %}
           <a class="side-link{{ current_path == '/ess' ? ' is-active' : '' }}" href="/ess">
-            {{ icons.svg('grid', 18) }}<span>Overview</span>
+            {{ icons.svg('grid', 18) }}<span>Dashboard</span>
           </a>
         {% elseif portal == 'finance' %}
           <a class="side-link{{ current_path == '/finance' ? ' is-active' : '' }}" href="/finance">
@@ -112,6 +112,9 @@
           <a class="side-link{{ current_path == '/app/settings' and 'tab=documents' in current_query ? ' is-active' : '' }}" href="/app/settings?tab=documents">
             {{ icons.svg('file', 18) }}<span>Documents</span>
           </a>
+          <a class="side-link{{ current_path == '/app/announcements' ? ' is-active' : '' }}" href="/app/announcements">
+            {{ icons.svg('bell', 18) }}<span>Announcements</span>
+          </a>
         {% endif %}
 
         {% if portal == 'hr' and (can('users.manage') or can('users.invite') or can('settings.manage')) %}
@@ -131,26 +134,34 @@
         {% endif %}
 
         {% if portal == 'ess' %}
-          <details class="side-group"{{ current_path == '/me' or current_path == '/me/profile' or current_path starts with '/me/' or current_path starts with '/ess/payslips' ? ' open' }}>
-            <summary class="side-group-head">
-              {{ icons.svg('user', 18) }}<span>My workspace</span>{{ icons.svg('chevron-down', 14) }}
-            </summary>
-            <div class="side-group-body">
-              <a class="side-sub{{ current_path == '/me' or current_path == '/me/profile' ? ' is-active' : '' }}" href="/me">My profile</a>
-              <a class="side-sub{{ current_path starts with '/ess/payslips' ? ' is-active' : '' }}" href="/ess/payslips">My payslips</a>
-              <a class="side-sub{{ current_path == '/me/leave' ? ' is-active' : '' }}" href="/me/leave">My leave</a>
-              <a class="side-sub{{ current_path == '/me/attendance' ? ' is-active' : '' }}" href="/me/attendance">My attendance</a>
-              <a class="side-sub{{ current_path == '/me/timesheet' ? ' is-active' : '' }}" href="/me/timesheet">My timesheet</a>
-              <a class="side-sub{{ current_path starts with '/me/documents' ? ' is-active' : '' }}" href="/me/documents">My documents</a>
-              <a class="side-sub{{ current_path == '/me/account' ? ' is-active' : '' }}" href="/me/account">Account settings</a>
-            </div>
-          </details>
+          <a class="side-link{{ current_path == '/me' or current_path == '/me/profile' ? ' is-active' : '' }}" href="/me">
+            {{ icons.svg('user', 18) }}<span>My profile</span>
+          </a>
+          <a class="side-link{{ current_path == '/me/attendance' ? ' is-active' : '' }}" href="/me/attendance">
+            {{ icons.svg('clock', 18) }}<span>My attendance</span>
+          </a>
+          <a class="side-link{{ current_path == '/me/leave' ? ' is-active' : '' }}" href="/me/leave">
+            {{ icons.svg('calendar', 18) }}<span>My leave</span>
+          </a>
+          <a class="side-link{{ current_path starts with '/ess/payslips' ? ' is-active' : '' }}" href="/ess/payslips">
+            {{ icons.svg('wallet', 18) }}<span>My payslips</span>
+          </a>
+          <a class="side-link{{ current_path == '/me/timesheet' ? ' is-active' : '' }}" href="/me/timesheet">
+            {{ icons.svg('file', 18) }}<span>My timesheet</span>
+          </a>
+          <a class="side-link{{ current_path starts with '/me/documents' ? ' is-active' : '' }}" href="/me/documents">
+            {{ icons.svg('file', 18) }}<span>My documents</span>
+          </a>
 
           {% if can('leave.approve.team') or can('leave.approve.all') %}
             <a class="side-link{{ current_path == '/ess/leave/approvals' ? ' is-active' : '' }}" href="/ess/leave/approvals">
               {{ icons.svg('calendar', 18) }}<span>Team leave</span>
             </a>
           {% endif %}
+
+          <a class="side-link{{ current_path == '/me/account' ? ' is-active' : '' }}" href="/me/account">
+            {{ icons.svg('settings', 18) }}<span>Account settings</span>
+          </a>
         {% endif %}
 
         {% if portal != 'ess' %}
@@ -170,7 +181,7 @@
 
     <div class="app-main">
       <header class="topbar">
-        <button class="menu-btn" type="button" data-sidebar-toggle aria-label="Open menu">{{ icons.svg('menu', 20) }}</button>
+        <button class="menu-btn" type="button" data-sidebar-toggle aria-label="Toggle sidebar" aria-controls="sidebar" aria-expanded="true" title="Toggle sidebar">{{ icons.svg('menu', 20) }}</button>
 
         {% if memberships|length > 1 and current_company %}
           <form class="company-picker" method="post" action="/app/company" data-company-form>

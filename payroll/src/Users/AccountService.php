@@ -16,24 +16,6 @@ final class AccountService
     ) {
     }
 
-    public function updateProfile(int $userId, string $firstName, string $lastName, ?int $companyId = null): void
-    {
-        $firstName = trim($firstName);
-        $lastName = trim($lastName);
-
-        if ($firstName === '' || $lastName === '') {
-            throw new HttpException(422, 'Enter your first and last name.');
-        }
-
-        if (mb_strlen($firstName) > 80 || mb_strlen($lastName) > 80) {
-            throw new HttpException(422, 'That name is too long.');
-        }
-
-        $this->userRepository->updateName($userId, $firstName, $lastName);
-
-        $this->auditLogger->record($companyId, $userId, 'account.profile.updated', 'user', (string) $userId);
-    }
-
     public function changePassword(
         int $userId,
         string $current,

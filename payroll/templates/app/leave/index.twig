@@ -50,9 +50,10 @@
               <tr>
                 <th>Leave type</th>
                 <th class="num">Entitlement</th>
+                <th class="num">Accrued</th>
                 <th class="num">Taken</th>
                 <th class="num">Pending</th>
-                <th class="num">Balance</th>
+                <th class="num">Available</th>
               </tr>
             </thead>
             <tbody>
@@ -60,16 +61,17 @@
                 <tr>
                   <td>{{ balance.name }}</td>
                   <td class="num mono">{{ balance.days_per_year == balance.days_per_year|round ? balance.days_per_year|number_format(0) : balance.days_per_year|number_format(1) }}</td>
+                  <td class="num mono">{{ balance.accrued == balance.accrued|round ? balance.accrued|number_format(0) : balance.accrued|number_format(1) }}</td>
                   <td class="num mono">{{ balance.taken == balance.taken|round ? balance.taken|number_format(0) : balance.taken|number_format(1) }}</td>
                   <td class="num mono">{{ balance.pending == balance.pending|round ? balance.pending|number_format(0) : balance.pending|number_format(1) }}</td>
-                  <td class="num mono">{{ balance.remaining == balance.remaining|round ? balance.remaining|number_format(0) : balance.remaining|number_format(1) }}</td>
+                  <td class="num mono">{{ balance.available == balance.available|round ? balance.available|number_format(0) : balance.available|number_format(1) }}</td>
                 </tr>
               {% endfor %}
             </tbody>
           </table>
         </div>
         <p class="hint">
-          Balance is entitlement less approved days for {{ year }}. Pending requests are shown but not deducted.
+          Entitlement is the yearly policy. Accrued is what the employee has earned by today; Available is accrued less approved and pending days for {{ year }}.
           {% if selected_employee and not selected_employee.gender %}
             Gender is not recorded for this employee; maternity and paternity balances are shown until it is set on the employee record.
           {% endif %}
@@ -90,6 +92,7 @@
         <a class="chip{{ filter_status == 'pending' ? ' on' }}" href="/app/leave?status=pending">Pending</a>
         <a class="chip{{ filter_status == 'approved' ? ' on' }}" href="/app/leave?status=approved">Approved</a>
         <a class="chip{{ filter_status == 'rejected' ? ' on' }}" href="/app/leave?status=rejected">Rejected</a>
+        <a class="chip{{ filter_status == 'cancelled' ? ' on' }}" href="/app/leave?status=cancelled">Cancelled</a>
         <a class="chip{{ filter_status == 'all' ? ' on' }}" href="/app/leave?status=all">All</a>
       </nav>
     </div>
@@ -167,13 +170,22 @@
         <div class="table-wrap">
           <table class="list">
             <thead>
-              <tr><th>Type</th><th class="num">Days per year</th><th>Who may take it</th><th>Paid</th><th>Document</th><th class="num">Carry-over</th></tr>
+              <tr><th>Type</th><th class="num">Days per year</th><th>Accrual</th><th>Who may take it</th><th>Paid</th><th>Document</th><th class="num">Carry-over</th></tr>
             </thead>
             <tbody>
               {% for type in types %}
                 <tr>
                   <td>{{ type.name }}</td>
                   <td class="num mono">{{ type.days_per_year == type.days_per_year|round ? type.days_per_year|number_format(0) : type.days_per_year|number_format(1) }}</td>
+                  <td>
+                    {% if type.accrual_rule == 'monthly' %}
+                      Monthly · {{ type.days_per_year / 12 == (type.days_per_year / 12)|round ? (type.days_per_year / 12)|number_format(0) : (type.days_per_year / 12)|number_format(2) }}/month
+                    {% else %}
+                      Full year upfront
+                    {% endif %}
+                    {% if type.accrual_start_months > 0 %}<br><span class="muted">after {{ type.accrual_start_months }} month{{ type.accrual_start_months == 1 ? '' : 's' }}</span>{% endif %}
+                    <br><span class="muted">{{ type.day_basis == 'calendar' ? 'calendar days' : 'working days' }}</span>
+                  </td>
                   <td>{{ {'any': 'Everyone', 'female': 'Female', 'male': 'Male'}[type.gender_restriction] ?? 'Everyone' }}</td>
                   <td>{{ type.paid ? 'Yes' : 'No' }}</td>
                   <td>{{ type.requires_document ? 'Required' : 'Not required' }}</td>

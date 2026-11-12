@@ -1,0 +1,64 @@
+{% extends 'layout.twig' %}
+{% import 'partials/icons.twig' as icons %}
+
+{% block title %}Announcements — {{ app_name }}{% endblock %}
+
+{% block body %}
+  <section class="page-head">
+    <span class="kicker">People communications</span>
+    <h1>HR announcements</h1>
+    <p class="muted">Short notices shown to employees on the ESS dashboard.</p>
+  </section>
+
+  <div class="grid-2">
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>Publish an announcement</h2>
+          <p class="muted">Keep it short. Employees see the latest two notices.</p>
+        </div>
+      </div>
+      <form class="stack" method="post" action="/app/announcements">
+        <input type="hidden" name="_token" value="{{ csrf_token() }}">
+        <label class="field">
+          <span>Title</span>
+          <input type="text" name="title" maxlength="160" required placeholder="End-of-year closure">
+        </label>
+        <label class="field">
+          <span>Message</span>
+          <textarea name="body" rows="7" maxlength="5000" required placeholder="What employees need to know."></textarea>
+        </label>
+        <button class="btn-primary" type="submit">{{ icons.svg('bell', 16) }} Publish announcement</button>
+      </form>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>Published announcements</h2>
+          <p class="muted">{{ announcements|length }} published.</p>
+        </div>
+      </div>
+
+      {% if announcements %}
+        <div class="announcement-admin-list">
+          {% for announcement in announcements %}
+            <article class="announcement-admin">
+              <div class="announcement-admin-head">
+                <strong>{{ announcement.title }}</strong>
+                <small>{{ announcement.published_at ? announcement.published_at|date('j M Y') : '—' }}</small>
+              </div>
+              <p class="announcement-body">{{ announcement.body }}</p>
+              <form method="post" action="/app/announcements/{{ announcement.id }}/delete">
+                <input type="hidden" name="_token" value="{{ csrf_token() }}">
+                <button class="btn-ghost btn-xs" type="submit">Delete</button>
+              </form>
+            </article>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="muted">No announcements yet. The first notice appears here and on the ESS dashboard.</p>
+      {% endif %}
+    </section>
+  </div>
+{% endblock %}

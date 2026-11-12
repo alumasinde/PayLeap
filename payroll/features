@@ -27,7 +27,7 @@ Conventions carried over from the README, applied to every table below:
 | Payslips (printable) | Built | Reads stored breakdown |
 | Payslip PDF, branding, email, password-protected | Next | See section 5 |
 | Self-service portal | Next | `/me` shell exists |
-| Leave | Built | Configurable types (days, gender eligibility, carry-over, documents), requests, approval decision, and derived balances (entitlement, taken, pending, remaining) |
+| Leave | Built | Configurable types (days, accrual method and waiting period, working/calendar day basis, gender eligibility, carry-over, documents), requests, approval decision, and derived balances (entitlement, accrued, taken, pending, available) |
 | Attendance, overtime | Built | Daily register, monthly timesheet against the roster, public holidays with separate holiday hours, source-tagged capture, clock and meal device registry; overtime rates still a gap |
 | Loans, advances | Gap | Needed before payroll is usable for real clients |
 | Allowances, earnings, deductions (recurring + one-off) | Gap | Critical: payroll is incomplete without it |

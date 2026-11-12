@@ -21,7 +21,8 @@ gender eligibility, public holidays, shift times and breaks, and the clock or
 meal devices on site. The **portal layer** gives every member the right shell
 for their permissions (`/hr`, `/finance`, `/ess`), and **ESS payslips** show
 their own approved months without exposing another person's line. The `modules`
-table says exactly what is live.
+table says exactly what is live. **HR announcements** are authored behind
+`settings.manage` and surface on the ESS dashboard.
 
 No framework. Twig + PDO + PHP 8.2, Composer for autoload and Twig only.
 
@@ -90,7 +91,7 @@ are stored in MySQL by default (`SESSION_DRIVER=database`); set
 | `POST /app/attendance` | Mark or correct one person's day, with a clock source (`attendance.edit`) |
 | `GET /app/roster` | Month calendar of shifts, rest days and approved leave (`attendance.view`) |
 | `POST /app/roster` | Assign a shift or a rest day to one person's date (`attendance.edit`) |
-| `GET /app/leave` | Leave requests filtered by status (`leave.view`); `?view=balances` shows entitlement, taken, pending and balance |
+| `GET /app/leave` | Leave requests filtered by status (`leave.view`); `?view=balances` shows entitlement, accrued, taken, pending and available days |
 | `POST /app/leave/{id}/decide` | Approve or reject a pending request (`leave.approve.team` for the team, `leave.approve.all` for the company); nobody decides their own, and restricted types check gender |
 | `GET /app/settings` | Company policy tabs: organisation, leave and holidays, shifts, devices (`settings.manage`) |
 | `POST /app/settings/company` | Rename the company |
@@ -102,12 +103,15 @@ are stored in MySQL by default (`SESSION_DRIVER=database`); set
 | `POST /app/settings/shifts/{id}/toggle` | Enable or retire a shift |
 | `POST /app/settings/devices` | Register a clock or meal device |
 | `POST /app/settings/devices/{id}/toggle` | Enable or retire a device |
+| `GET /app/announcements` | HR announcements authoring page (`settings.manage`) |
+| `POST /app/announcements` | Publish one announcement |
+| `POST /app/announcements/{id}/delete` | Delete an announcement |
 | `GET /ess/payslips` | Your own payslips from approved runs only (404 for anyone else's line) |
 | `GET /ess/payslips/{line}` | One of your own approved payslips |
 | `GET /ess/leave/approvals` | Team leave for a HOD or company approver (`leave.approve.team` / `leave.approve.all`), decided through the normal endpoint |
-| `POST /me/profile` | Change your own first and last name |
 | `POST /me/password` | Change your password; other sessions are revoked |
-| `GET /me` | The signed-in person's own account (self-service shell) |
+| `GET /me` | The signed-in employee's own profile |
+| `GET /me/account` | Account settings; the only editable field is the password |
 | `POST /me/sign-out-everywhere` | End every session for the account, including the current one |
 | `POST /app/company` | Switch company (membership checked, session rotated) |
 
@@ -228,8 +232,15 @@ recreate `mshahara_payroll_test` from scratch on every run.
   records it. A terminal integration writes the same row through
   `AttendanceService::mark()` and gets the same validation, tenancy and audit.
 - **Leave balances are derived, never stored.** Entitlement comes from
-  `leave_types.days_per_year`; taken is approved days in the year and pending is
-  requested days, so a decision immediately moves the balance.
+  `leave_types.days_per_year`; yearly entitlement is not the same as the days
+  available today. Annual leave accrues monthly from the employment start date
+  (21 days is 1.75/month), while fixed types such as sick leave become available
+  after their qualifying period (sick leave defaults to 2 months). Settings
+  stores the rule, waiting period and day basis per type. Working-day types
+  (annual, sick) exclude weekends and company public holidays; calendar-day
+  types (maternity, paternity) count every date. Requests are checked against
+  accrued days less taken and pending days. Taken is approved days in the year
+  and pending is requested days, so a decision immediately moves the balance.
 - **Approval follows the reporting line.** `employees.manager_id` is the direct
   supervisor and `user_id` links that person to a login (both set on the employee
   form). A team approver (`leave.approve.team`, the HOD) sees direct reports and

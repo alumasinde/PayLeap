@@ -3,9 +3,37 @@
 
   var sidebar = document.getElementById('sidebar');
   var scrim = document.querySelector('.sidebar-scrim');
+  var toggleButtons = document.querySelectorAll('[data-sidebar-toggle]');
+  var mobileQuery = window.matchMedia('(max-width: 1024px)');
+  var collapseKey = 'mshahara.sidebar.collapsed';
+  var collapsed = false;
+
+  try {
+    collapsed = window.localStorage.getItem(collapseKey) === '1';
+  } catch (error) {
+    collapsed = false;
+  }
+
+  function setCollapsed(value, persist) {
+    collapsed = value;
+    document.body.classList.toggle('sidebar-collapsed', value && !mobileQuery.matches);
+
+    toggleButtons.forEach(function (button) {
+      button.setAttribute('aria-expanded', String(!value || mobileQuery.matches));
+    });
+
+    if (persist) {
+      try {
+        window.localStorage.setItem(collapseKey, value ? '1' : '0');
+      } catch (error) {
+        // Local storage can be unavailable in private browsing contexts.
+      }
+    }
+  }
 
   function openSidebar() {
     if (!sidebar) return;
+    document.body.classList.remove('sidebar-collapsed');
     sidebar.classList.add('is-open');
     if (scrim) scrim.hidden = false;
   }
@@ -16,8 +44,14 @@
     if (scrim) scrim.hidden = true;
   }
 
-  document.querySelectorAll('[data-sidebar-toggle]').forEach(function (button) {
-    button.addEventListener('click', openSidebar);
+  toggleButtons.forEach(function (button) {
+    button.addEventListener('click', function () {
+      if (mobileQuery.matches) {
+        openSidebar();
+      } else {
+        setCollapsed(!collapsed, true);
+      }
+    });
   });
 
   document.querySelectorAll('[data-sidebar-close]').forEach(function (element) {
@@ -30,9 +64,44 @@
     });
   }
 
+  document.querySelectorAll('.side-group-head').forEach(function (summary) {
+    summary.addEventListener('click', function (event) {
+      if (!mobileQuery.matches && collapsed) {
+        event.preventDefault();
+        setCollapsed(false, true);
+
+        var group = summary.parentElement;
+        if (group && group.tagName === 'DETAILS') group.open = true;
+      }
+    });
+  });
+
+  document.querySelectorAll('.side-link, .side-group-head').forEach(function (element) {
+    var label = element.querySelector('span');
+    if (!label) return;
+
+    var text = label.textContent.trim();
+    if (text) element.setAttribute('title', text);
+  });
+
   document.addEventListener('keydown', function (event) {
     if (event.key === 'Escape') closeSidebar();
   });
+
+  setCollapsed(collapsed, false);
+
+  var onViewportChange = function () {
+    setCollapsed(collapsed, false);
+    if (!mobileQuery.matches) closeSidebar();
+  };
+
+  if (mobileQuery.addEventListener) {
+    mobileQuery.addEventListener('change', onViewportChange);
+  } else if (mobileQuery.addListener) {
+    mobileQuery.addListener(onViewportChange);
+  }
+
+  window.addEventListener('resize', onViewportChange);
 
   var companySelect = document.querySelector('[data-company-select]');
   if (companySelect && companySelect.form) {

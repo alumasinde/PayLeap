@@ -26,7 +26,7 @@ final class LeaveController
 
         $status = (string) $this->app->request->query('status', 'pending');
 
-        if (!in_array($status, ['pending', 'approved', 'rejected', 'all'], true)) {
+        if (!in_array($status, ['pending', 'approved', 'rejected', 'cancelled', 'all'], true)) {
             $status = 'pending';
         }
 
@@ -54,7 +54,7 @@ final class LeaveController
             'selected_employee' => $employee,
             'year' => $year,
             'balances' => $view === 'balances' && $employee !== null
-                ? $this->app->leave->requests->balances($companyId, (int) $employee['id'], $year)
+                ? $this->app->leave->balance->balances($companyId, (int) $employee['id'], $year)
                 : [],
         ]);
     }

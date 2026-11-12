@@ -22,13 +22,6 @@ final class UserRepository
         return $row === false ? null : $row;
     }
 
-    public function updateName(int $userId, string $firstName, string $lastName): void
-    {
-        $this->db
-            ->prepare('UPDATE users SET first_name = ?, last_name = ? WHERE id = ?')
-            ->execute([$firstName, $lastName, $userId]);
-    }
-
     public function passwordHash(int $userId): ?string
     {
         $statement = $this->db->prepare('SELECT password_hash FROM users WHERE id = ? LIMIT 1');

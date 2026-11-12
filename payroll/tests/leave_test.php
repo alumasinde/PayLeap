@@ -260,10 +260,15 @@ check(
 
 $types = $app->leave->requests->types($companyId);
 $maternityId = 0;
+$sickId = 0;
 
 foreach ($types as $type) {
     if ($type['name'] === 'Maternity leave') {
         $maternityId = (int) $type['id'];
+    }
+
+    if ($type['name'] === 'Sick leave') {
+        $sickId = (int) $type['id'];
     }
 }
 
@@ -271,7 +276,12 @@ $service->update($companyId, $staffA, ['gender' => 'female'], 1);
 $service->update($companyId, $staffB, ['gender' => 'male'], 1);
 
 $today = new DateTimeImmutable('today');
-$start = $today->modify('+60 days');
+$start = new DateTimeImmutable((int) $today->format('Y') . '-12-15');
+
+if ($start <= $today) {
+    $start = $today->modify('+1 day');
+}
+
 $end = $start->modify('+2 days');
 $submitted = $leave->submit(
     $companyId,
@@ -284,7 +294,7 @@ $submitted = $leave->submit(
 );
 $submittedRow = $db->query('SELECT * FROM leave_requests WHERE id = ' . $submitted)->fetch();
 check('an employee can submit leave', $submittedRow !== false && $submittedRow['status'] === 'pending');
-check('submitted days are calendar days inclusive', (int) $submittedRow['days'] === 3);
+check('submitted days count working days only', (int) $submittedRow['days'] === 3);
 
 $ownList = $app->leave->requests->listForEmployee($companyId, $staffA);
 check('the submission appears in the employee history', in_array($submitted, array_map(static fn (array $row): int => (int) $row['id'], $ownList), true));
@@ -338,6 +348,106 @@ check(
             $app->leave->requests->setTypeActive($companyId, $annualId, true);
         }
     })(),
+);
+
+// ------------------------------------------------------------- accrual
+
+$studyId = $leave->saveType($companyId, [
+    'name' => 'Study leave',
+    'days_per_year' => 12,
+    'accrual_rule' => 'monthly',
+    'accrual_start_months' => 0,
+    'day_basis' => 'working',
+    'paid' => 1,
+    'gender_restriction' => 'any',
+    'requires_document' => 1,
+    'carry_over_max' => 0,
+    'active' => 1,
+], 1);
+$studyType = $app->leave->requests->findType($companyId, $studyId);
+check(
+    'a leave type can be saved with monthly accrual',
+    $studyType !== null
+        && $studyType['accrual_rule'] === 'monthly'
+        && (int) $studyType['accrual_start_months'] === 0
+        && $studyType['day_basis'] === 'working',
+);
+
+$friday = $today->modify('next friday');
+$maternityRequest = $leave->submit(
+    $companyId,
+    $staffA,
+    $maternityId,
+    $friday->format('Y-m-d'),
+    $friday->modify('+3 days')->format('Y-m-d'),
+    '',
+    $hodUserId,
+);
+$maternityRow = $db->query('SELECT days FROM leave_requests WHERE id = ' . $maternityRequest)->fetch();
+check(
+    'calendar-day leave counts the weekend',
+    $maternityRow !== false && (int) $maternityRow['days'] === 4,
+);
+
+$newHire = $service->create($companyId, [
+    'first_name' => 'Njeri',
+    'last_name' => 'New',
+    'start_date' => $today->modify('first day of last month')->format('Y-m-d'),
+], 1);
+$newHireAnnual = null;
+$newHireSick = null;
+
+foreach ($app->leave->requests->balances($companyId, $newHire, (int) $today->format('Y')) as $balance) {
+    if ((int) $balance['id'] === $annualId) {
+        $newHireAnnual = $balance;
+    }
+
+    if ((int) $balance['id'] === $sickId) {
+        $newHireSick = $balance;
+    }
+}
+
+check(
+    'a one-month joiner accrues one month, not the yearly entitlement',
+    $newHireAnnual !== null
+        && abs((float) $newHireAnnual['accrued'] - 1.75) < 0.001
+        && (float) $newHireAnnual['days_per_year'] === 21.0,
+    $newHireAnnual === null ? 'no annual balance' : (string) $newHireAnnual['accrued'],
+);
+check(
+    'a request above the accrued balance is refused for a new joiner',
+    statusOf(static fn () => $leave->submit($companyId, $newHire, $annualId, $today->format('Y-m-d'), $today->modify('+2 days')->format('Y-m-d'), '', $hodUserId)) === 422,
+);
+check(
+    'a new joiner can book an accrued day',
+    statusOf(static fn () => $leave->submit($companyId, $newHire, $annualId, $today->format('Y-m-d'), $today->format('Y-m-d'), '', $hodUserId)) === 0,
+);
+$saturday = $today->modify('next saturday');
+check(
+    'a weekend-only request is refused',
+    statusOf(static fn () => $leave->submit($companyId, $newHire, $annualId, $saturday->format('Y-m-d'), $saturday->modify('+1 day')->format('Y-m-d'), '', $hodUserId)) === 422,
+);
+check(
+    'sick leave waits for its qualifying period',
+    $newHireSick !== null && abs((float) $newHireSick['accrued']) < 0.001,
+    $newHireSick === null ? 'no sick balance' : (string) $newHireSick['accrued'],
+);
+
+$service->update($companyId, $newHire, [
+    'start_date' => $today->modify('-3 months')->modify('first day of this month')->format('Y-m-d'),
+], 1);
+$sickAfterWait = null;
+
+foreach ($app->leave->requests->balances($companyId, $newHire, (int) $today->format('Y')) as $balance) {
+    if ((int) $balance['id'] === $sickId) {
+        $sickAfterWait = $balance;
+    }
+}
+
+check(
+    'sick leave becomes available in full after two months',
+    $sickAfterWait !== null && abs((float) $sickAfterWait['accrued'] - 14.0) < 0.001,
+    $sickAfterWait === null ? 'no sick balance' : (string) $sickAfterWait['accrued'],
 );
 
 echo "\n";

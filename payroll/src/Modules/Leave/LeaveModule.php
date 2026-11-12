@@ -9,6 +9,8 @@ final class LeaveModule
     public function __construct(
         public readonly LeaveRepository $requests,
         public readonly LeaveService $service,
+        public readonly LeaveLedgerRepository $ledger,
+        public readonly LeaveBalanceService $balance,
     ) {
     }
 }

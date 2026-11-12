@@ -19,6 +19,7 @@ use Mshahara\Payroll\Companies\MembershipService;
 use Mshahara\Payroll\Foundation\Bootstrap;
 use Mshahara\Payroll\Http\Request;
 use Mshahara\Payroll\Http\Router;
+use Mshahara\Payroll\Modules\Announcements\AnnouncementModule;
 use Mshahara\Payroll\Modules\Employees\EmployeeModule;
 use Mshahara\Payroll\Modules\ModuleRepository;
 use Mshahara\Payroll\Modules\Attendance\AttendanceModule;
@@ -60,6 +61,7 @@ final class App
     public AccountService $accountService;
     public ModuleRepository $moduleRepository;
     public EmployeeModule $employees;
+    public AnnouncementModule $announcements;
     public DocumentModule $documents;
     public PayrollModule $payroll;
     public LeaveModule $leave;

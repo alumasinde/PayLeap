@@ -19,6 +19,9 @@ use Mshahara\Payroll\Companies\CompanyService;
 use Mshahara\Payroll\Companies\MembershipService;
 use Mshahara\Payroll\Http\Request;
 use Mshahara\Payroll\Http\Router;
+use Mshahara\Payroll\Modules\Announcements\AnnouncementModule;
+use Mshahara\Payroll\Modules\Announcements\AnnouncementRepository;
+use Mshahara\Payroll\Modules\Announcements\AnnouncementService;
 use Mshahara\Payroll\Modules\Employees\DepartmentRepository;
 use Mshahara\Payroll\Modules\Employees\EmployeeModule;
 use Mshahara\Payroll\Modules\Employees\EmployeeRepository;
@@ -39,6 +42,8 @@ use Mshahara\Payroll\Modules\Documents\DocumentModule;
 use Mshahara\Payroll\Modules\Documents\DocumentRepository;
 use Mshahara\Payroll\Modules\Documents\DocumentService;
 use Mshahara\Payroll\Modules\Leave\LeaveModule;
+use Mshahara\Payroll\Modules\Leave\LeaveBalanceService;
+use Mshahara\Payroll\Modules\Leave\LeaveLedgerRepository;
 use Mshahara\Payroll\Modules\Leave\LeaveRepository;
 use Mshahara\Payroll\Modules\Leave\LeaveService;
 use Mshahara\Payroll\Modules\Payroll\PayrollModule;
@@ -140,9 +145,25 @@ final class Bootstrap
             new DocumentService($documentRepository, $app->auditLogger, $fileStore),
             $fileStore,
         );
+        $announcementRepository = new AnnouncementRepository($app->db);
+        $app->announcements = new AnnouncementModule(
+            $announcementRepository,
+            new AnnouncementService($announcementRepository, $app->auditLogger),
+        );
+        $leaveLedger = new LeaveLedgerRepository($app->db);
+        $leaveBalance = new LeaveBalanceService($app->db, $leaveRepository, $leaveLedger);
         $app->leave = new LeaveModule(
             $leaveRepository,
-            new LeaveService($leaveRepository, $employeeRepository, $app->auditLogger),
+            new LeaveService(
+                $app->db,
+                $leaveRepository,
+                $employeeRepository,
+                $app->auditLogger,
+                $leaveLedger,
+                $leaveBalance,
+            ),
+            $leaveLedger,
+            $leaveBalance,
         );
         $attendanceRepository = new AttendanceRepository($app->db);
         $app->attendance = new AttendanceModule(

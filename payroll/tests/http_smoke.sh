@@ -210,16 +210,66 @@ curl -s -b "$JAR" -o "$APP_HTML" "$BASE/app/employees"
 if grep -q "$emp_no" "$APP_HTML"; then ok "employee appears in the register"; else bad "employee appears in the register"; fi
 
 etoken=$(grep -o 'name="_token" value="[^"]*"' "$APP_HTML" | head -1 | sed 's/.*value="//;s/"$//')
+owner_id=$(cd "$ROOT" && php -r '
+require "vendor/autoload.php";
+Mshahara\Payroll\Support\Env::load(__DIR__ . "/.env");
+$c = require __DIR__ . "/config/app.php";
+$db = Mshahara\Payroll\Support\Db::connect($c["db"]);
+$s = $db->prepare("SELECT id FROM users WHERE email = ? LIMIT 1");
+$s->execute([$argv[1]]);
+echo (int) $s->fetchColumn();
+' "$email")
+if [ -n "$owner_id" ]; then ok "owner login is available for employee linking"; else bad "owner login is available for employee linking"; fi
+
 status=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR" -c "$JAR" -X POST "$BASE$emp_path" \
   --data-urlencode "_token=$etoken" \
   --data-urlencode "first_name=Njeri" \
   --data-urlencode "last_name=Wambui" \
   --data-urlencode "job_title=Senior clerk" \
-  --data-urlencode "start_date=2024-03-01")
+  --data-urlencode "start_date=2024-03-01" \
+  --data-urlencode "user_id=$owner_id")
 expect "employee update redirects" "$status" "302"
 
 curl -s -b "$JAR" -o "$APP_HTML" "$BASE$emp_path"
 if grep -q "Senior clerk" "$APP_HTML"; then ok "employee update is saved"; else bad "employee update is saved"; fi
+
+status=$(curl -s -b "$JAR" -o "$APP_HTML" -w '%{http_code}' "$BASE/app/announcements")
+expect "GET /app/announcements is 200" "$status" "200"
+if grep -q "Publish an announcement" "$APP_HTML"; then ok "announcement authoring form is shown"; else bad "announcement authoring form is shown"; fi
+
+atoken=$(grep -o 'name="_token" value="[^"]*"' "$APP_HTML" | head -1 | sed 's/.*value="//;s/"$//')
+notice_title="Smoke notice $(date +%s)"
+status=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR" -c "$JAR" -X POST "$BASE/app/announcements" \
+  --data-urlencode "_token=$atoken" \
+  --data-urlencode "title=$notice_title" \
+  --data-urlencode "body=Please read this notice before the end of the week.")
+expect "announcement publish redirects" "$status" "302"
+
+curl -s -b "$JAR" -o "$APP_HTML" "$BASE/app/announcements"
+if grep -q "Please read this notice" "$APP_HTML"; then ok "published announcement is listed"; else bad "published announcement is listed"; fi
+
+status=$(curl -s -b "$JAR" -o "$APP_HTML" -w '%{http_code}' "$BASE/ess")
+expect "linked employee ESS dashboard is 200" "$status" "200"
+for marker in "Attendance Overview" "My Leave Balance" "Recent Activities" "HR Announcements" "Quick Navigation"; do
+  if grep -q "$marker" "$APP_HTML"; then ok "ESS dashboard shows $marker"; else bad "ESS dashboard shows $marker"; fi
+done
+if grep -q "$notice_title" "$APP_HTML" && grep -q "Please read this notice" "$APP_HTML"; then
+  ok "ESS dashboard reads the real announcement source"
+else
+  bad "ESS dashboard reads the real announcement source"
+fi
+
+status=$(curl -s -b "$JAR" -o "$APP_HTML" -w '%{http_code}' "$BASE/me/leave")
+expect "GET /me/leave is 200" "$status" "200"
+for marker in "Accrued" "Available" "of 21 entitled"; do
+  if grep -q "$marker" "$APP_HTML"; then ok "ESS leave shows $marker"; else bad "ESS leave shows $marker"; fi
+done
+
+status=$(curl -s -b "$JAR" -o "$APP_HTML" -w '%{http_code}' "$BASE/app/leave?view=balances")
+expect "GET /app/leave?view=balances is 200" "$status" "200"
+for marker in "Accrued" "Available"; do
+  if grep -q "$marker" "$APP_HTML"; then ok "HR leave balances show $marker"; else bad "HR leave balances show $marker"; fi
+done
 
 # ------------------------------------------------------------------- payroll
 
@@ -288,14 +338,23 @@ expect "GET /me/account is 200" "$status" "200"
 curl -s -b "$JAR" -o "$APP_HTML" "$BASE/me/account"
 ptoken=$(grep -o 'name="_token" value="[^"]*"' "$APP_HTML" | head -1 | sed 's/.*value="//;s/"$//')
 
+if grep -q "Change password" "$APP_HTML" \
+  && ! grep -q "Edit your name" "$APP_HTML" \
+  && ! grep -q 'name="first_name"' "$APP_HTML" \
+  && ! grep -q "Sign out everywhere" "$APP_HTML"; then
+  ok "account settings is password-only"
+else
+  bad "account settings is password-only"
+fi
+
 status=$(curl -s -o /dev/null -w '%{http_code}' -c "$JAR" -b "$JAR" -X POST "$BASE/me/profile" \
   --data-urlencode "_token=$ptoken" \
-  --data-urlencode "first_name=Smoke" \
-  --data-urlencode "last_name=Ownerly")
-expect "profile update redirects" "$status" "302"
+  --data-urlencode "first_name=Changed" \
+  --data-urlencode "last_name=Person")
+expect "self-service name update is blocked" "$status" "404"
 
 curl -s -b "$JAR" -o "$APP_HTML" "$BASE/me/account"
-if grep -q "Ownerly" "$APP_HTML"; then ok "profile change is shown"; else bad "profile change is shown"; fi
+if grep -q "Smoke Owner" "$APP_HTML" && ! grep -q "Changed Person" "$APP_HTML"; then ok "employee name cannot be changed from account settings"; else bad "employee name cannot be changed from account settings"; fi
 
 status=$(curl -s -o /dev/null -w '%{http_code}' -c "$JAR" -b "$JAR" -X POST "$BASE/me/password" \
   --data-urlencode "_token=$ptoken" \

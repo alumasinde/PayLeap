@@ -1,0 +1,278 @@
+{% extends 'layout.twig' %}
+{% import 'partials/icons.twig' as icons %}
+
+{% macro days(value) %}{{ value == value|round ? value|number_format(0) : value|number_format(2) }}{% endmacro %}
+
+{% block title %}Dashboard — {{ app_name }}{% endblock %}
+
+{% block body %}
+  <section class="dash-head">
+    <div>
+      <span class="kicker">Dashboard</span>
+      <h1>{{ greeting }}, {{ employee.first_name }}</h1>
+      <p class="muted">Here’s your employee overview for today · {{ current_company.company_name }}</p>
+    </div>
+    <div class="row-actions">
+      <span class="chip">{{ today|date('D, j M Y') }}</span>
+      <a class="btn-ghost" href="/me">{{ icons.svg('user', 16) }} View profile</a>
+      <a class="btn-primary" href="/me/leave?apply=1">{{ icons.svg('calendar', 16) }} Apply for leave</a>
+    </div>
+  </section>
+
+  <div class="stat-cards">
+    <a class="stat-card stat-link" href="/me/leave">
+      <div class="stat-top">
+        <span class="stat-icon green">{{ icons.svg('calendar', 18) }}</span>
+        <span class="stat-side">
+          <span class="stat-trend">{{ _self.days(leave_available) }} days</span>
+          <span class="stat-arrow">{{ icons.svg('arrow-up-right', 14) }}</span>
+        </span>
+      </div>
+      <span class="stat-value">{{ _self.days(leave_available) }}</span>
+      <span class="stat-label">{{ leave_primary_label }} available</span>
+      <span class="stat-foot">Accrued {{ _self.days(leave_accrued) }} · Taken {{ _self.days(leave_taken) }}</span>
+    </a>
+
+    <a class="stat-card stat-link" href="/me/attendance">
+      <div class="stat-top">
+        <span class="stat-icon blue">{{ icons.svg('check-circle', 18) }}</span>
+        <span class="stat-side">
+          {% if scheduled_days > 0 %}<span class="stat-trend">{{ attendance_rate }}%</span>{% endif %}
+          <span class="stat-arrow">{{ icons.svg('arrow-up-right', 14) }}</span>
+        </span>
+      </div>
+      <span class="stat-value">{{ scheduled_days > 0 ? attendance_rate ~ '%' : '—' }}</span>
+      <span class="stat-label">Attendance this month</span>
+      <span class="stat-foot">
+        {% if scheduled_days > 0 %}
+          {{ attendance_days.present }} present · {{ attendance_days.absent }} absent
+        {% else %}
+          No scheduled days yet
+        {% endif %}
+      </span>
+    </a>
+
+    <a class="stat-card stat-link" href="/ess/payslips">
+      <div class="stat-top">
+        <span class="stat-icon amber">{{ icons.svg('file', 18) }}</span>
+        <span class="stat-side">
+          <span class="stat-trend">{{ payslip_count }} available</span>
+          <span class="stat-arrow">{{ icons.svg('arrow-up-right', 14) }}</span>
+        </span>
+      </div>
+      <span class="stat-value">{{ payslip_count }}</span>
+      <span class="stat-label">Payslips available</span>
+      <span class="stat-foot">
+        {% if latest_payslip %}
+          {{ latest_payslip.period|date('F Y') }} · KES {{ latest_payslip.net_cents|money }}
+        {% else %}
+          Approved payslips appear here
+        {% endif %}
+      </span>
+    </a>
+
+    <a class="stat-card stat-link" href="/me/leave">
+      <div class="stat-top">
+        <span class="stat-icon clay">{{ icons.svg('clock', 18) }}</span>
+        <span class="stat-side">
+          <span class="stat-arrow">{{ icons.svg('arrow-up-right', 14) }}</span>
+        </span>
+      </div>
+      <span class="stat-value">{{ pending_requests }}</span>
+      <span class="stat-label">Pending requests</span>
+      <span class="stat-foot">
+        {% if leave_pending > 0 %}
+          {{ _self.days(leave_pending) }} leave day{{ leave_pending == 1 ? '' : 's' }} awaiting a decision
+        {% else %}
+          Nothing waiting for a decision
+        {% endif %}
+      </span>
+    </a>
+  </div>
+
+  <div class="dash-grid">
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>Attendance Overview</h2>
+          <p class="muted">{{ month_label }} · weekly present and absent days</p>
+        </div>
+        <a class="text-link" href="/me/attendance">View details {{ icons.svg('arrow-right', 14) }}</a>
+      </div>
+
+      <div class="chart-legend">
+        <span class="legend-item"><i class="legend-dot present"></i>Present <strong>{{ attendance_days.present }}</strong></span>
+        <span class="legend-item"><i class="legend-dot absent"></i>Absent <strong>{{ attendance_days.absent }}</strong></span>
+        <span class="legend-item"><i class="legend-dot leave"></i>On leave <strong>{{ attendance_days.on_leave }}</strong></span>
+      </div>
+
+      <svg class="attendance-chart" viewBox="0 0 620 210" role="img" aria-labelledby="attendance-chart-title">
+        <title id="attendance-chart-title">Attendance by week for {{ month_label }}</title>
+        <g class="chart-grid" aria-hidden="true">
+          <line x1="40" y1="170" x2="600" y2="170"></line>
+          <line x1="40" y1="130" x2="600" y2="130"></line>
+          <line x1="40" y1="90" x2="600" y2="90"></line>
+          <line x1="40" y1="50" x2="600" y2="50"></line>
+        </g>
+        {% for week in attendance_chart %}
+          <g class="chart-week">
+            <rect class="bar-present" x="{{ week.x }}" y="{{ week.present_y }}" width="30" height="{{ week.present_h }}" rx="4"></rect>
+            <rect class="bar-absent" x="{{ week.absent_x }}" y="{{ week.absent_y }}" width="30" height="{{ week.absent_h }}" rx="4"></rect>
+            <text class="chart-label" x="{{ week.label_x }}" y="190">{{ week.label }}</text>
+          </g>
+        {% endfor %}
+      </svg>
+
+      {% if not attendance_chart_has_data %}
+        <p class="muted">No attendance has been recorded yet this month. Your roster and daily record will appear here.</p>
+      {% endif %}
+      <p class="hint">Present includes late arrivals. Approved leave and public holidays are never counted as absence.</p>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>My Leave Balance</h2>
+          <p class="muted">{{ leave_primary_label }} · {{ year }}</p>
+        </div>
+        <a class="text-link" href="/me/leave">View leave {{ icons.svg('arrow-right', 14) }}</a>
+      </div>
+
+      {% if leave_balances %}
+        <div class="leave-chart-wrap">
+          <div class="donut" role="img" aria-label="Annual leave available">
+            <svg viewBox="0 0 42 42" aria-hidden="true">
+              <circle class="donut-track" cx="21" cy="21" r="15.9155"></circle>
+              {% for part in leave_chart %}
+                {% if part.percent > 0 %}
+                  <circle class="donut-segment {{ part.key }}" cx="21" cy="21" r="15.9155"
+                          stroke-dasharray="{{ part.percent }} {{ 100 - part.percent }}"
+                          stroke-dashoffset="{{ part.offset }}"></circle>
+                {% endif %}
+              {% endfor %}
+            </svg>
+            <div class="donut-center">
+              <strong>{{ _self.days(leave_available) }}</strong>
+              <span>days available</span>
+            </div>
+          </div>
+
+          <div class="leave-legend">
+            {% for part in leave_chart %}
+              <div class="leave-legend-row">
+                <span class="leave-legend-label"><i class="legend-dot {{ part.key }}"></i>{{ part.label }}</span>
+                <strong>{{ _self.days(part.value) }} days</strong>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+
+        <p class="hint">{{ _self.days(leave_accrued) }} of {{ _self.days(leave_entitled) }} {{ leave_primary_label|lower }} days accrued so far. Pending days are not available to book.</p>
+        <a class="btn-primary btn-block" href="/me/leave?apply=1">{{ icons.svg('calendar', 16) }} Apply for leave</a>
+      {% else %}
+        <p class="muted">No leave types are configured for you yet. Ask HR.</p>
+      {% endif %}
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>Recent Activities</h2>
+          <p class="muted">Payslips and leave updates.</p>
+        </div>
+        <a class="text-link" href="/me/leave">View all {{ icons.svg('arrow-right', 14) }}</a>
+      </div>
+
+      {% if activities %}
+        <ol class="activity-list">
+          {% for activity in activities %}
+            <li>
+              <span class="activity-icon {{ activity.tone }}">{{ icons.svg(activity.icon, 16) }}</span>
+              <div class="activity-main">
+                <div class="activity-title">
+                  <strong>{{ activity.title }}</strong>
+                  {% if activity.status %}<span class="status status-{{ activity.status }}">{{ activity.status|capitalize }}</span>{% endif %}
+                </div>
+                <small>{{ activity.detail }}</small>
+                {% if activity.date %}<small class="activity-date">{{ activity.date|date('j M Y') }}</small>{% endif %}
+              </div>
+            </li>
+          {% endfor %}
+        </ol>
+      {% else %}
+        <p class="muted">No recent activity yet. Payslip releases and leave decisions will appear here.</p>
+      {% endif %}
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>HR Announcements</h2>
+          <p class="muted">Latest notices from HR.</p>
+        </div>
+      </div>
+
+      {% if announcements %}
+        <div class="announcement-list">
+          {% for announcement in announcements %}
+            <article class="announcement-card">
+              <span class="announcement-icon">{{ icons.svg('bell', 18) }}</span>
+              <div class="announcement-main">
+                <div class="announcement-title">
+                  <strong>{{ announcement.title }}</strong>
+                  <small>{{ announcement.published_at|date('j M Y') }}</small>
+                </div>
+                <p>{{ announcement.body|length > 180 ? announcement.body|slice(0, 180) ~ '…' : announcement.body }}</p>
+              </div>
+            </article>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="muted">No announcements yet. HR notices will appear here.</p>
+      {% endif %}
+    </section>
+
+    <section class="panel dash-span-2">
+      <div class="panel-head">
+        <div>
+          <h2>Quick Navigation</h2>
+          <p class="muted">The employee pages you use most.</p>
+        </div>
+      </div>
+      <div class="action-grid">
+        <a class="action-card" href="/me">
+          <span class="action-icon">{{ icons.svg('user', 18) }}</span>
+          <span><strong>My profile</strong><small>Your details</small></span>
+          {{ icons.svg('arrow-up-right', 15) }}
+        </a>
+        <a class="action-card" href="/me/attendance">
+          <span class="action-icon">{{ icons.svg('clock', 18) }}</span>
+          <span><strong>My attendance</strong><small>Daily record</small></span>
+          {{ icons.svg('arrow-up-right', 15) }}
+        </a>
+        <a class="action-card" href="/me/leave">
+          <span class="action-icon">{{ icons.svg('calendar', 18) }}</span>
+          <span><strong>My leave</strong><small>Balances and requests</small></span>
+          {{ icons.svg('arrow-up-right', 15) }}
+        </a>
+        <a class="action-card" href="/ess/payslips">
+          <span class="action-icon">{{ icons.svg('wallet', 18) }}</span>
+          <span><strong>My payslips</strong><small>Approved months</small></span>
+          {{ icons.svg('arrow-up-right', 15) }}
+        </a>
+        <a class="action-card" href="/me/documents">
+          <span class="action-icon">{{ icons.svg('file', 18) }}</span>
+          <span><strong>My documents</strong><small>Reading assigned to you</small></span>
+          {{ icons.svg('arrow-up-right', 15) }}
+        </a>
+        {% if can_approve_team %}
+          <a class="action-card" href="/ess/leave/approvals">
+            <span class="action-icon">{{ icons.svg('users', 18) }}</span>
+            <span><strong>Team leave</strong><small>{{ team_pending }} waiting for you</small></span>
+            {{ icons.svg('arrow-up-right', 15) }}
+          </a>
+        {% endif %}
+      </div>
+    </section>
+  </div>
+{% endblock %}

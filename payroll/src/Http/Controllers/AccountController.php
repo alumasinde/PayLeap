@@ -13,27 +13,6 @@ final class AccountController
     {
     }
 
-    public function updateProfile(): void
-    {
-        $user = $this->app->requireUser();
-        $companyId = $this->app->company === null ? null : (int) $this->app->company['company_id'];
-
-        try {
-            $this->app->accountService->updateProfile(
-                (int) $user['id'],
-                $this->app->request->string('first_name'),
-                $this->app->request->string('last_name'),
-                $companyId,
-            );
-        } catch (HttpException $error) {
-            $this->app->flash->add('error', $error->getMessage());
-            $this->app->redirect('/me/account');
-        }
-
-        $this->app->flash->add('success', 'Your name was updated.');
-        $this->app->redirect('/me/account');
-    }
-
     public function changePassword(): void
     {
         $user = $this->app->requireUser();

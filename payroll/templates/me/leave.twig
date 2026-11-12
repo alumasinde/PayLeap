@@ -63,6 +63,12 @@
                     {% else %}
                       <span class="muted">Awaiting decision</span>
                     {% endif %}
+                    {% if request.status in ['pending', 'approved'] %}
+                      <form class="inline-form" method="post" action="/me/leave/{{ request.id }}/cancel">
+                        <input type="hidden" name="_token" value="{{ csrf_token() }}">
+                        <button class="btn-ghost btn-xs" type="submit">Cancel</button>
+                      </form>
+                    {% endif %}
                   </td>
                 </tr>
               {% endfor %}
@@ -92,25 +98,30 @@
 
         {% if balances %}
           {% set entitlement_total = 0 %}
+          {% set accrued_total = 0 %}
           {% set taken_total = 0 %}
           {% set available_total = 0 %}
           <table class="list summary-table">
             <thead>
               <tr>
                 <th>Type</th>
-                <th class="num">Entitled</th>
+                <th class="num">Accrued</th>
                 <th class="num">Taken</th>
-                <th class="num">Balance</th>
+                <th class="num">Available</th>
               </tr>
             </thead>
             <tbody>
               {% for balance in balances %}
                 {% set entitlement_total = entitlement_total + balance.days_per_year %}
+                {% set accrued_total = accrued_total + balance.accrued %}
                 {% set taken_total = taken_total + balance.taken %}
                 {% set available_total = available_total + balance.available %}
                 <tr>
-                  <td>{{ balance.name }}</td>
-                  <td class="num mono">{{ _self.days(balance.days_per_year) }}</td>
+                  <td>
+                    {{ balance.name }}<br>
+                    <small class="muted">of {{ _self.days(balance.days_per_year) }} entitled</small>
+                  </td>
+                  <td class="num mono">{{ _self.days(balance.accrued) }}</td>
                   <td class="num mono">
                     {{ _self.days(balance.taken) }}
                     {% if balance.pending > 0 %}<small class="muted">+{{ _self.days(balance.pending) }} pending</small>{% endif %}
@@ -121,14 +132,14 @@
             </tbody>
             <tfoot>
               <tr>
-                <td>Total</td>
-                <td class="num mono">{{ _self.days(entitlement_total) }}</td>
+                <td>Total<br><small class="muted">of {{ _self.days(entitlement_total) }} entitled</small></td>
+                <td class="num mono">{{ _self.days(accrued_total) }}</td>
                 <td class="num mono">{{ _self.days(taken_total) }}</td>
                 <td class="num mono">{{ _self.days(available_total) }}</td>
               </tr>
             </tfoot>
           </table>
-          <p class="hint">Balance is entitlement less approved and pending days for {{ year }}. Pending days sit beside the taken days.</p>
+          <p class="hint">Entitled is the full yearly policy. Accrued is what you have earned so far in {{ year }}; Available is accrued less taken and pending days.</p>
         {% else %}
           <p class="muted">No leave types are configured for you yet. Ask HR.</p>
         {% endif %}
@@ -179,7 +190,7 @@
           </label>
         </div>
 
-        <p class="hint">Dates are calendar days, inclusive. A request needs a free date range and enough available days. Your manager or HR decides it; you cannot approve your own leave.</p>
+        <p class="hint">Dates are inclusive. Working-day types skip weekends and public holidays; calendar-day types count every date. A request needs a free date range and enough accrued days. Your manager or HR decides it; you cannot approve your own leave.</p>
 
         <div class="modal-actions">
           <button class="btn-ghost" type="button" data-modal-close>Cancel</button>

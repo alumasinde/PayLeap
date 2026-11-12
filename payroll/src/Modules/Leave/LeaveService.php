@@ -7,6 +7,9 @@ namespace Mshahara\Payroll\Modules\Leave;
 use Mshahara\Payroll\Modules\Employees\EmployeeRepository;
 use Mshahara\Payroll\Support\AuditLogger;
 use Mshahara\Payroll\Support\HttpException;
+use PDO;
+use RuntimeException;
+use Throwable;
 
 /**
  * Leave policy and the approval decision. A request moves once; a restricted
@@ -18,9 +21,12 @@ final class LeaveService
     private const GENDERS = ['any', 'female', 'male'];
 
     public function __construct(
+        private readonly PDO $db,
         private readonly LeaveRepository $requests,
         private readonly EmployeeRepository $employees,
         private readonly AuditLogger $auditLogger,
+        private readonly LeaveLedgerRepository $ledger,
+        private readonly LeaveBalanceService $balances,
     ) {
     }
 
@@ -83,8 +89,46 @@ final class LeaveService
             throw new HttpException(422, 'The decision note is too long.');
         }
 
-        if (!$this->requests->decide($companyId, $requestId, $decision, $actorId, $note === '' ? null : $note)) {
-            throw new HttpException(409, 'That leave request has already been decided.');
+        if ($decision === 'approved') {
+            $this->balances->balances(
+                $companyId,
+                (int) $request['employee_id'],
+                (int) substr((string) $request['start_date'], 0, 4),
+            );
+        }
+
+        try {
+            $this->db->beginTransaction();
+
+            if ($decision === 'approved') {
+                $this->ledger->allocateRequest(
+                    $companyId,
+                    $requestId,
+                    (int) $request['employee_id'],
+                    (int) $request['leave_type_id'],
+                    (float) $request['days'],
+                    date('Y-m-d'),
+                    $actorId,
+                );
+            }
+
+            if (!$this->requests->decide($companyId, $requestId, $decision, $actorId, $note === '' ? null : $note)) {
+                throw new HttpException(409, 'That leave request has already been decided.');
+            }
+
+            $this->db->commit();
+        } catch (RuntimeException $error) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+
+            throw new HttpException(422, 'There are not enough non-expired leave days to approve this request.');
+        } catch (Throwable $error) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+
+            throw $error;
         }
 
         $this->auditLogger->record(
@@ -98,9 +142,73 @@ final class LeaveService
     }
 
     /**
+     * Cancel a pending or approved request. An approved request reverses the
+     * exact ledger batches it consumed; a pending request has no allocation.
+     */
+    public function cancel(
+        int $companyId,
+        int $requestId,
+        int $actorId,
+        bool $canAll = false,
+        bool $canTeam = false,
+    ): void {
+        $request = $this->requests->find($companyId, $requestId);
+
+        if ($request === null) {
+            throw new HttpException(404, 'That leave request does not exist.');
+        }
+
+        if (!in_array((string) $request['status'], ['pending', 'approved'], true)) {
+            throw new HttpException(409, 'That leave request cannot be cancelled.');
+        }
+
+        $actor = $this->employees->forUser($companyId, $actorId);
+        $owns = $actor !== null && (int) $request['employee_id'] === (int) $actor['id'];
+
+        if (!$owns) {
+            if (!$canAll && !$canTeam) {
+                throw new HttpException(403, 'Your role cannot cancel this leave request.');
+            }
+
+            if (!$canAll) {
+                $this->requireScope($companyId, $request, $actorId, false, true);
+            }
+        }
+
+        try {
+            $this->db->beginTransaction();
+
+            if ((string) $request['status'] === 'approved') {
+                $this->ledger->reverseRequest($companyId, $requestId, date('Y-m-d'), $actorId);
+            }
+
+            if (!$this->requests->cancel($companyId, $requestId, $actorId)) {
+                throw new HttpException(409, 'That leave request cannot be cancelled.');
+            }
+
+            $this->db->commit();
+        } catch (Throwable $error) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+
+            throw $error;
+        }
+
+        $this->auditLogger->record(
+            $companyId,
+            $actorId,
+            'leave.request.cancelled',
+            'leave_request',
+            (string) $requestId,
+            ['employee_id' => (int) $request['employee_id'], 'days' => (float) $request['days']],
+        );
+    }
+
+    /**
      * An employee raises their own request. The type must be active and suit
      * them, the range must be free of other pending or approved leave, and the
-     * days asked for must fit what is left of the entitlement.
+     * days asked for must fit what has accrued by the leave start date.
      */
     public function submit(
         int $companyId,
@@ -134,7 +242,13 @@ final class LeaveService
             throw new HttpException(422, 'Leave cannot start in the past.');
         }
 
-        $days = (int) $start->diff($end)->days + 1;
+        $days = ($type['day_basis'] ?? 'working') === 'calendar'
+            ? (int) $start->diff($end)->days + 1
+            : $this->workingDays($companyId, $start, $end);
+
+        if ($days === 0) {
+            throw new HttpException(422, 'Choose a date range with at least one working day.');
+        }
 
         if ($days > 366) {
             throw new HttpException(422, 'A request cannot cover more than 366 days.');
@@ -163,7 +277,12 @@ final class LeaveService
 
         $balance = null;
 
-        foreach ($this->requests->balances($companyId, $employeeId, (int) $start->format('Y')) as $row) {
+        foreach ($this->balances->balances(
+            $companyId,
+            $employeeId,
+            (int) $start->format('Y'),
+            $start->format('Y-m-d'),
+        ) as $row) {
             if ((int) $row['id'] === $typeId) {
                 $balance = $row;
                 break;
@@ -174,12 +293,12 @@ final class LeaveService
             throw new HttpException(422, 'That leave type is not available to you.');
         }
 
-        $available = (float) $balance['days_per_year'] - (float) $balance['taken'] - (float) $balance['pending'];
+        $available = (float) $balance['available'];
 
         if ($days > $available + 0.0001) {
             throw new HttpException(
                 422,
-                'That is more than your available balance of ' . self::days($available) . ' day(s) for ' . $type['name'] . '.',
+                'That is more than your accrued balance of ' . self::days(max(0.0, $available)) . ' day(s) for ' . $type['name'] . '.',
             );
         }
 
@@ -226,14 +345,32 @@ final class LeaveService
         $days = $this->decimal($input['days_per_year'] ?? null, 'Days per year');
         $carry = $this->decimal($input['carry_over_max'] ?? null, 'Carry-over limit');
         $gender = (string) ($input['gender_restriction'] ?? 'any');
+        $accrual = (string) ($input['accrual_rule'] ?? 'fixed');
+        $basis = (string) ($input['day_basis'] ?? 'working');
+        $waiting = (int) ($input['accrual_start_months'] ?? 0);
 
         if (!in_array($gender, self::GENDERS, true)) {
             throw new HttpException(422, 'Choose who may take this leave type.');
         }
 
+        if (!in_array($accrual, ['monthly', 'fixed'], true)) {
+            throw new HttpException(422, 'Choose how this leave type accrues.');
+        }
+
+        if ($waiting < 0 || $waiting > 24) {
+            throw new HttpException(422, 'The qualifying period must be between 0 and 24 months.');
+        }
+
+        if (!in_array($basis, ['working', 'calendar'], true)) {
+            throw new HttpException(422, 'Choose whether this leave counts working or calendar days.');
+        }
+
         $data = [
             'name' => $name,
             'days_per_year' => $days,
+            'accrual_rule' => $accrual,
+            'accrual_start_months' => $waiting,
+            'day_basis' => $basis,
             'paid' => !empty($input['paid']) ? 1 : 0,
             'gender_restriction' => $gender,
             'requires_document' => !empty($input['requires_document']) ? 1 : 0,
@@ -250,6 +387,9 @@ final class LeaveService
         $this->auditLogger->record($companyId, $actorId, 'leave.type.saved', 'leave_type', (string) $typeId, [
             'name' => $name,
             'days_per_year' => $days,
+            'accrual_rule' => $accrual,
+            'accrual_start_months' => $waiting,
+            'day_basis' => $basis,
             'gender_restriction' => $gender,
         ]);
 
@@ -339,6 +479,28 @@ final class LeaveService
         }
 
         return $date;
+    }
+
+    /** Calendar days minus weekends and company public holidays. */
+    private function workingDays(int $companyId, \DateTimeImmutable $start, \DateTimeImmutable $end): int
+    {
+        $holidays = $this->requests->publicHolidays(
+            $companyId,
+            $start->format('Y-m-d'),
+            $end->format('Y-m-d'),
+        );
+        $days = 0;
+        $cursor = $start;
+
+        while ($cursor <= $end) {
+            if ((int) $cursor->format('N') <= 5 && !isset($holidays[$cursor->format('Y-m-d')])) {
+                $days++;
+            }
+
+            $cursor = $cursor->modify('+1 day');
+        }
+
+        return $days;
     }
 
     private static function days(float $days): string

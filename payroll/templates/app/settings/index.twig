@@ -56,7 +56,7 @@
       <div class="panel-head">
         <div>
           <h2>Leave policy</h2>
-          <p class="muted">Add a type, set its days, who may take it and whether it needs a document. Maternity is restricted to female staff and paternity to male staff; approval checks it.</p>
+          <p class="muted">Add a type, set its days and how it becomes available. Annual leave can accrue monthly (the statutory 21 days is 1.75/month); sick leave can become available in full after its qualifying period. Maternity is restricted to female staff and paternity to male staff; approval checks it.</p>
         </div>
       </div>
       <form class="form-grid form-grid-4" method="post" action="/app/settings/leave-types">
@@ -68,6 +68,24 @@
         <label class="field">
           <span>Days per year</span>
           <input type="number" name="days_per_year" min="0" max="366" step="0.5" value="0" required>
+        </label>
+        <label class="field">
+          <span>Accrual</span>
+          <select name="accrual_rule">
+            <option value="monthly">Monthly (year ÷ 12)</option>
+            <option value="fixed">Full year upfront</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Available after (months)</span>
+          <input type="number" name="accrual_start_months" min="0" max="24" step="1" value="0">
+        </label>
+        <label class="field">
+          <span>Day counting</span>
+          <select name="day_basis">
+            <option value="working">Working days</option>
+            <option value="calendar">Calendar days</option>
+          </select>
         </label>
         <label class="field">
           <span>Who may take it</span>
@@ -104,6 +122,8 @@
                   {% if type.paid %} · paid{% endif %}
                   {% if type.requires_document %} · document{% endif %}
                   {% if type.carry_over_max > 0 %} · carry {{ type.carry_over_max|number_format(0) }}{% endif %}
+                  · {{ type.accrual_rule == 'monthly' ? 'monthly accrual' : 'upfront' }}{% if type.accrual_start_months > 0 %} after {{ type.accrual_start_months }} month{{ type.accrual_start_months == 1 ? '' : 's' }}{% endif %}
+                  · {{ type.day_basis == 'calendar' ? 'calendar days' : 'working days' }}
                 </small>
               </span>
               <span class="status {{ type.active ? 'status-active' : 'status-exited' }}">{{ type.active ? 'Active' : 'Inactive' }}</span>
@@ -118,6 +138,24 @@
               <label class="field">
                 <span>Days per year</span>
                 <input type="number" name="days_per_year" min="0" max="366" step="0.5" value="{{ type.days_per_year }}" required>
+              </label>
+              <label class="field">
+                <span>Accrual</span>
+                <select name="accrual_rule">
+                  <option value="monthly"{% if type.accrual_rule == 'monthly' %} selected{% endif %}>Monthly (year ÷ 12)</option>
+                  <option value="fixed"{% if type.accrual_rule != 'monthly' %} selected{% endif %}>Full year upfront</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>Available after (months)</span>
+                <input type="number" name="accrual_start_months" min="0" max="24" step="1" value="{{ type.accrual_start_months }}">
+              </label>
+              <label class="field">
+                <span>Day counting</span>
+                <select name="day_basis">
+                  <option value="working"{% if type.day_basis != 'calendar' %} selected{% endif %}>Working days</option>
+                  <option value="calendar"{% if type.day_basis == 'calendar' %} selected{% endif %}>Calendar days</option>
+                </select>
               </label>
               <label class="field">
                 <span>Who may take it</span>

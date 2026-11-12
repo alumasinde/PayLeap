@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Mshahara\Payroll\Http\Controllers\AccessController;
 use Mshahara\Payroll\Http\Controllers\AccountController;
+use Mshahara\Payroll\Http\Controllers\AnnouncementController;
 use Mshahara\Payroll\Http\Controllers\AttendanceController;
 use Mshahara\Payroll\Http\Controllers\AuthController;
 use Mshahara\Payroll\Http\Controllers\DepartmentController;
@@ -95,14 +96,18 @@ return [
     ['POST', '/app/settings/documents/{id}/toggle', [DocumentController::class, 'toggle']],
     ['POST', '/app/settings/documents/{id}/delete', [DocumentController::class, 'destroy']],
 
+    ['GET', '/app/announcements', [AnnouncementController::class, 'index']],
+    ['POST', '/app/announcements', [AnnouncementController::class, 'store']],
+    ['POST', '/app/announcements/{id}/delete', [AnnouncementController::class, 'destroy']],
+
     ['GET', '/me', [SelfServiceController::class, 'profile']],
     ['GET', '/me/account', [WorkspaceController::class, 'me']],
     ['GET', '/me/profile', [SelfServiceController::class, 'profile']],
-    ['POST', '/me/profile', [AccountController::class, 'updateProfile']],
     ['GET', '/me/attendance', [SelfServiceController::class, 'attendance']],
     ['GET', '/me/timesheet', [SelfServiceController::class, 'timesheet']],
     ['GET', '/me/leave', [SelfServiceController::class, 'leave']],
     ['POST', '/me/leave/request', [SelfServiceController::class, 'submitLeave']],
+    ['POST', '/me/leave/{id}/cancel', [SelfServiceController::class, 'cancelLeave']],
     ['GET', '/ess/leave/approvals', [SelfServiceController::class, 'teamLeave']],
     ['GET', '/ess/payslips', [SelfServicePayslipController::class, 'index']],
     ['GET', '/ess/payslips/{line}', [SelfServicePayslipController::class, 'show']],

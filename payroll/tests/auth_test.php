@@ -220,10 +220,6 @@ check('removed permission is enforced', !$app->permissionGate->allows((int) $use
 
 // -------------------------------------------------------------------- account
 
-$app->accountService->updateProfile((int) $user['id'], 'Ada', 'Byron', $companyId);
-$updatedUser = $app->userRepository->find((int) $user['id']);
-check('profile updates first and last name', $updatedUser['first_name'] === 'Ada' && $updatedUser['last_name'] === 'Byron');
-
 $wrongCurrent = false;
 try {
     $app->accountService->changePassword((int) $user['id'], 'wrong password', 'changed password 3', 'changed password 3', $companyId);
