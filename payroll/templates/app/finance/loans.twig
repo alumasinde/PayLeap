@@ -1,0 +1,130 @@
+{% extends 'layout.twig' %}
+
+{% block title %}Loans &amp; advances — {{ app_name }}{% endblock %}
+
+{% block body %}
+  <section class="page-head">
+    <span class="kicker">Finance · Staff credit</span>
+    <h1>Loans &amp; advances</h1>
+    <p class="muted">Scheduled deductions are applied by payroll in due-period order. A schedule row is marked recovered only when the amount is actually deducted.</p>
+  </section>
+
+  <div class="grid-2">
+    <section class="panel">
+      <h2>Create a loan</h2>
+      {% if can_manage %}
+        <form class="stack" method="post" action="/app/finance/loans">
+          <input type="hidden" name="_token" value="{{ csrf_token() }}">
+          <label class="field"><span>Employee</span>
+            <select name="employee_id" required>
+              <option value="">Choose an employee</option>
+              {% for employee in employees %}<option value="{{ employee.id }}">{{ employee.employee_no }} · {{ employee.first_name }} {{ employee.last_name }}</option>{% endfor %}
+            </select>
+          </label>
+          <div class="grid-2">
+            <label class="field"><span>Principal (KES)</span><input name="principal" inputmode="decimal" required></label>
+            <label class="field"><span>Installments</span><input type="number" name="installments" min="1" max="120" value="12" required></label>
+          </div>
+          <div class="grid-2">
+            <label class="field"><span>Interest %</span><input name="rate_percent" inputmode="decimal" value="0"></label>
+            <label class="field"><span>Start month</span><input type="month" name="start_period" value="{{ today|date('Y-m') }}" required></label>
+          </div>
+          <label class="field"><span>Reference</span><input name="reference" maxlength="80" placeholder="Optional"></label>
+          <label class="field"><span>Notes</span><input name="notes" maxlength="255"></label>
+          <button class="btn-primary" type="submit">Create loan</button>
+        </form>
+      {% else %}
+        <p class="muted">Your role can view loans but not create them.</p>
+      {% endif %}
+    </section>
+
+    <section class="panel">
+      <h2>Request an advance</h2>
+      {% if can_manage %}
+        <form class="stack" method="post" action="/app/finance/advances">
+          <input type="hidden" name="_token" value="{{ csrf_token() }}">
+          <label class="field"><span>Employee</span>
+            <select name="employee_id" required>
+              <option value="">Choose an employee</option>
+              {% for employee in employees %}<option value="{{ employee.id }}">{{ employee.employee_no }} · {{ employee.first_name }} {{ employee.last_name }}</option>{% endfor %}
+            </select>
+          </label>
+          <div class="grid-2">
+            <label class="field"><span>Amount (KES)</span><input name="amount" inputmode="decimal" required></label>
+            <label class="field"><span>Installments</span><input type="number" name="installments" min="1" max="12" value="1"></label>
+          </div>
+          <div class="grid-2">
+            <label class="field"><span>Start month</span><input type="month" name="start_period" value="{{ today|date('Y-m') }}"></label>
+            <label class="field"><span>Reason</span><input name="reason" maxlength="255"></label>
+          </div>
+          <button class="btn-primary" type="submit">Submit advance</button>
+        </form>
+      {% endif %}
+    </section>
+  </div>
+
+  <section class="panel">
+    <h2>Loans</h2>
+    {% if loans %}
+      <div class="table-wrap">
+        <table class="list">
+          <thead><tr><th>Reference</th><th>Employee</th><th>Type</th><th class="num">Principal</th><th class="num">Balance</th><th>Status</th></tr></thead>
+          <tbody>
+            {% for loan in loans %}
+              <tr>
+                <td class="mono">{{ loan.reference ?: ('L-' ~ loan.id) }}</td>
+                <td>{{ loan.employee_no }} · {{ loan.first_name }} {{ loan.last_name }}</td>
+                <td>{{ loan.type|capitalize }}</td>
+                <td class="num mono">KES {{ loan.principal_cents|money }}</td>
+                <td class="num mono">KES {{ loan.balance_cents|money }}</td>
+                <td><span class="chip{{ loan.status == 'settled' ? ' on' : '' }}">{{ loan.status|capitalize }}</span></td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="muted">No loans yet.</p>
+    {% endif %}
+  </section>
+
+  <section class="panel">
+    <h2>Advances</h2>
+    {% if advances %}
+      <div class="table-wrap">
+        <table class="list">
+          <thead><tr><th>Employee</th><th class="num">Amount</th><th>Installments</th><th>Status</th><th>Loan</th><th></th></tr></thead>
+          <tbody>
+            {% for advance in advances %}
+              <tr>
+                <td>{{ advance.employee_no }} · {{ advance.first_name }} {{ advance.last_name }}</td>
+                <td class="num mono">KES {{ advance.amount_cents|money }}</td>
+                <td class="num">{{ advance.installments }}</td>
+                <td><span class="chip{{ advance.status == 'approved' ? ' on' : '' }}">{{ advance.status|capitalize }}</span></td>
+                <td class="mono">{{ advance.loan_reference ?: '—' }}</td>
+                <td>
+                  {% if can_manage and advance.status == 'pending' %}
+                    <div class="row-actions">
+                      <form method="post" action="/app/finance/advances/{{ advance.id }}/decide">
+                        <input type="hidden" name="_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="decision" value="approved">
+                        <button class="btn-primary btn-xs" type="submit">Approve</button>
+                      </form>
+                      <form method="post" action="/app/finance/advances/{{ advance.id }}/decide">
+                        <input type="hidden" name="_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="decision" value="rejected">
+                        <button class="btn-ghost btn-xs" type="submit">Reject</button>
+                      </form>
+                    </div>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="muted">No advance requests yet.</p>
+    {% endif %}
+  </section>
+{% endblock %}

@@ -1,0 +1,138 @@
+{% extends 'layout.twig' %}
+{% import 'partials/icons.twig' as icons %}
+
+{% block title %}Pay items — {{ app_name }}{% endblock %}
+
+{% block body %}
+  <section class="page-head">
+    <div class="page-head-row">
+      <div>
+        <span class="kicker">Finance · Pay structure</span>
+        <h1>Pay items</h1>
+        <p class="muted">Allowances, benefits and deductions applied to employee payroll. Items can be fixed or a percentage of basic salary.</p>
+      </div>
+      <div class="page-head-actions">
+        <a class="btn-ghost" href="/app/finance/claims">Claims &amp; commissions</a>
+      </div>
+    </div>
+  </section>
+
+  <div class="grid-2">
+    <section class="panel">
+      <h2>Add a pay item</h2>
+      <form class="stack" method="post" action="/app/finance/pay-items">
+        <input type="hidden" name="_token" value="{{ csrf_token() }}">
+        <div class="grid-2">
+          <label class="field"><span>Code</span><input name="code" maxlength="40" placeholder="e.g. HOUSE"></label>
+          <label class="field"><span>Name</span><input name="name" maxlength="120" required placeholder="House allowance"></label>
+        </div>
+        <div class="grid-2">
+          <label class="field"><span>Type</span>
+            <select name="kind"><option value="earning">Earning</option><option value="deduction">Deduction</option></select>
+          </label>
+          <label class="field"><span>Calculation</span>
+            <select name="calc_type"><option value="fixed">Fixed amount</option><option value="percent">Percent of basic</option></select>
+          </label>
+        </div>
+        <div class="row-actions">
+          <label class="check"><input type="checkbox" name="taxable" value="1" checked> Taxable</label>
+          <label class="check"><input type="checkbox" name="pensionable" value="1"> Pensionable</label>
+          <label class="check"><input type="checkbox" name="cash" value="1" checked> Cash pay</label>
+        </div>
+        <label class="field"><span>Sort order</span><input type="number" name="sort_order" min="0" max="999" value="0"></label>
+        <button class="btn-primary" type="submit">Save pay item</button>
+        <p class="hint">Use codes pension, insurance, helb or sacco for pre-tax/post-tax statutory treatment.</p>
+      </form>
+    </section>
+
+    <section class="panel">
+      <h2>Assign to an employee</h2>
+      <form class="stack" method="post" action="/app/finance/pay-items/assign">
+        <input type="hidden" name="_token" value="{{ csrf_token() }}">
+        <label class="field"><span>Employee</span>
+          <select name="employee_id" required>
+            <option value="">Choose an employee</option>
+            {% for employee in employees %}<option value="{{ employee.id }}">{{ employee.employee_no }} · {{ employee.first_name }} {{ employee.last_name }}</option>{% endfor %}
+          </select>
+        </label>
+        <label class="field"><span>Pay item</span>
+          <select name="pay_item_id" required>
+            <option value="">Choose a pay item</option>
+            {% for item in items %}{% if item.active %}<option value="{{ item.id }}">{{ item.name }} ({{ item.kind }})</option>{% endif %}{% endfor %}
+          </select>
+        </label>
+        <div class="grid-2">
+          <label class="field"><span>Amount (KES)</span><input name="amount" inputmode="decimal" placeholder="10000.00"></label>
+          <label class="field"><span>Or percent</span><input name="percent" inputmode="decimal" placeholder="10"></label>
+        </div>
+        <div class="grid-2">
+          <label class="field"><span>Start date</span><input type="date" name="start_date" value="{{ today }}"></label>
+          <label class="field"><span>End date</span><input type="date" name="end_date"></label>
+        </div>
+        <button class="btn-primary" type="submit">Assign pay item</button>
+      </form>
+    </section>
+  </div>
+
+  <section class="panel">
+    <h2>Configured items</h2>
+    {% if items %}
+      <div class="table-wrap">
+        <table class="list">
+          <thead><tr><th>Code</th><th>Name</th><th>Type</th><th>Calculation</th><th>Tax</th><th>Status</th><th></th></tr></thead>
+          <tbody>
+            {% for item in items %}
+              <tr>
+                <td class="mono">{{ item.code ?: '—' }}</td>
+                <td>{{ item.name }}</td>
+                <td><span class="chip">{{ item.kind|capitalize }}</span></td>
+                <td>{{ item.calc_type == 'percent' ? 'Percent of basic' : 'Fixed amount' }}</td>
+                <td>{{ item.taxable ? 'Taxable' : 'Non-taxable' }}{{ item.cash ? '' : ' · benefit' }}</td>
+                <td><span class="chip{{ item.active ? ' on' : '' }}">{{ item.active ? 'Active' : 'Inactive' }}</span></td>
+                <td>
+                  <form method="post" action="/app/finance/pay-items/{{ item.id }}/toggle">
+                    <input type="hidden" name="_token" value="{{ csrf_token() }}">
+                    <button class="btn-ghost btn-xs" type="submit">{{ item.active ? 'Disable' : 'Enable' }}</button>
+                  </form>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="muted">No pay items yet. Add the first allowance or deduction above.</p>
+    {% endif %}
+  </section>
+
+  <section class="panel">
+    <h2>Employee assignments</h2>
+    {% if assignments %}
+      <div class="table-wrap">
+        <table class="list">
+          <thead><tr><th>Employee</th><th>Item</th><th class="num">Amount</th><th class="num">Percent</th><th>From</th><th>To</th><th></th></tr></thead>
+          <tbody>
+            {% for assignment in assignments %}
+              <tr>
+                <td>{{ assignment.employee_no }} · {{ assignment.first_name }} {{ assignment.last_name }}</td>
+                <td>{{ assignment.item_name }} <span class="muted">({{ assignment.kind }})</span></td>
+                <td class="num mono">{{ assignment.amount_cents is not null ? assignment.amount_cents|money : '—' }}</td>
+                <td class="num">{{ assignment.percent is not null ? assignment.percent ~ '%' : '—' }}</td>
+                <td class="mono">{{ assignment.start_date ?: '—' }}</td>
+                <td class="mono">{{ assignment.end_date ?: 'Open' }}</td>
+                <td>
+                  <form method="post" action="/app/finance/pay-items/assignments/{{ assignment.id }}/remove">
+                    <input type="hidden" name="_token" value="{{ csrf_token() }}">
+                    <button class="btn-ghost btn-xs" type="submit">Remove</button>
+                  </form>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="muted">No employee assignments yet.</p>
+    {% endif %}
+  </section>
+{% endblock %}

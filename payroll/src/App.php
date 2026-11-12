@@ -25,6 +25,7 @@ use Mshahara\Payroll\Modules\ModuleRepository;
 use Mshahara\Payroll\Modules\Attendance\AttendanceModule;
 use Mshahara\Payroll\Modules\Dashboard\DashboardRepository;
 use Mshahara\Payroll\Modules\Documents\DocumentModule;
+use Mshahara\Payroll\Modules\Finance\FinanceModule;
 use Mshahara\Payroll\Modules\Leave\LeaveModule;
 use Mshahara\Payroll\Modules\Payroll\PayrollModule;
 use Mshahara\Payroll\Users\AccountService;
@@ -64,6 +65,7 @@ final class App
     public AnnouncementModule $announcements;
     public DocumentModule $documents;
     public PayrollModule $payroll;
+    public FinanceModule $finance;
     public LeaveModule $leave;
     public AttendanceModule $attendance;
     public DashboardRepository $dashboard;
@@ -320,9 +322,10 @@ final class App
         }
 
         $permissions = [
-            'employees.view', 'payroll.view', 'leave.view', 'leave.approve.team',
-            'leave.approve.all', 'attendance.view', 'users.manage', 'users.invite',
-            'roles.manage', 'audit.view',
+            'employees.view', 'payroll.view', 'payroll.run', 'payroll.approve', 'payroll.export',
+            'payment.release', 'leave.view', 'leave.approve.team', 'leave.approve.all',
+            'attendance.view', 'users.manage', 'users.invite', 'roles.manage',
+            'loans.view', 'returns.view', 'reports.view', 'audit.view',
         ];
 
         foreach ($permissions as $permission) {

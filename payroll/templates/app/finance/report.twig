@@ -1,0 +1,68 @@
+{% extends 'layout.twig' %}
+
+{% block title %}{{ report.title }} — {{ app_name }}{% endblock %}
+
+{% block body %}
+  <section class="page-head">
+    <div class="page-head-row">
+      <div>
+        <span class="kicker">Finance · {{ report.period }}</span>
+        <h1>{{ report.title }}</h1>
+      </div>
+      <div class="page-head-actions">
+        {% if can_export %}<a class="btn-ghost" href="/app/finance/reports/{{ key }}/export?period={{ period }}">Export CSV</a>{% endif %}
+        <a class="btn-ghost" href="/app/finance/reports?period={{ period }}">All reports</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    {% if report.rows %}
+      <div class="table-wrap">
+        <table class="list">
+          <thead>
+            <tr>
+              {% for column in report.columns %}<th class="{{ column.type in ['money','int','decimal'] ? 'num' }}">{{ column.label }}</th>{% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in report.rows %}
+              <tr>
+                {% for column in report.columns %}
+                  <td class="{{ column.type in ['money','int','decimal'] ? 'num mono' }}">
+                    {% if column.type == 'money' %}
+                      {{ row[column.key] is defined and row[column.key] is not null ? (row[column.key]|money) : '—' }}
+                    {% elseif column.type == 'int' %}
+                      {{ row[column.key] is defined ? row[column.key] : '—' }}
+                    {% elseif column.type == 'decimal' %}
+                      {{ row[column.key] is defined ? row[column.key] : '—' }}
+                    {% else %}
+                      {{ row[column.key] is defined ? row[column.key] : '—' }}
+                    {% endif %}
+                  </td>
+                {% endfor %}
+              </tr>
+            {% endfor %}
+          </tbody>
+          {% if report.totals %}
+            <tfoot>
+              <tr>
+                {% for column in report.columns %}
+                  <td class="{{ column.type in ['money','int','decimal'] ? 'num mono' }}">
+                    {% if report.totals[column.key] is defined %}
+                      {{ column.type == 'money' ? (report.totals[column.key]|money) : report.totals[column.key] }}
+                    {% else %}
+                      —
+                    {% endif %}
+                  </td>
+                {% endfor %}
+              </tr>
+            </tfoot>
+          {% endif %}
+        </table>
+      </div>
+    {% else %}
+      <p class="muted">No figures are available for this period yet.</p>
+    {% endif %}
+  </section>
+{% endblock %}

@@ -35,6 +35,7 @@ final class LeavePayrollService
         string $periodStart,
         string $periodEnd,
         int $baseSalaryCents,
+        bool $includeConsumed = false,
     ): array {
         $settings = $this->settings->forCompany($companyId);
         $divisor = max(1, (int) $settings['daily_rate_divisor']);
@@ -122,9 +123,10 @@ final class LeavePayrollService
 
         $encashmentStatement = $this->db->prepare(
             'SELECT COALESCE(SUM(amount_cents), 0) FROM leave_encashments
-             WHERE company_id = ? AND employee_id = ? AND status = ? AND encashed_on <= ?',
+             WHERE company_id = ? AND employee_id = ? AND status IN ("pending", "paid")
+               AND encashed_on <= ?' . ($includeConsumed ? '' : ' AND status = "pending"'),
         );
-        $encashmentStatement->execute([$companyId, $employeeId, 'pending', $periodEnd]);
+        $encashmentStatement->execute([$companyId, $employeeId, $periodEnd]);
         $encashment = (int) $encashmentStatement->fetchColumn();
 
         if ($month === substr($periodEnd, 0, 7)) {

@@ -41,6 +41,16 @@ use Mshahara\Payroll\Modules\Dashboard\DashboardRepository;
 use Mshahara\Payroll\Modules\Documents\DocumentModule;
 use Mshahara\Payroll\Modules\Documents\DocumentRepository;
 use Mshahara\Payroll\Modules\Documents\DocumentService;
+use Mshahara\Payroll\Modules\Finance\AuditRepository;
+use Mshahara\Payroll\Modules\Finance\ClaimRepository;
+use Mshahara\Payroll\Modules\Finance\FinanceModule;
+use Mshahara\Payroll\Modules\Finance\FinanceRepository;
+use Mshahara\Payroll\Modules\Finance\FinanceService;
+use Mshahara\Payroll\Modules\Finance\LoanRepository;
+use Mshahara\Payroll\Modules\Finance\PayItemRepository;
+use Mshahara\Payroll\Modules\Finance\PaymentRepository;
+use Mshahara\Payroll\Modules\Finance\PayslipDeliveryService;
+use Mshahara\Payroll\Modules\Finance\ReturnRepository;
 use Mshahara\Payroll\Modules\Leave\LeaveModule;
 use Mshahara\Payroll\Modules\Leave\LeaveBalanceService;
 use Mshahara\Payroll\Modules\Leave\LeaveAccrualService;
@@ -210,6 +220,9 @@ final class Bootstrap
         );
         $payrollRepository = new PayrollRepository($app->db);
         $rateVersionRepository = new RateVersionRepository($app->db);
+        $payItemRepository = new PayItemRepository($app->db);
+        $loanRepository = new LoanRepository($app->db);
+        $claimRepository = new ClaimRepository($app->db);
         $app->payroll = new PayrollModule(
             $payrollRepository,
             $rateVersionRepository,
@@ -221,6 +234,43 @@ final class Bootstrap
                 $app->auditLogger,
                 new Calculator(),
                 $leavePayroll,
+                $payItemRepository,
+                $loanRepository,
+                $claimRepository,
+            ),
+        );
+        $financeRepository = new FinanceRepository($app->db);
+        $paymentRepository = new PaymentRepository($app->db);
+        $returnRepository = new ReturnRepository($app->db);
+        $auditRepository = new AuditRepository($app->db);
+        $app->finance = new FinanceModule(
+            $financeRepository,
+            $payItemRepository,
+            $paymentRepository,
+            $returnRepository,
+            $loanRepository,
+            $claimRepository,
+            $auditRepository,
+            new FinanceService(
+                $app->db,
+                $financeRepository,
+                $payItemRepository,
+                $paymentRepository,
+                $returnRepository,
+                $loanRepository,
+                $claimRepository,
+                $payrollRepository,
+                $rateVersionRepository,
+                $employeeRepository,
+                $app->auditLogger,
+            ),
+            new PayslipDeliveryService(
+                $app->db,
+                $payrollRepository,
+                $employeeRepository,
+                $app->mailer,
+                $app->auditLogger,
+                $root,
             ),
         );
         $app->invitationService = new InvitationService(

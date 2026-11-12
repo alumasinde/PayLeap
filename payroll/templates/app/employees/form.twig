@@ -212,9 +212,21 @@
         <legend>Pay</legend>
         <div class="form-grid">
           <label class="field">
-            <span>Monthly salary (KES)</span>
+            <span>Pay basis</span>
+            {% set currentBasis = values.pay_basis ?? employee.pay_basis ?? 'monthly' %}
+            <select name="pay_basis">
+              {% for key, label in pay_basis %}<option value="{{ key }}"{% if currentBasis == key %} selected{% endif %}>{{ label }}</option>{% endfor %}
+            </select>
+          </label>
+          <label class="field">
+            <span>Pay rate (KES)</span>
             <input type="text" name="monthly_salary" inputmode="decimal" value="{{ values.monthly_salary ?? salary_display }}" placeholder="45000.00">
-            <small class="hint">Gross monthly pay before statutory deductions.</small>
+            <small class="hint">Monthly salary, daily rate or hourly rate, matching the pay basis. Partial months are prorated automatically.</small>
+          </label>
+          <label class="field">
+            <span>Pay effective from</span>
+            <input type="date" name="salary_effective_date" value="{{ values.salary_effective_date ?? employee.start_date ?? 'now'|date('Y-m-d') }}">
+            <small class="hint">Change this date to pay part of a month at the old rate and part at the new rate.</small>
           </label>
         </div>
       </fieldset>
@@ -235,6 +247,11 @@
           <label class="field">
             <span>Account number</span>
             <input type="text" name="bank_account" maxlength="40" value="{{ values.bank_account ?? employee.bank_account ?? '' }}">
+          </label>
+          <label class="field">
+            <span>M-Pesa number</span>
+            <input type="text" name="mpesa_no" maxlength="40" value="{{ values.mpesa_no ?? employee.mpesa_no ?? '' }}" placeholder="2547...">
+            <small class="hint">Used for M-Pesa payment batches.</small>
           </label>
         </div>
       </fieldset>

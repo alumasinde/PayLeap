@@ -33,6 +33,7 @@ final class EmployeeRepository
 
     private const EMPLOYMENT = [
         'employment_type' => 'type',
+        'pay_basis' => 'pay_basis',
         'start_date' => 'start_date',
         'exit_date' => 'end_date',
         'job_title' => 'job_title',
@@ -468,22 +469,27 @@ final class EmployeeRepository
     }
 
     /**
-     * Active people with a salary who had started by the end of the period.
+     * People paid in the period: active staff plus anyone who left during the
+     * month, so a leaver is not silently dropped from their final payroll. The
+     * caller prorates the salary and any allowances by the dates returned here.
      *
      * @return list<array<string,mixed>>
      */
-    public function forPayroll(int $companyId, string $periodEnd): array
+    public function forPayroll(int $companyId, string $periodStart, string $periodEnd): array
     {
         $statement = $this->db->prepare(
             'SELECT e.id, e.employee_no, e.first_name, e.last_name,
-                    em.salary_cents AS monthly_salary_cents, em.start_date
+                    em.id AS employment_id, em.salary_cents AS monthly_salary_cents, em.start_date,
+                    COALESCE(em.end_date, e.exit_date) AS employment_end_date,
+                    COALESCE(em.pay_basis, \'month\') AS pay_basis
              FROM employees e
              JOIN employments em ON em.id = (' . $this->currentEmploymentQuery() . ')
-             WHERE e.company_id = ? AND e.status = ? AND em.salary_cents IS NOT NULL
+             WHERE e.company_id = ? AND e.status IN (\'active\', \'exited\') AND em.salary_cents IS NOT NULL
                AND em.start_date <= ?
+               AND (COALESCE(em.end_date, e.exit_date) IS NULL OR COALESCE(em.end_date, e.exit_date) >= ?)
              ORDER BY e.last_name, e.first_name',
         );
-        $statement->execute([$companyId, 'active', $periodEnd]);
+        $statement->execute([$companyId, $periodEnd, $periodStart]);
 
         return $statement->fetchAll();
     }
@@ -570,6 +576,14 @@ final class EmployeeRepository
                            VALUES (' . implode(', ', array_fill(0, count($columns), '?')) . ')')
                 ->execute(array_values($fields));
 
+            $this->writePayRate(
+                $companyId,
+                (int) $this->db->lastInsertId(),
+                $fields['salary_cents'] ?? null,
+                $fields['pay_basis'] ?? null,
+                (string) $fields['start_date'],
+            );
+
             return;
         }
 
@@ -595,6 +609,14 @@ final class EmployeeRepository
                            VALUES (' . implode(', ', array_fill(0, count($columns), '?')) . ')')
                 ->execute(array_values($fields));
 
+            $this->writePayRate(
+                $companyId,
+                (int) $this->db->lastInsertId(),
+                $fields['salary_cents'] ?? null,
+                $fields['pay_basis'] ?? null,
+                (string) $fields['start_date'],
+            );
+
             return;
         }
 
@@ -614,10 +636,67 @@ final class EmployeeRepository
         $values[] = $employeeId;
         $values[] = $companyId;
 
+        $before = $this->db->prepare('SELECT salary_cents, pay_basis, start_date FROM employments WHERE id = ? AND company_id = ? LIMIT 1');
+        $before->execute([(int) $employmentId, $companyId]);
+        $current = $before->fetch();
+
         $this->db
             ->prepare('UPDATE employments SET ' . $assignments . '
                        WHERE id = ? AND employee_id = ? AND company_id = ?')
             ->execute($values);
+
+        $newSalary = $fields['salary_cents'] ?? ($current === false ? null : $current['salary_cents']);
+        $newBasis = $fields['pay_basis'] ?? ($current === false ? null : $current['pay_basis']);
+        $oldSalary = $current === false ? null : $current['salary_cents'];
+        $oldBasis = $current === false ? null : $current['pay_basis'];
+
+        if ((string) $newSalary !== (string) $oldSalary || (string) $newBasis !== (string) $oldBasis) {
+            $this->writePayRate(
+                $companyId,
+                (int) $employmentId,
+                $newSalary,
+                $newBasis,
+                (string) ($data['salary_effective_date'] ?? $current['start_date'] ?? date('Y-m-d')),
+            );
+        }
+    }
+
+    private function writePayRate(
+        int $companyId,
+        int $employmentId,
+        mixed $salaryCents,
+        mixed $payBasis,
+        string $effectiveFrom,
+    ): void {
+        if ($salaryCents === null || $salaryCents === '' || !is_numeric($salaryCents)) {
+            return;
+        }
+
+        $this->db->prepare(
+            'INSERT INTO employment_pay_rates (company_id, employment_id, salary_cents, pay_basis, effective_from)
+             VALUES (?, ?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE salary_cents = VALUES(salary_cents), pay_basis = VALUES(pay_basis)',
+        )->execute([
+            $companyId,
+            $employmentId,
+            (int) $salaryCents,
+            (string) ($payBasis ?: 'monthly'),
+            $effectiveFrom,
+        ]);
+    }
+
+    /** @return list<array<string,mixed>> */
+    public function payRates(int $companyId, int $employmentId, string $periodEnd): array
+    {
+        $statement = $this->db->prepare(
+            'SELECT salary_cents, pay_basis, effective_from
+             FROM employment_pay_rates
+             WHERE company_id = ? AND employment_id = ? AND effective_from <= ?
+             ORDER BY effective_from, id',
+        );
+        $statement->execute([$companyId, $employmentId, $periodEnd]);
+
+        return $statement->fetchAll();
     }
 
     /** @param array<string,mixed> $data */
@@ -656,8 +735,9 @@ final class EmployeeRepository
         $wantsBank = array_key_exists('bank_name', $data);
         $wantsBranch = array_key_exists('bank_branch', $data);
         $wantsAccount = array_key_exists('bank_account', $data);
+        $wantsMpesa = array_key_exists('mpesa_no', $data);
 
-        if (!$wantsBank && !$wantsBranch && !$wantsAccount) {
+        if (!$wantsBank && !$wantsBranch && !$wantsAccount && !$wantsMpesa) {
             return;
         }
 
@@ -695,6 +775,11 @@ final class EmployeeRepository
         if ($wantsAccount) {
             $accountNo = trim((string) $data['bank_account']);
             $fields['account_no'] = $accountNo === '' ? null : $accountNo;
+        }
+
+        if ($wantsMpesa) {
+            $mpesa = trim((string) $data['mpesa_no']);
+            $fields['mpesa_no'] = $mpesa === '' ? null : $mpesa;
         }
 
         if ($accountId === null) {

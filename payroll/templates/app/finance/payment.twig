@@ -1,0 +1,56 @@
+{% extends 'layout.twig' %}
+
+{% block title %}{{ batch.reference }} — {{ app_name }}{% endblock %}
+
+{% block body %}
+  <section class="page-head">
+    <span class="kicker">Payment batch · {{ batch.period }}</span>
+    <h1>{{ batch.reference }}</h1>
+    <p class="muted">
+      {{ batch.run_label }} · {{ batch.method|upper }} ·
+      <span class="chip{{ batch.status == 'released' ? ' on' : '' }}">{{ batch.status|capitalize }}</span>
+    </p>
+  </section>
+
+  <div class="stat-grid">
+    <div class="stat"><span class="stat-label">People</span><strong>{{ lines|length }}</strong></div>
+    <div class="stat"><span class="stat-label">Total</span><strong class="mono">KES {{ batch.total_cents|money }}</strong></div>
+    <div class="stat"><span class="stat-label">Prepared by</span><strong>{{ batch.prepared_first }} {{ batch.prepared_last }}</strong></div>
+    <div class="stat"><span class="stat-label">Released</span><strong>{{ batch.released_at ?: 'Not yet' }}</strong></div>
+  </div>
+
+  <div class="row-actions">
+    {% if can('payroll.export') %}
+      <a class="btn-ghost" href="/app/finance/payments/{{ batch.id }}/file">Download payment file</a>
+    {% endif %}
+    {% if batch.status == 'prepared' and can_release %}
+      <form method="post" action="/app/finance/payments/{{ batch.id }}/release">
+        <input type="hidden" name="_token" value="{{ csrf_token() }}">
+        <button class="btn-primary" type="submit">Release payment</button>
+      </form>
+    {% endif %}
+  </div>
+
+  <section class="panel">
+    <h2>Payment lines</h2>
+    <div class="table-wrap">
+      <table class="list">
+        <thead><tr><th>Employee</th><th class="num">Amount</th><th>Bank</th><th>Account</th><th>M-Pesa</th><th>Status</th></tr></thead>
+        <tbody>
+          {% for line in lines %}
+            <tr>
+              <td>{{ line.employee_no }} · {{ line.first_name }} {{ line.last_name }}</td>
+              <td class="num mono">KES {{ line.amount_cents|money }}</td>
+              <td>{{ line.bank_name ?: '—' }}{{ line.bank_branch ? ' · ' ~ line.bank_branch : '' }}</td>
+              <td class="mono">{{ line.account_no ?: '—' }}</td>
+              <td class="mono">{{ line.mpesa_no ?: '—' }}</td>
+              <td><span class="chip">{{ line.status|capitalize }}</span></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <p class="muted"><a href="/app/finance/payments">Back to payments</a></p>
+{% endblock %}

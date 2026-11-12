@@ -64,9 +64,35 @@ final class SelfServicePayslipController
             'slip' => $slip,
             'can_bank' => $this->app->can('employees.bank.view'),
             'generated_at' => gmdate('Y-m-d H:i'),
+            'items' => $this->app->payroll->runs->lineItems($companyId, (int) $run['id']),
             'payslip_back' => '/ess/payslips',
             'payslip_back_label' => 'Back to my payslips',
+            'pdf_href' => '/ess/payslips/' . $line['id'] . '/pdf',
         ]);
+    }
+
+    public function pdf(array $params): void
+    {
+        $company = $this->app->requireCompany();
+        $companyId = (int) $company['company_id'];
+        $this->employee($companyId);
+        $line = $this->app->payroll->runs->payslipForEmployee(
+            $companyId,
+            (int) $this->app->user['id'],
+            (int) ($params['line'] ?? 0),
+        );
+
+        if ($line === null) {
+            $this->app->abort(404, 'That payslip does not exist.');
+        }
+
+        $slip = $this->app->finance->payslips->generate($companyId, (int) $line['run_id'], (int) $line['id']);
+        header('Content-Type: application/pdf');
+        header('Content-Disposition: attachment; filename="' . $slip['name'] . '"');
+        header('Content-Length: ' . (string) filesize($slip['path']));
+        header('Cache-Control: private, no-store');
+        readfile($slip['path']);
+        exit;
     }
 
     /** @return array<string,mixed> */

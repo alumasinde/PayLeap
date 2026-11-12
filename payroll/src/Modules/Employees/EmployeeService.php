@@ -26,6 +26,12 @@ final class EmployeeService
         'intern' => 'Intern',
     ];
 
+    public const PAY_BASIS = [
+        'monthly' => 'Monthly salary',
+        'daily' => 'Daily rate',
+        'hourly' => 'Hourly rate',
+    ];
+
     public const GENDERS = [
         'female' => 'Female',
         'male' => 'Male',
@@ -43,7 +49,7 @@ final class EmployeeService
         'employee_no', 'middle_name', 'gender', 'email', 'phone', 'national_id', 'address',
         'marital_status', 'nationality', 'cost_center', 'photo_path',
         'kra_pin', 'nssf_number', 'shif_number', 'bank_name', 'bank_branch',
-        'bank_account', 'job_title',
+        'bank_account', 'mpesa_no', 'job_title',
     ];
 
     private const TEXT_FIELDS = [
@@ -66,6 +72,7 @@ final class EmployeeService
         'bank_name' => 80,
         'bank_branch' => 80,
         'bank_account' => 40,
+        'mpesa_no' => 40,
         'job_title' => 80,
     ];
 
@@ -443,6 +450,16 @@ final class EmployeeService
             $data['employment_type'] = $type;
         }
 
+        if (array_key_exists('pay_basis', $input)) {
+            $basis = (string) $input['pay_basis'];
+
+            if (!isset(self::PAY_BASIS[$basis])) {
+                throw new HttpException(422, 'Choose monthly, daily or hourly pay.');
+            }
+
+            $data['pay_basis'] = $basis;
+        }
+
         if (array_key_exists('gender', $input)) {
             $gender = is_scalar($input['gender']) ? trim((string) $input['gender']) : '';
 
@@ -535,11 +552,16 @@ final class EmployeeService
                 $cents = Money::toCents($raw);
 
                 if ($cents === null) {
-                    throw new HttpException(422, 'Enter the salary as an amount, for example 45000.00.');
+                    throw new HttpException(422, 'Enter the pay rate as an amount, for example 45000.00.');
                 }
 
                 $data['monthly_salary_cents'] = $cents;
             }
+        }
+
+        if (array_key_exists('salary_effective_date', $input)) {
+            $effective = trim((string) $input['salary_effective_date']);
+            $data['salary_effective_date'] = $effective === '' ? date('Y-m-d') : $this->date($effective, 'Pay effective date');
         }
 
         if (array_key_exists('start_date', $input)) {

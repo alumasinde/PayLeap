@@ -89,7 +89,8 @@ final class PortalResolver
             return Portal::HR;
         }
 
-        if (str_starts_with($path, '/finance') || str_starts_with($path, '/app/payroll')) {
+        if (str_starts_with($path, '/finance') || str_starts_with($path, '/app/payroll')
+            || str_starts_with($path, '/app/finance') || str_starts_with($path, '/app/audit')) {
             return Portal::FINANCE;
         }
 

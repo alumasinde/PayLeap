@@ -1,0 +1,36 @@
+{% extends 'layout.twig' %}
+{% import 'partials/icons.twig' as icons %}
+
+{% block title %}Reports — {{ app_name }}{% endblock %}
+
+{% block body %}
+  <section class="page-head">
+    <div class="page-head-row">
+      <div>
+        <span class="kicker">Finance · Reports</span>
+        <h1>Reports &amp; accounting</h1>
+        <p class="muted">Payroll cost, statutory liability, leave, loans, tax and the general ledger journal.</p>
+      </div>
+      <form class="row-actions" method="get" action="/app/finance/reports">
+        <label class="field"><span>Month</span><input type="month" name="period" value="{{ period }}"></label>
+        <button class="btn-ghost" type="submit">Apply</button>
+      </form>
+    </div>
+  </section>
+
+  <div class="stat-grid">
+    {% for key, label in reports %}
+      <a class="stat-card" href="/app/finance/reports/{{ key }}?period={{ period }}">
+        <div class="stat-top"><span class="stat-icon green">{{ icons.svg('chart', 18) }}</span></div>
+        <span class="stat-value" style="font-size:1.05rem">{{ label }}</span>
+        <span class="stat-foot">Open report {{ icons.svg('arrow-right', 13) }}</span>
+      </a>
+    {% endfor %}
+  </div>
+
+  <section class="panel">
+    <h2>Accounting controls</h2>
+    <p class="muted">The GL journal uses the company's chart of accounts and mappings. Defaults are created on first use and can be extended without changing payroll history.</p>
+    <a class="btn-ghost" href="/app/finance/reports/gl-journal?period={{ period }}">Open GL journal</a>
+  </section>
+{% endblock %}

@@ -24,6 +24,20 @@ final class SmtpMailer implements Mailer
 
     public function send(string $to, string $subject, string $body): void
     {
+        $this->deliver($to, $subject, $body, null, null);
+    }
+
+    public function sendAttachment(string $to, string $subject, string $body, string $path, string $name): void
+    {
+        if (!is_file($path)) {
+            throw new RuntimeException('Mail attachment does not exist.');
+        }
+
+        $this->deliver($to, $subject, $body, $path, $name);
+    }
+
+    private function deliver(string $to, string $subject, string $body, ?string $path, ?string $name): void
+    {
         foreach ([$to, $subject, $this->from] as $header) {
             if (preg_match('/[\r\n]/', $header) === 1) {
                 throw new RuntimeException('Mail headers cannot contain line breaks.');
@@ -64,17 +78,34 @@ final class SmtpMailer implements Mailer
             $this->command($socket, 'RCPT TO:<' . $to . '>', [250, 251]);
             $this->command($socket, 'DATA', 354);
 
-            $headers = implode("\r\n", [
+            $headers = [
                 'From: ' . $this->from,
                 'To: ' . $to,
                 'Subject: =?UTF-8?B?' . base64_encode($subject) . '?=',
                 'Date: ' . gmdate('r'),
                 'MIME-Version: 1.0',
-                'Content-Type: text/plain; charset=utf-8',
-                'Content-Transfer-Encoding: base64',
-            ]);
+            ];
 
-            $payload = $headers . "\r\n\r\n" . chunk_split(base64_encode($body), 76, "\r\n");
+            if ($path === null || $name === null) {
+                $headers[] = 'Content-Type: text/plain; charset=utf-8';
+                $headers[] = 'Content-Transfer-Encoding: base64';
+                $payload = implode("\r\n", $headers) . "\r\n\r\n" . chunk_split(base64_encode($body), 76, "\r\n");
+            } else {
+                $boundary = 'mshahara-' . bin2hex(random_bytes(12));
+                $headers[] = 'Content-Type: multipart/mixed; boundary="' . $boundary . '"';
+                $payload = implode("\r\n", $headers) . "\r\n\r\n"
+                    . '--' . $boundary . "\r\n"
+                    . "Content-Type: text/plain; charset=utf-8\r\n"
+                    . "Content-Transfer-Encoding: base64\r\n\r\n"
+                    . chunk_split(base64_encode($body), 76, "\r\n")
+                    . '--' . $boundary . "\r\n"
+                    . 'Content-Type: application/pdf; name="' . addcslashes($name, '"\\') . "\"\r\n"
+                    . "Content-Transfer-Encoding: base64\r\n"
+                    . 'Content-Disposition: attachment; filename="' . addcslashes($name, '"\\') . "\"\r\n\r\n"
+                    . chunk_split(base64_encode((string) file_get_contents($path)), 76, "\r\n")
+                    . '--' . $boundary . "--\r\n";
+            }
+
             fwrite($socket, rtrim($payload, "\r\n") . "\r\n.\r\n");
             $this->expect($socket, 250);
             $this->command($socket, 'QUIT', 221);

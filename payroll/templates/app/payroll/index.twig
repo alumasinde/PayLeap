@@ -79,6 +79,7 @@
               <th class="num">Net</th>
               <th class="num">Employer cost</th>
               <th>Status</th>
+              <th>Payment</th>
             </tr>
           </thead>
           <tbody>
@@ -97,9 +98,10 @@
                 <td class="num mono">{{ run.employer_cost_cents|money }}</td>
                 <td>
                   <span class="chip{% if run.status == 'approved' %} on{% endif %}">
-                    {{ run.status == 'approved' ? 'Approved' : 'Draft' }}
+                    {{ run.status|capitalize }}{{ run.run_type == 'adjustment' ? ' · correction' : '' }}
                   </span>
                 </td>
+                <td><span class="chip{{ run.payment_status == 'paid' ? ' on' : '' }}">{{ run.payment_status == 'paid' ? 'Paid' : 'Unpaid' }}</span></td>
               </tr>
             {% endfor %}
           </tbody>

@@ -102,6 +102,45 @@
           </a>
         {% endif %}
 
+        {% if portal == 'finance' and can('payment.release') %}
+          <a class="side-link{{ current_path starts with '/app/finance/payments' ? ' is-active' : '' }}" href="/app/finance/payments">
+            {{ icons.svg('banknote', 18) }}<span>Payments</span>
+          </a>
+        {% endif %}
+
+        {% if portal == 'finance' and can('payroll.run') %}
+          <a class="side-link{{ current_path == '/app/finance/pay-items' ? ' is-active' : '' }}" href="/app/finance/pay-items">
+            {{ icons.svg('settings', 18) }}<span>Pay items</span>
+          </a>
+          <a class="side-link{{ current_path == '/app/finance/claims' ? ' is-active' : '' }}" href="/app/finance/claims">
+            {{ icons.svg('file', 18) }}<span>Claims &amp; extras</span>
+          </a>
+        {% endif %}
+
+        {% if portal == 'finance' and can('returns.view') %}
+          <a class="side-link{{ current_path == '/app/finance/returns' ? ' is-active' : '' }}" href="/app/finance/returns">
+            {{ icons.svg('shield', 18) }}<span>Statutory returns</span>
+          </a>
+        {% endif %}
+
+        {% if portal == 'finance' and can('loans.view') %}
+          <a class="side-link{{ current_path == '/app/finance/loans' ? ' is-active' : '' }}" href="/app/finance/loans">
+            {{ icons.svg('wallet', 18) }}<span>Loans &amp; advances</span>
+          </a>
+        {% endif %}
+
+        {% if portal == 'finance' and can('reports.view') %}
+          <a class="side-link{{ current_path starts with '/app/finance/reports' ? ' is-active' : '' }}" href="/app/finance/reports">
+            {{ icons.svg('chart', 18) }}<span>Reports</span>
+          </a>
+        {% endif %}
+
+        {% if portal == 'finance' and can('audit.view') %}
+          <a class="side-link{{ current_path == '/app/audit' ? ' is-active' : '' }}" href="/app/audit">
+            {{ icons.svg('shield', 18) }}<span>Audit trail</span>
+          </a>
+        {% endif %}
+
         {% if portal == 'finance' and can('employees.view') %}
           <a class="side-link{{ current_path starts with '/app/employees' ? ' is-active' : '' }}" href="/app/employees">
             {{ icons.svg('users', 18) }}<span>Employees</span><span class="side-tag">View only</span>

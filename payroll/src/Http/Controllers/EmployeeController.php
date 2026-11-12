@@ -77,6 +77,7 @@ final class EmployeeController
         echo $this->app->render('app/employees/show.twig', [
             'employee' => $employee,
             'types' => EmployeeService::TYPES,
+            'pay_basis' => EmployeeService::PAY_BASIS,
             'genders' => EmployeeService::GENDERS,
             'marital_statuses' => EmployeeService::MARITAL_STATUSES,
             'next_of_kin' => $this->app->employees->register->nextOfKin((int) $company['company_id'], (int) $employee['id']),
@@ -374,7 +375,7 @@ final class EmployeeController
             'employee_no', 'first_name', 'middle_name', 'last_name', 'dob', 'gender',
             'email', 'phone', 'address', 'marital_status', 'nationality', 'cost_center',
             'national_id', 'kra_pin', 'nssf_number', 'shif_number',
-            'department_id', 'manager_id', 'user_id', 'job_title', 'employment_type',
+            'department_id', 'manager_id', 'user_id', 'job_title', 'employment_type', 'pay_basis',
             'start_date', 'exit_date',
             'next_of_kin_name', 'next_of_kin_relationship', 'next_of_kin_phone',
             'next_of_kin_email', 'next_of_kin_address',
@@ -398,10 +399,11 @@ final class EmployeeController
 
         if ($this->app->can('employees.salary.view') && $request->has('monthly_salary')) {
             $input['monthly_salary'] = $request->string('monthly_salary');
+            $input['salary_effective_date'] = $request->string('salary_effective_date');
         }
 
         if ($this->app->can('employees.bank.view')) {
-            foreach (['bank_name', 'bank_branch', 'bank_account'] as $field) {
+            foreach (['bank_name', 'bank_branch', 'bank_account', 'mpesa_no'] as $field) {
                 if ($request->has($field)) {
                     $input[$field] = $request->string($field);
                 }
@@ -431,6 +433,7 @@ final class EmployeeController
             ),
             'portal_users' => $this->app->employees->register->portalUsers((int) $company['company_id']),
             'types' => EmployeeService::TYPES,
+            'pay_basis' => EmployeeService::PAY_BASIS,
             'genders' => EmployeeService::GENDERS,
             'marital_statuses' => EmployeeService::MARITAL_STATUSES,
             'can_salary' => $this->app->can('employees.salary.view'),

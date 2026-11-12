@@ -1,0 +1,83 @@
+{% extends 'layout.twig' %}
+{% import 'partials/icons.twig' as icons %}
+
+{% block title %}Payments — {{ app_name }}{% endblock %}
+
+{% block body %}
+  <section class="page-head">
+    <span class="kicker">Finance · Payments</span>
+    <h1>Payment batches</h1>
+    <p class="muted">Prepare a bank, M-Pesa or cash file from an approved run, inspect it, then release it as a separate control step.</p>
+  </section>
+
+  <div class="stat-grid">
+    <div class="stat"><span class="stat-label">Awaiting payment</span><strong>{{ runs|length }}</strong></div>
+    <div class="stat"><span class="stat-label">Prepared batches</span><strong>{{ pending.count }}</strong></div>
+    <div class="stat"><span class="stat-label">Value prepared</span><strong class="mono">KES {{ pending.total|money }}</strong></div>
+  </div>
+
+  <div class="grid-2">
+    <section class="panel">
+      <h2>Prepare a batch</h2>
+      {% if runs %}
+        <form class="stack" method="post" action="/app/finance/payments">
+          <input type="hidden" name="_token" value="{{ csrf_token() }}">
+          <label class="field"><span>Approved run</span>
+            <select name="run_id" required>
+              {% for run in runs %}
+                <option value="{{ run.id }}">{{ run.period }} · {{ run.label }} · KES {{ run.net_cents|money }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label class="field"><span>Payment method</span>
+            <select name="method">
+              <option value="bank">Bank transfer</option>
+              <option value="mpesa">M-Pesa B2C</option>
+              <option value="cash">Cash / cheque list</option>
+            </select>
+          </label>
+          <button class="btn-primary" type="submit">Prepare payment batch</button>
+        </form>
+        <p class="hint">Bank and M-Pesa batches check every employee's payment details before they are created.</p>
+      {% else %}
+        <p class="muted">No approved runs are waiting for payment.</p>
+      {% endif %}
+    </section>
+
+    <section class="panel">
+      <h2>Control check</h2>
+      <dl class="facts">
+        <div><dt>Approved runs</dt><dd>Only approved runs can be paid.</dd></div>
+        <div><dt>Separate release</dt><dd>Preparing a file does not move money.</dd></div>
+        <div><dt>Snapshot</dt><dd>Bank details are copied into the batch.</dd></div>
+        <div><dt>Reconciliation</dt><dd>Release marks the run paid.</dd></div>
+      </dl>
+    </section>
+  </div>
+
+  <section class="panel">
+    <h2>Payment batches</h2>
+    {% if batches %}
+      <div class="table-wrap">
+        <table class="list">
+          <thead><tr><th>Reference</th><th>Run</th><th>Method</th><th class="num">Total</th><th>Status</th><th>Prepared</th><th></th></tr></thead>
+          <tbody>
+            {% for batch in batches %}
+              <tr>
+                <td class="mono"><a href="/app/finance/payments/{{ batch.id }}">{{ batch.reference }}</a></td>
+                <td>{{ batch.period }} · {{ batch.run_label }}</td>
+                <td>{{ batch.method|upper }}</td>
+                <td class="num mono">KES {{ batch.total_cents|money }}</td>
+                <td><span class="chip{{ batch.status == 'released' ? ' on' : '' }}">{{ batch.status|capitalize }}</span></td>
+                <td>{{ batch.prepared_first }} {{ batch.prepared_last }}<br><span class="muted mono">{{ batch.created_at }}</span></td>
+                <td><a class="btn-ghost btn-sm" href="/app/finance/payments/{{ batch.id }}">Open</a></td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="muted">No payment batches yet.</p>
+    {% endif %}
+  </section>
+{% endblock %}

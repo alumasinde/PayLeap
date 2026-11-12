@@ -4,23 +4,38 @@
 
 {% block body %}
   <section class="page-head">
-    <span class="kicker">Payroll · {{ run.period|date('F Y') }}</span>
+    <span class="kicker">Payroll · {{ run.period|date('F Y') }}{{ run.run_type == 'adjustment' ? ' · correction' : '' }}</span>
     <h1>{{ run.label }}</h1>
     <p class="muted">
-      <span class="chip{% if run.status == 'approved' %} on{% endif %}">
-        {{ run.status == 'approved' ? 'Approved' : 'Draft' }}
-      </span>
-      · Rates {{ run.rate_version_id }} (effective {{ run.rate_effective_from }}, verified {{ run.rate_verified_on }})
-      · Prepared by {{ run.prepared_first }} {{ run.prepared_last }}
+      <span class="chip{% if run.status == 'approved' %} on{% endif %}">{{ run.status|capitalize }}</span>
+      <span class="chip{% if run.payment_status == 'paid' %} on{% endif %}">{{ run.payment_status == 'paid' ? 'Paid' : 'Unpaid' }}</span>
+      · Rates {{ run.rate_version_id }} · Prepared by {{ run.prepared_first }} {{ run.prepared_last }}
+      {% if run.parent_label %} · Correction of <a href="/app/payroll/{{ run.parent_run_id }}">{{ run.parent_label }}</a>{% endif %}
     </p>
+    {% if run.adjustment_reason %}<p class="hint">Reason: {{ run.adjustment_reason }}</p>{% endif %}
   </section>
 
   <div class="stat-grid">
     <div class="stat"><span class="stat-label">Employees</span><strong>{{ run.employee_count }}</strong></div>
     <div class="stat"><span class="stat-label">Gross</span><strong class="mono">{{ run.gross_cents|money }}</strong></div>
     <div class="stat"><span class="stat-label">Deductions</span><strong class="mono">{{ run.deductions_cents|money }}</strong></div>
+    <div class="stat"><span class="stat-label">Reimbursements</span><strong class="mono">{{ run.reimbursements_cents|money }}</strong></div>
     <div class="stat"><span class="stat-label">Net pay</span><strong class="mono">{{ run.net_cents|money }}</strong></div>
     <div class="stat"><span class="stat-label">Employer cost</span><strong class="mono">{{ run.employer_cost_cents|money }}</strong></div>
+  </div>
+
+  <div class="row-actions">
+    {% if can_export %}<a class="btn-ghost" href="/app/payroll/{{ run.id }}/export">Export payroll CSV</a>{% endif %}
+    {% if run.status == 'approved' and run.payment_status == 'unpaid' and can_release %}
+      <a class="btn-primary" href="/app/finance/payments">Prepare payment</a>
+    {% endif %}
+    {% if run.payment_status == 'paid' and run.paid_at %}<span class="chip on">Paid {{ run.paid_at }}</span>{% endif %}
+    {% if can_deliver and run.status == 'approved' %}
+      <form method="post" action="/app/payroll/{{ run.id }}/payslips/email">
+        <input type="hidden" name="_token" value="{{ csrf_token() }}">
+        <button class="btn-ghost" type="submit">Email all payslips</button>
+      </form>
+    {% endif %}
   </div>
 
   <section class="panel">
@@ -29,30 +44,38 @@
       <table class="list">
         <thead>
           <tr>
-            <th>No.</th>
-            <th>Name</th>
-            <th class="num">Gross</th>
-            <th class="num">NSSF</th>
-            <th class="num">SHIF</th>
-            <th class="num">Levy</th>
-            <th class="num">PAYE</th>
-            <th class="num">Net</th>
-            <th></th>
+            <th>No.</th><th>Name</th><th class="num">Gross</th><th class="num">Other ded.</th>
+            <th class="num">Loan / advance</th><th class="num">Net</th><th></th>
           </tr>
         </thead>
         <tbody>
           {% for line in lines %}
             <tr>
               <td class="mono">{{ line.employee_no }}</td>
-              <td>{{ line.employee_name }}</td>
+              <td>
+                {{ line.employee_name }}
+                {% if line.proration_bp < 10000 %}<br><span class="chip">Prorated {{ (line.proration_bp / 100)|number_format(1) }}%</span>{% endif %}
+                {% if line_items[line.employee_id] is defined %}
+                  <details class="line-items">
+                    <summary>{{ line_items[line.employee_id]|length }} pay item(s)</summary>
+                    <ul class="mini-list">
+                      {% for item in line_items[line.employee_id] %}
+                        <li><span>{{ item.label }}</span><span class="mono">{{ item.kind == 'deduction' ? '−' : '+' }}{{ item.amount_cents|money }}</span></li>
+                      {% endfor %}
+                    </ul>
+                  </details>
+                {% endif %}
+              </td>
               <td class="num mono">{{ line.gross_cents|money }}</td>
-              <td class="num mono">{{ line.nssf_employee_cents|money }}</td>
-              <td class="num mono">{{ line.shif_cents|money }}</td>
-              <td class="num mono">{{ line.housing_levy_employee_cents|money }}</td>
-              <td class="num mono">{{ line.paye_cents|money }}</td>
+              <td class="num mono">{{ line.other_deduction_cents|money }}</td>
+              <td class="num mono">{{ (line.loan_deduction_cents + line.advance_deduction_cents)|money }}</td>
               <td class="num mono">{{ line.net_cents|money }}</td>
               <td>
-                <a class="btn-ghost btn-sm" href="/app/payroll/{{ run.id }}/lines/{{ line.id }}/payslip">Payslip</a>
+                <div class="row-actions">
+                  <a class="btn-ghost btn-xs" href="/app/payroll/{{ run.id }}/lines/{{ line.id }}/payslip">Payslip</a>
+                  <a class="btn-ghost btn-xs" href="/app/payroll/{{ run.id }}/lines/{{ line.id }}/payslip.pdf">PDF</a>
+                  {% if can_deliver %}<form method="post" action="/app/payroll/{{ run.id }}/lines/{{ line.id }}/email"><input type="hidden" name="_token" value="{{ csrf_token() }}"><button class="btn-ghost btn-xs">Email</button></form>{% endif %}
+                </div>
               </td>
             </tr>
           {% endfor %}
@@ -68,35 +91,52 @@
         <div><dt>NSSF</dt><dd class="mono">{{ run.employer_nssf_cents|money }}</dd></div>
         <div><dt>Housing levy</dt><dd class="mono">{{ run.employer_housing_cents|money }}</dd></div>
         <div><dt>NITA</dt><dd class="mono">{{ run.employer_nita_cents|money }}</dd></div>
+        <div><dt>Loans recovered</dt><dd class="mono">{{ run.loan_deductions_cents|money }}</dd></div>
+        <div><dt>Other deductions</dt><dd class="mono">{{ run.other_deductions_cents|money }}</dd></div>
         <div><dt>Total cost</dt><dd class="mono">{{ run.employer_cost_cents|money }}</dd></div>
       </dl>
     </section>
 
     <section class="panel">
-      <h2>Approval</h2>
-
+      <h2>Approval &amp; correction</h2>
       {% if run.status == 'draft' %}
         {% if can_approve %}
-          {% if is_preparer %}
-            <p class="muted">You prepared this run, so someone else must approve it.</p>
+          {% if is_preparer %}<p class="muted">You prepared this run, so someone else must approve it.</p>
           {% else %}
             <form class="stack" method="post" action="/app/payroll/{{ run.id }}/approve">
               <input type="hidden" name="_token" value="{{ csrf_token() }}">
               <button class="btn-primary" type="submit">Approve run</button>
             </form>
-            <p class="hint">Approving locks the run. Corrections would be a new adjustment run.</p>
+            <p class="hint">Approval locks the run. Corrections are separate runs.</p>
           {% endif %}
-        {% else %}
-          <p class="muted">Waiting for someone with approval rights.</p>
-        {% endif %}
+        {% else %}<p class="muted">Waiting for someone with approval rights.</p>{% endif %}
       {% else %}
-        <p class="muted">
-          Approved by {{ run.approved_first }} {{ run.approved_last }} on {{ run.approved_at }} UTC.
-        </p>
-        <p class="hint">This run is locked. A correction would be a new adjustment run.</p>
+        <p class="muted">Approved by {{ run.approved_first }} {{ run.approved_last }} on {{ run.approved_at }} UTC.</p>
+        {% if can_adjust %}
+          <form class="stack" method="post" action="/app/payroll/{{ run.id }}/adjust">
+            <input type="hidden" name="_token" value="{{ csrf_token() }}">
+            <label class="field"><span>Correction reason</span><input name="reason" maxlength="255" required placeholder="e.g. missed transport allowance"></label>
+            <button class="btn-ghost" type="submit">Create correction run</button>
+          </form>
+          <p class="hint">The correction contains only the difference from this run and can be approved separately.</p>
+        {% endif %}
       {% endif %}
     </section>
   </div>
+
+  {% if deliveries %}
+    <section class="panel">
+      <h2>Payslip delivery</h2>
+      <div class="table-wrap"><table class="list">
+        <thead><tr><th>Employee</th><th>Email</th><th>Status</th><th>Sent</th><th>Error</th></tr></thead>
+        <tbody>{% for delivery in deliveries %}<tr>
+          <td>{{ delivery.employee_no }} · {{ delivery.employee_name }}</td><td>{{ delivery.email ?: '—' }}</td>
+          <td><span class="chip{{ delivery.status == 'sent' ? ' on' : '' }}">{{ delivery.status|capitalize }}</span></td>
+          <td class="mono">{{ delivery.sent_at ?: '—' }}</td><td>{{ delivery.error ?: '—' }}</td>
+        </tr>{% endfor %}</tbody>
+      </table></div>
+    </section>
+  {% endif %}
 
   <p class="muted"><a href="/app/payroll">Back to payroll</a></p>
 {% endblock %}

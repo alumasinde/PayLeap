@@ -1,0 +1,137 @@
+{% extends 'layout.twig' %}
+
+{% block title %}Claims &amp; extras — {{ app_name }}{% endblock %}
+
+{% block body %}
+  <section class="page-head">
+    <span class="kicker">Finance · Payroll inputs</span>
+    <h1>Claims, commissions &amp; final dues</h1>
+    <p class="muted">Approved items flow into the next payroll for their period. Expense claims add to net pay; damage claims recover through deductions.</p>
+  </section>
+
+  <div class="grid-2">
+    <section class="panel">
+      <h2>Expense claim</h2>
+      <form class="stack" method="post" action="/app/finance/claims/expense">
+        <input type="hidden" name="_token" value="{{ csrf_token() }}">
+        <label class="field"><span>Employee</span><select name="employee_id" required>{% for employee in employees %}<option value="{{ employee.id }}">{{ employee.employee_no }} · {{ employee.first_name }} {{ employee.last_name }}</option>{% endfor %}</select></label>
+        <div class="grid-2">
+          <label class="field"><span>Category</span><input name="category" required maxlength="60"></label>
+          <label class="field"><span>Month</span><input type="month" name="period" value="{{ today|date('Y-m') }}"></label>
+        </div>
+        <div class="grid-2">
+          <label class="field"><span>Amount</span><input name="amount" inputmode="decimal" required></label>
+          <label class="field"><span>Receipt ref</span><input name="receipt_ref" maxlength="255"></label>
+        </div>
+        <button class="btn-primary" type="submit">Add expense claim</button>
+      </form>
+    </section>
+
+    <section class="panel">
+      <h2>Loss or damage recovery</h2>
+      <form class="stack" method="post" action="/app/finance/claims/damage">
+        <input type="hidden" name="_token" value="{{ csrf_token() }}">
+        <label class="field"><span>Employee</span><select name="employee_id" required>{% for employee in employees %}<option value="{{ employee.id }}">{{ employee.employee_no }} · {{ employee.first_name }} {{ employee.last_name }}</option>{% endfor %}</select></label>
+        <label class="field"><span>Description</span><input name="description" required maxlength="255"></label>
+        <label class="field"><span>Amount</span><input name="amount" inputmode="decimal" required></label>
+        <button class="btn-primary" type="submit">Add damage claim</button>
+      </form>
+    </section>
+
+    <section class="panel">
+      <h2>Commission</h2>
+      <form class="stack" method="post" action="/app/finance/claims/commission">
+        <input type="hidden" name="_token" value="{{ csrf_token() }}">
+        <label class="field"><span>Employee</span><select name="employee_id" required>{% for employee in employees %}<option value="{{ employee.id }}">{{ employee.employee_no }} · {{ employee.first_name }} {{ employee.last_name }}</option>{% endfor %}</select></label>
+        <div class="grid-2">
+          <label class="field"><span>Amount</span><input name="amount" inputmode="decimal" required></label>
+          <label class="field"><span>Sales base</span><input name="base" inputmode="decimal" value="0"></label>
+        </div>
+        <label class="field"><span>Month</span><input type="month" name="period" value="{{ today|date('Y-m') }}"></label>
+        <button class="btn-primary" type="submit">Add commission</button>
+      </form>
+    </section>
+
+    <section class="panel">
+      <h2>Service charge pool</h2>
+      <form class="stack" method="post" action="/app/finance/claims/service-charge">
+        <input type="hidden" name="_token" value="{{ csrf_token() }}">
+        <div class="grid-2">
+          <label class="field"><span>Total pool</span><input name="total" inputmode="decimal" required></label>
+          <label class="field"><span>Month</span><input type="month" name="period" value="{{ today|date('Y-m') }}"></label>
+        </div>
+        <button class="btn-primary" type="submit">Allocate equally</button>
+      </form>
+    </section>
+  </div>
+
+  <section class="panel">
+    <h2>Expense claims</h2>
+    {% if expenses %}
+      <div class="table-wrap"><table class="list">
+        <thead><tr><th>Employee</th><th>Category</th><th>Month</th><th class="num">Amount</th><th>Status</th><th></th></tr></thead>
+        <tbody>{% for item in expenses %}<tr>
+          <td>{{ item.employee_no }} · {{ item.first_name }} {{ item.last_name }}</td><td>{{ item.category }}</td><td class="mono">{{ item.period }}</td>
+          <td class="num mono">KES {{ item.amount_cents|money }}</td><td><span class="chip{{ item.status == 'approved' ? ' on' : '' }}">{{ item.status|capitalize }}</span></td>
+          <td>{% if item.status == 'pending' %}<form class="row-actions" method="post" action="/app/finance/claims/expense/{{ item.id }}/decide"><input type="hidden" name="_token" value="{{ csrf_token() }}"><input type="hidden" name="decision" value="approved"><button class="btn-primary btn-xs">Approve</button></form>{% endif %}</td>
+        </tr>{% endfor %}</tbody>
+      </table></div>
+    {% else %}<p class="muted">No expense claims.</p>{% endif %}
+  </section>
+
+  <section class="panel">
+    <h2>Loss &amp; damage</h2>
+    {% if damage %}
+      <div class="table-wrap"><table class="list">
+        <thead><tr><th>Employee</th><th>Description</th><th class="num">Amount</th><th>Status</th><th></th></tr></thead>
+        <tbody>{% for item in damage %}<tr>
+          <td>{{ item.employee_no }} · {{ item.first_name }} {{ item.last_name }}</td><td>{{ item.description }}</td>
+          <td class="num mono">KES {{ item.amount_cents|money }}</td><td><span class="chip{{ item.status == 'approved' ? ' on' : '' }}">{{ item.status|capitalize }}</span></td>
+          <td>{% if item.status == 'pending' %}<form class="row-actions" method="post" action="/app/finance/claims/damage/{{ item.id }}/decide"><input type="hidden" name="_token" value="{{ csrf_token() }}"><input type="hidden" name="decision" value="approved"><button class="btn-primary btn-xs">Approve</button></form>{% endif %}</td>
+        </tr>{% endfor %}</tbody>
+      </table></div>
+    {% else %}<p class="muted">No damage claims.</p>{% endif %}
+  </section>
+
+  <section class="panel">
+    <h2>Commissions &amp; service charge</h2>
+    {% if commissions or pools %}
+      <div class="table-wrap"><table class="list">
+        <thead><tr><th>Employee / pool</th><th>Period</th><th class="num">Amount</th><th>Run</th></tr></thead>
+        <tbody>
+          {% for item in commissions %}<tr><td>{{ item.employee_no }} · {{ item.first_name }} {{ item.last_name }} (commission)</td><td class="mono">{{ item.period }}</td><td class="num mono">KES {{ item.amount_cents|money }}</td><td>{{ item.run_id ? 'Posted' : 'Pending' }}</td></tr>{% endfor %}
+          {% for pool in pools %}<tr><td>Service charge pool</td><td class="mono">{{ pool.period }}</td><td class="num mono">KES {{ pool.total_cents|money }}</td><td>{{ pool.employee_count }} shares</td></tr>{% endfor %}
+        </tbody>
+      </table></div>
+    {% else %}<p class="muted">No commissions or service charge pools.</p>{% endif %}
+  </section>
+
+  <section class="panel">
+    <h2>Final dues</h2>
+    <form class="stack" method="post" action="/app/finance/claims/final-dues">
+      <input type="hidden" name="_token" value="{{ csrf_token() }}">
+      <label class="field"><span>Employee</span><select name="employee_id" required>{% for employee in employees %}<option value="{{ employee.id }}">{{ employee.employee_no }} · {{ employee.first_name }} {{ employee.last_name }}</option>{% endfor %}</select></label>
+      <div class="grid-2">
+        <label class="field"><span>Leave payout</span><input name="leave_payout" inputmode="decimal" value="0"></label>
+        <label class="field"><span>Notice</span><input name="notice" inputmode="decimal" value="0"></label>
+        <label class="field"><span>Severance</span><input name="severance" inputmode="decimal" value="0"></label>
+        <label class="field"><span>Service pay</span><input name="service_pay" inputmode="decimal" value="0"></label>
+        <label class="field"><span>Other</span><input name="other" inputmode="decimal" value="0"></label>
+        <label class="field"><span>Month</span><input type="month" name="period" value="{{ today|date('Y-m') }}"></label>
+      </div>
+      <label class="field"><span>Notes</span><input name="notes" maxlength="255"></label>
+      <button class="btn-primary" type="submit">Create final dues</button>
+    </form>
+
+    {% if finals %}
+      <div class="table-wrap"><table class="list">
+        <thead><tr><th>Employee</th><th>Period</th><th class="num">Total</th><th>Status</th><th></th></tr></thead>
+        <tbody>{% for item in finals %}<tr>
+          <td>{{ item.employee_no }} · {{ item.first_name }} {{ item.last_name }}</td><td class="mono">{{ item.period }}</td>
+          <td class="num mono">KES {{ item.total_cents|money }}</td><td><span class="chip{{ item.status == 'approved' ? ' on' : '' }}">{{ item.status|capitalize }}</span></td>
+          <td>{% if item.status == 'draft' %}<form method="post" action="/app/finance/claims/final-dues/{{ item.id }}/decide"><input type="hidden" name="_token" value="{{ csrf_token() }}"><input type="hidden" name="decision" value="approved"><button class="btn-primary btn-xs">Approve</button></form>{% endif %}</td>
+        </tr>{% endfor %}</tbody>
+      </table></div>
+    {% endif %}
+  </section>
+{% endblock %}

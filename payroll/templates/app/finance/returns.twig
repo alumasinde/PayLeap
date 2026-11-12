@@ -1,0 +1,87 @@
+{% extends 'layout.twig' %}
+
+{% block title %}Statutory returns — {{ app_name }}{% endblock %}
+
+{% block body %}
+  <section class="page-head">
+    <span class="kicker">Finance · Compliance</span>
+    <h1>Statutory returns</h1>
+    <p class="muted">Returns are snapshots generated from an approved run. Filing is recorded separately with the portal reference.</p>
+  </section>
+
+  <div class="grid-2">
+    <section class="panel">
+      <h2>Generate a return</h2>
+      {% if can_generate and runs %}
+        <form class="stack" method="post" action="/app/finance/returns">
+          <input type="hidden" name="_token" value="{{ csrf_token() }}">
+          <label class="field"><span>Approved run</span>
+            <select name="run_id" required>
+              {% for run in runs %}<option value="{{ run.id }}">{{ run.period }} · {{ run.label }} · {{ run.run_type|capitalize }}</option>{% endfor %}
+            </select>
+          </label>
+          <label class="field"><span>Return</span>
+            <select name="type">
+              {% for key, label in types %}<option value="{{ key }}">{{ label }}</option>{% endfor %}
+            </select>
+          </label>
+          <button class="btn-primary" type="submit">Prepare return</button>
+        </form>
+        <p class="hint">P9A uses the run's year. Other returns use that month's approved run only.</p>
+      {% elseif not can_generate %}
+        <p class="muted">Your role can view returns but not generate them.</p>
+      {% else %}
+        <p class="muted">Approve a payroll run before preparing returns.</p>
+      {% endif %}
+    </section>
+
+    <section class="panel">
+      <h2>What is covered</h2>
+      <dl class="facts">
+        <div><dt>PAYE</dt><dd>P10 and PAYE schedule</dd></div>
+        <div><dt>NSSF</dt><dd>Employee and employer contributions</dd></div>
+        <div><dt>SHIF</dt><dd>Employee contributions</dd></div>
+        <div><dt>Housing Levy</dt><dd>Employee and employer contributions</dd></div>
+        <div><dt>NITA</dt><dd>Employer schedule</dd></div>
+        <div><dt>P9A</dt><dd>Annual tax certificate</dd></div>
+      </dl>
+    </section>
+  </div>
+
+  <section class="panel">
+    <h2>Prepared returns</h2>
+    {% if returns %}
+      <div class="table-wrap">
+        <table class="list">
+          <thead><tr><th>Type</th><th>Period</th><th class="num">Amount</th><th>Due</th><th>Status</th><th>Reference</th><th></th></tr></thead>
+          <tbody>
+            {% for item in returns %}
+              <tr>
+                <td>{{ types[item.type] ?? item.type }}</td>
+                <td class="mono">{{ item.period }}</td>
+                <td class="num mono">KES {{ item.amount_cents|money }}</td>
+                <td class="mono">{{ item.due_date ?: '—' }}</td>
+                <td><span class="chip{{ item.status == 'filed' ? ' on' : '' }}">{{ item.status|capitalize }}</span></td>
+                <td>{{ item.reference_no ?: '—' }}{% if item.filed_at %}<br><span class="muted mono">{{ item.filed_at }}</span>{% endif %}</td>
+                <td>
+                  <div class="row-actions">
+                    <a class="btn-ghost btn-xs" href="/app/finance/returns/{{ item.id }}/download">CSV</a>
+                    {% if can_generate and item.status == 'prepared' %}
+                      <form method="post" action="/app/finance/returns/{{ item.id }}/file">
+                        <input type="hidden" name="_token" value="{{ csrf_token() }}">
+                        <input name="reference" placeholder="Portal reference" aria-label="Portal reference">
+                        <button class="btn-primary btn-xs" type="submit">File</button>
+                      </form>
+                    {% endif %}
+                  </div>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="muted">No statutory returns prepared yet.</p>
+    {% endif %}
+  </section>
+{% endblock %}

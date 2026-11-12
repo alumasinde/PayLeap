@@ -16,6 +16,13 @@
     </div>
     <div class="row-actions no-print">
       <button class="btn-primary" type="button" data-print>Print payslip</button>
+      <a class="btn-ghost" href="{{ pdf_href|default('/app/payroll/' ~ run.id ~ '/lines/' ~ line.id ~ '/payslip.pdf') }}">Download PDF</a>
+      {% if can('payroll.export') %}
+        <form method="post" action="/app/payroll/{{ run.id }}/lines/{{ line.id }}/email">
+          <input type="hidden" name="_token" value="{{ csrf_token() }}">
+          <button class="btn-ghost" type="submit">Email payslip</button>
+        </form>
+      {% endif %}
       <a class="btn-ghost" href="{{ back_href }}">{{ back_text }}</a>
     </div>
   </section>
@@ -55,6 +62,11 @@
             {% if line.leave_deduction_cents > 0 %}
               <tr><td>Unpaid / partial-pay leave</td><td class="num mono">−{{ line.leave_deduction_cents|money }}</td></tr>
             {% endif %}
+            {% for item in items %}
+              {% if item.employee_id == line.employee_id and item.kind in ['earning', 'benefit'] %}
+                <tr><td>{{ item.label }}{{ item.kind == 'benefit' ? ' (benefit)' : '' }}</td><td class="num mono">{{ item.amount_cents|money }}</td></tr>
+              {% endif %}
+            {% endfor %}
             <tr class="total"><td>Gross pay</td><td class="num mono">{{ line.gross_cents|money }}</td></tr>
           </tbody>
         </table>
@@ -68,7 +80,15 @@
             <tr><td>SHIF</td><td class="num mono">{{ line.shif_cents|money }}</td></tr>
             <tr><td>Housing levy</td><td class="num mono">{{ line.housing_levy_employee_cents|money }}</td></tr>
             <tr><td>PAYE</td><td class="num mono">{{ line.paye_cents|money }}</td></tr>
+            {% for item in items %}
+              {% if item.employee_id == line.employee_id and item.kind == 'deduction' %}
+                <tr><td>{{ item.label }}</td><td class="num mono">{{ item.amount_cents|money }}</td></tr>
+              {% endif %}
+            {% endfor %}
             <tr class="total"><td>Total deductions</td><td class="num mono">{{ line.deductions_cents|money }}</td></tr>
+            {% if line.reimbursements_cents > 0 %}
+              <tr><td>Expense reimbursements (added to net)</td><td class="num mono">{{ line.reimbursements_cents|money }}</td></tr>
+            {% endif %}
           </tbody>
         </table>
       </div>
@@ -156,7 +176,8 @@
 
     <p class="payslip-foot">
       Rates {{ run.rate_version_id }}{% if slip %} · engine {{ slip.rate_version }}{% endif %}
-      · Run {{ run.status == 'approved' ? 'approved' : 'draft' }}
+      · Run {{ run.status == 'approved' ? 'approved' : 'draft' }}{{ run.run_type == 'adjustment' ? ' correction' : '' }}
+      · Payment {{ run.payment_status == 'paid' ? 'released' : 'not released' }}
       · Generated {{ generated_at }} UTC
     </p>
   </section>

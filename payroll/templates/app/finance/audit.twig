@@ -1,0 +1,53 @@
+{% extends 'layout.twig' %}
+
+{% block title %}Audit trail — {{ app_name }}{% endblock %}
+
+{% block body %}
+  <section class="page-head">
+    <span class="kicker">Finance · Controls</span>
+    <h1>Audit trail</h1>
+    <p class="muted">Every payroll, payment, return and claim action records the person, time and source. This view is read-only.</p>
+  </section>
+
+  <section class="panel">
+    <form class="filter-row" method="get" action="/app/audit">
+      <label class="field"><span>Action</span><input name="action" value="{{ filters.action }}" placeholder="payment.released"></label>
+      <label class="field"><span>Entity</span><input name="entity" value="{{ filters.entity }}" placeholder="payment_batch"></label>
+      <label class="field"><span>User</span><input name="user" value="{{ filters.user }}" placeholder="Email or name"></label>
+      <label class="field"><span>From</span><input type="date" name="from" value="{{ filters.from }}"></label>
+      <label class="field"><span>To</span><input type="date" name="to" value="{{ filters.to }}"></label>
+      <button class="btn-ghost" type="submit">Filter</button>
+    </form>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><h2>{{ total }} entries</h2><span class="muted">Page {{ page }} of {{ pages }}</span></div>
+    {% if entries %}
+      <div class="table-wrap">
+        <table class="list">
+          <thead><tr><th>Time (UTC)</th><th>User</th><th>Action</th><th>Entity</th><th>Details</th><th>Source</th></tr></thead>
+          <tbody>
+            {% for entry in entries %}
+              <tr>
+                <td class="mono">{{ entry.created_at }}</td>
+                <td>{{ entry.first_name ? entry.first_name ~ ' ' ~ entry.last_name : 'System' }}<br><span class="muted">{{ entry.email }}</span></td>
+                <td class="mono">{{ entry.action }}</td>
+                <td>{{ entry.entity ?: '—' }}{% if entry.entity_id %}<br><span class="muted mono">{{ entry.entity_id }}</span>{% endif %}</td>
+                <td class="mono" style="max-width:26rem;overflow-wrap:anywhere">{{ entry.meta ?: '—' }}</td>
+                <td class="mono">{{ entry.ip ?: '—' }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% if pages > 1 %}
+        <div class="pagination">
+          {% if page > 1 %}<a class="btn-ghost btn-sm" href="/app/audit?{{ filters|url_encode }}&page={{ page - 1 }}">Previous</a>{% endif %}
+          {% if page < pages %}<a class="btn-ghost btn-sm" href="/app/audit?{{ filters|url_encode }}&page={{ page + 1 }}">Next</a>{% endif %}
+        </div>
+      {% endif %}
+    {% else %}
+      <p class="muted">No entries match those filters.</p>
+    {% endif %}
+  </section>
+{% endblock %}
