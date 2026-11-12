@@ -86,6 +86,19 @@ final class FinanceRepository
         ];
     }
 
+    public function latestApprovedPeriod(int $companyId): ?string
+    {
+        $statement = $this->db->prepare(
+            'SELECT period FROM payroll_runs
+             WHERE company_id = ? AND status = \'approved\' AND run_type = \'regular\'
+             ORDER BY period DESC, run_no DESC, id DESC LIMIT 1',
+        );
+        $statement->execute([$companyId]);
+        $period = $statement->fetchColumn();
+
+        return $period === false ? null : (string) $period;
+    }
+
     /** @return array{paye:int,nssf:int,shif:int,housing:int,nita:int,total:int} */
     public function statutory(int $runId): array
     {

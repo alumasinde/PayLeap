@@ -62,6 +62,20 @@ final class AttendanceService
         ]);
     }
 
+    /** Mark every active person still unmarked on a day as present. */
+    public function markUnmarkedPresent(int $companyId, string $workDate, int $actorId): int
+    {
+        $workDate = $this->date($workDate);
+        $marked = $this->records->markPresentForUnmarked($companyId, $workDate, $actorId);
+
+        $this->auditLogger->record($companyId, $actorId, 'attendance.bulk_marked', 'company', (string) $companyId, [
+            'date' => $workDate,
+            'marked' => $marked,
+        ]);
+
+        return $marked;
+    }
+
     /**
      * @param list<array<string,mixed>> $rows
      * @return array{present:int,absent:int,on_leave:int,unmarked:int,total:int}

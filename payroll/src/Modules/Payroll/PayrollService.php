@@ -213,7 +213,12 @@ final class PayrollService
         $commissions = $this->sumByEmployee($this->claims->commissionsForPeriod($companyId, $period, $includeConsumed), 'amount_cents');
         $service = $this->sumByEmployee($this->claims->serviceForPeriod($companyId, $period, $includeConsumed), 'amount_cents');
         $expenses = $this->sumByEmployee($this->claims->expensesForPeriod($companyId, $period, $includeConsumed), 'amount_cents');
-        $damage = $this->sumByEmployee($this->claims->damageForPeriod($companyId, $includeConsumed), 'amount_cents');
+        $damageRows = [];
+
+        foreach ($this->claims->damageForPeriod($companyId, $includeConsumed) as $row) {
+            $damageRows[(int) $row['employee_id']][] = $row;
+        }
+
         $finalDues = $this->sumByEmployee($this->claims->finalDuesForPeriod($companyId, $period, $includeConsumed), 'total_cents');
 
         $loanRows = [];
@@ -225,6 +230,7 @@ final class PayrollService
         $lines = [];
         $items = [];
         $recoveries = [];
+        $damageRecoveries = [];
         $source = [
             'commissions' => [],
             'service' => [],
@@ -338,9 +344,10 @@ final class PayrollService
 
             $remainingNet = max(0, $net);
             $otherDeduction = 0;
+            $wageFloor = $this->wageFloor($gross);
 
             foreach ($postTaxItems as $deduction) {
-                $actual = min($deduction['amount_cents'], $remainingNet);
+                $actual = min($deduction['amount_cents'], max(0, $remainingNet - $wageFloor));
                 $remainingNet -= $actual;
                 $otherDeduction += $actual;
 
@@ -354,7 +361,7 @@ final class PayrollService
 
             foreach ($loanRows[$employeeId] ?? [] as $schedule) {
                 $due = (int) $schedule['principal_cents'] + (int) $schedule['interest_cents'] - (int) $schedule['paid_cents'];
-                $actual = min(max(0, $due), $remainingNet);
+                $actual = min(max(0, $due), max(0, $remainingNet - $wageFloor));
 
                 if ($actual <= 0) {
                     continue;
@@ -375,8 +382,26 @@ final class PayrollService
                 }
             }
 
-            $damageRecovery = min((int) ($damage[$employeeId] ?? 0), $remainingNet);
-            $remainingNet -= $damageRecovery;
+            $damageRecovery = 0;
+
+            foreach ($damageRows[$employeeId] ?? [] as $claim) {
+                $due = (int) ($claim['due_cents'] ?? $claim['amount_cents'] ?? 0);
+                $actual = min(max(0, $due), max(0, $remainingNet - $wageFloor));
+
+                if ($actual <= 0) {
+                    continue;
+                }
+
+                $remainingNet -= $actual;
+                $damageRecovery += $actual;
+
+                if (!$includeConsumed) {
+                    $damageRecoveries[] = [
+                        'claim_id' => (int) $claim['id'],
+                        'amount_cents' => $actual,
+                    ];
+                }
+            }
 
             if ($damageRecovery > 0) {
                 $otherDeduction += $damageRecovery;
@@ -443,6 +468,8 @@ final class PayrollService
                     'loan_deduction_cents' => $loanDeduction,
                     'advance_deduction_cents' => $advanceDeduction,
                     'other_deduction_cents' => $otherDeduction,
+                    'wage_floor_cents' => $wageFloor,
+                    'deduction_capped' => $remainingNet < $wageFloor || $remainingNet === $wageFloor,
                 ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
             ];
 
@@ -483,6 +510,7 @@ final class PayrollService
             'lines' => $lines,
             'items' => $items,
             'recoveries' => $recoveries,
+            'damage_recoveries' => $damageRecoveries,
             'source' => $source,
             'consume' => !$includeConsumed,
             'totals' => $this->totalsFor($lines),
@@ -524,8 +552,13 @@ final class PayrollService
                     $this->claims->markExpensePaid($companyId, $id, $runId);
                 }
 
-                foreach ($computed['source']['damage'] as $id) {
-                    $this->claims->markDamageRecovered($companyId, $id, $runId);
+                foreach ($computed['damage_recoveries'] as $recovery) {
+                    $this->claims->markDamageRecovered(
+                        $companyId,
+                        (int) $recovery['claim_id'],
+                        $runId,
+                        (int) $recovery['amount_cents'],
+                    );
                 }
 
                 foreach ($computed['source']['final_dues'] as $id) {
@@ -766,6 +799,12 @@ final class PayrollService
         }
 
         return ['days' => $days, 'basis_points' => $basisPoints, 'factor' => $factor, 'base_cents' => $base, 'segments' => $segments];
+    }
+
+    /** Employment Act s.19: net wages must not fall below one third. */
+    private function wageFloor(int $grossCents): int
+    {
+        return $grossCents > 0 ? intdiv($grossCents + 2, 3) : 0;
     }
 
     private function workingDays(DateTimeImmutable $start, DateTimeImmutable $end): int

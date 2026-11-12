@@ -65,6 +65,37 @@ final class AttendanceController
         ]);
     }
 
+    public function bulkPresent(): void
+    {
+        $company = $this->app->requireCompany();
+        $this->app->requirePermission('attendance.edit');
+        $date = $this->date((string) $this->app->request->string('work_date', date('Y-m-d')));
+
+        if ($this->app->attendance->holidays->onDate((int) $company['company_id'], $date) !== null) {
+            $this->app->flash->add('error', 'A public holiday cannot be bulk-marked as present.');
+            $this->app->redirect('/app/attendance?date=' . urlencode($date));
+        }
+
+        try {
+            $marked = $this->app->attendance->service->markUnmarkedPresent(
+                (int) $company['company_id'],
+                $date,
+                (int) $this->app->user['id'],
+            );
+        } catch (HttpException $error) {
+            $this->app->flash->add('error', $error->getMessage());
+            $this->app->redirect('/app/attendance?date=' . urlencode($date));
+        }
+
+        $this->app->flash->add(
+            'success',
+            $marked === 0
+                ? 'Everyone on the register already has a mark for this day.'
+                : $marked . ' unmarked employee' . ($marked === 1 ? '' : 's') . ' marked present.',
+        );
+        $this->app->redirect('/app/attendance?date=' . urlencode($date));
+    }
+
     public function mark(): void
     {
         $company = $this->app->requireCompany();

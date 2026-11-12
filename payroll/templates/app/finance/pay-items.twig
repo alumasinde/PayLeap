@@ -49,12 +49,21 @@
       <h2>Assign to an employee</h2>
       <form class="stack" method="post" action="/app/finance/pay-items/assign">
         <input type="hidden" name="_token" value="{{ csrf_token() }}">
-        <label class="field"><span>Employee</span>
-          <select name="employee_id" required>
-            <option value="">Choose an employee</option>
-            {% for employee in employees %}<option value="{{ employee.id }}">{{ employee.employee_no }} · {{ employee.first_name }} {{ employee.last_name }}</option>{% endfor %}
+        <label class="field"><span>Filter by department</span>
+          <select data-employee-filter>
+            <option value="">All departments</option>
+            {% for department in departments %}<option value="{{ department.id }}">{{ department.name }}</option>{% endfor %}
           </select>
         </label>
+        <div class="employee-checks">
+          <label class="check"><input type="checkbox" data-check-all> Select all visible</label>
+          {% for employee in employees %}
+            <label class="check employee-check-row" data-employee-row data-department="{{ employee.department_id ?? 0 }}">
+              <input type="checkbox" name="employee_ids[]" value="{{ employee.id }}" data-row-check>
+              <span>{{ employee.employee_no }} · {{ employee.first_name }} {{ employee.last_name }}</span>
+            </label>
+          {% endfor %}
+        </div>
         <label class="field"><span>Pay item</span>
           <select name="pay_item_id" required>
             <option value="">Choose a pay item</option>

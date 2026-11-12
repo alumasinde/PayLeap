@@ -178,6 +178,10 @@ check('duplicate department is rejected', statusOf(fn () => $service->addDepartm
 
 $service->update($companyId, $wanjikuId, ['department_id' => (string) $financeId], $hrId);
 check('employee joins a department', $register->find($companyId, $wanjikuId)['department_name'] === 'Finance');
+check('the register can isolate people without a manager',
+    $register->count($companyId, ['status' => 'active', 'attention' => 'no_manager']) === 3);
+check('the register can isolate people without a department',
+    $register->count($companyId, ['status' => 'active', 'attention' => 'no_department']) === 2);
 
 // ------------------------------------------------------------------ search
 
@@ -236,6 +240,16 @@ $reinstated = $register->find($companyId, $wanjikuId);
 check('reinstating clears the exit date', $reinstated['status'] === 'active' && $reinstated['exit_date'] === null);
 check('reinstating an active person is refused', statusOf(fn () => $service->reinstate($companyId, $wanjikuId, $hrId)) === 409);
 
+// ------------------------------------------------------------- cost centers
+
+$changed = $service->bulkCostCenter($companyId, [$wanjikuId, $secondId], 'Operations', $hrId);
+check('bulk cost-center update changes selected employees', $changed === 2);
+check('bulk cost-center is stored on each employee',
+    $register->find($companyId, $wanjikuId)['cost_center'] === 'Operations'
+    && $register->find($companyId, $secondId)['cost_center'] === 'Operations');
+check('cost centers are listed for the picker', in_array('Operations', $register->costCenters($companyId), true));
+check('bulk cost-center requires a selection', statusOf(fn () => $service->bulkCostCenter($companyId, [], 'Operations', $hrId)) === 422);
+
 // ------------------------------------------------------------------- scope
 
 $otherCompany = $app->companyService->create('Other Co', 'other-co');
@@ -258,6 +272,7 @@ check('audit records employee creation', in_array('employee.created', $actions, 
 check('audit records employee updates', in_array('employee.updated', $actions, true));
 check('audit records archiving', in_array('employee.archived', $actions, true));
 check('audit records departments', in_array('department.created', $actions, true));
+check('audit records bulk cost centers', in_array('employee.cost_center_bulk', $actions, true));
 
 // --------------------------------------------------------------- permissions
 

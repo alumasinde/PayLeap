@@ -139,6 +139,33 @@ final class PayItemRepository
         return (int) $this->db->lastInsertId();
     }
 
+    public function hasAssignment(
+        int $companyId,
+        int $employeeId,
+        int $payItemId,
+        ?string $startDate,
+        ?string $endDate,
+    ): bool {
+        $statement = $this->db->prepare(
+            'SELECT 1 FROM employee_pay_items
+             WHERE company_id = ? AND employee_id = ? AND pay_item_id = ?
+               AND (start_date IS NULL OR ? IS NULL OR start_date <= ?)
+               AND (end_date IS NULL OR ? IS NULL OR end_date >= ?)
+             LIMIT 1',
+        );
+        $statement->execute([
+            $companyId,
+            $employeeId,
+            $payItemId,
+            $endDate,
+            $endDate,
+            $startDate,
+            $startDate,
+        ]);
+
+        return $statement->fetchColumn() !== false;
+    }
+
     public function removeAssignment(int $companyId, int $id): bool
     {
         $statement = $this->db->prepare('DELETE FROM employee_pay_items WHERE id = ? AND company_id = ?');

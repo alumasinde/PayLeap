@@ -184,6 +184,35 @@ final class EmployeeService
         ]);
     }
 
+    /**
+     * Set or clear the cost centre on a checked set of employees.
+     *
+     * @param list<int|string> $employeeIds
+     */
+    public function bulkCostCenter(int $companyId, array $employeeIds, string $costCenter, int $actorId): int
+    {
+        $costCenter = trim($costCenter);
+
+        if (mb_strlen($costCenter) > 80) {
+            throw new HttpException(422, 'Cost center is too long.');
+        }
+
+        $ids = array_values(array_unique(array_filter(array_map('intval', $employeeIds), static fn (int $id): bool => $id > 0)));
+
+        if ($ids === []) {
+            throw new HttpException(422, 'Select at least one employee.');
+        }
+
+        $changed = $this->employees->setCostCenter($companyId, $ids, $costCenter === '' ? null : $costCenter);
+        $this->auditLogger->record($companyId, $actorId, 'employee.cost_center_bulk', 'employee', null, [
+            'employee_ids' => $ids,
+            'cost_center' => $costCenter === '' ? null : $costCenter,
+            'changed' => $changed,
+        ]);
+
+        return $changed;
+    }
+
     public function archive(int $companyId, int $employeeId, string $exitDate, int $actorId): void
     {
         $existing = $this->employees->find($companyId, $employeeId);

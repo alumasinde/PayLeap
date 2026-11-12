@@ -115,6 +115,9 @@ final class WorkspaceController
         $finance = $this->app->portal === Portal::FINANCE && $canPayroll
             ? $this->app->finance->service->dashboard($companyId)
             : null;
+        $hrAttention = $this->app->portal === Portal::HR && $canEmployees
+            ? $this->app->dashboard->hrAttention($companyId, $today)
+            : null;
 
         $hour = (int) date('G');
         $greeting = $hour < 12 ? 'Good morning' : ($hour < 17 ? 'Good afternoon' : 'Good evening');
@@ -133,6 +136,7 @@ final class WorkspaceController
             'run' => $run,
             'statutory' => $statutory,
             'finance' => $finance,
+            'hr_attention' => $hrAttention,
             'departments' => $canEmployees ? $this->app->dashboard->departments($companyId, 6) : [],
             'recent_employees' => $canEmployees ? $this->app->dashboard->recentEmployees($companyId, 4) : [],
             'pending_requests' => $canLeave ? $this->app->dashboard->pendingLeaveList($companyId, 3, $leaveScope) : [],

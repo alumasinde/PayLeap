@@ -315,7 +315,7 @@
             <div class="section-bar">{{ icons.svg('wallet', 15) }} Pay</div>
             <div class="detail-grid">
               <div class="detail">
-                <span>Monthly salary</span>
+                <span>Current rate</span>
                 <strong class="mono">
                   {% if employee.monthly_salary_cents is not null %}
                     KES {{ (employee.monthly_salary_cents / 100)|number_format(2) }}
@@ -324,7 +324,32 @@
                   {% endif %}
                 </strong>
               </div>
+              <div class="detail">
+                <span>Pay basis</span>
+                <strong>{{ pay_basis[employee.pay_basis] ?? (employee.pay_basis ?: 'Monthly') }}</strong>
+              </div>
             </div>
+
+            <div class="section-bar">{{ icons.svg('clock', 15) }} Pay-rate history</div>
+            {% if pay_history %}
+              <div class="table-wrap">
+                <table class="list">
+                  <thead><tr><th>Effective from</th><th>Basis</th><th class="num">Rate (KES)</th></tr></thead>
+                  <tbody>
+                    {% for rate in pay_history %}
+                      <tr>
+                        <td class="mono">{{ rate.effective_from|date('d M Y') }}</td>
+                        <td>{{ pay_basis[rate.pay_basis] ?? rate.pay_basis }}</td>
+                        <td class="num mono">{{ (rate.salary_cents / 100)|number_format(2) }}</td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+              <p class="hint">A salary change adds a new rate from its effective date; earlier payroll periods keep the rate they used.</p>
+            {% else %}
+              <p class="muted">No pay-rate history recorded yet.</p>
+            {% endif %}
           {% endif %}
 
           {% if can_bank %}

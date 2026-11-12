@@ -34,10 +34,13 @@ final class EmployeeController
             $status = 'active';
         }
 
+        $attention = (string) $this->app->request->query('attention', '');
+        $attention = in_array($attention, ['no_manager', 'no_department'], true) ? $attention : '';
         $filters = [
             'status' => $status,
             'department_id' => (int) $this->app->request->query('department_id', 0),
             'search' => trim((string) $this->app->request->query('search', '')),
+            'attention' => $attention,
         ];
 
         $total = $this->app->employees->register->count($companyId, $filters);
@@ -55,6 +58,7 @@ final class EmployeeController
                 ($page - 1) * self::PER_PAGE,
             ),
             'departments' => $this->app->employees->departments->all($companyId),
+            'cost_centers' => $this->app->employees->register->costCenters($companyId),
             'summary' => $summary,
             'monthly_display' => number_format($summary['monthly_cents'] / 100, 2),
             'filters' => $filters,
@@ -67,12 +71,36 @@ final class EmployeeController
         ]);
     }
 
+    public function bulkCostCenter(): void
+    {
+        $company = $this->app->requireCompany();
+        $this->app->requirePermission('employees.edit');
+        $ids = $this->app->request->input('employee_ids', []);
+        $ids = is_array($ids) ? $ids : [$ids];
+
+        try {
+            $changed = $this->app->employees->service->bulkCostCenter(
+                (int) $company['company_id'],
+                $ids,
+                $this->app->request->string('cost_center'),
+                (int) $this->app->user['id'],
+            );
+        } catch (HttpException $error) {
+            $this->app->flash->add('error', $error->getMessage());
+            $this->app->redirect('/app/employees');
+        }
+
+        $this->app->flash->add('success', $changed . ' employee' . ($changed === 1 ? '' : 's') . ' updated.');
+        $this->app->redirect('/app/employees');
+    }
+
     public function show(array $params): void
     {
         $company = $this->app->requireCompany();
         $this->app->requirePermission('employees.view');
 
         $employee = $this->employee($company, (int) ($params['id'] ?? 0));
+        $canSalary = $this->app->can('employees.salary.view');
 
         echo $this->app->render('app/employees/show.twig', [
             'employee' => $employee,
@@ -86,8 +114,11 @@ final class EmployeeController
             'reports' => $this->app->employees->register->directReports((int) $company['company_id'], (int) $employee['id']),
             'documents' => $this->app->documents->repository->forEmployee((int) $company['company_id'], (int) $employee['id']),
             'service_years' => $this->serviceYears($employee),
+            'pay_history' => $canSalary
+                ? $this->app->employees->register->payRateHistory((int) $company['company_id'], (int) $employee['id'])
+                : [],
             'can_edit' => $this->app->can('employees.edit'),
-            'can_salary' => $this->app->can('employees.salary.view'),
+            'can_salary' => $canSalary,
             'can_bank' => $this->app->can('employees.bank.view'),
             'leave_encashment' => $this->app->can('employees.edit')
                 ? $this->encashmentQuote((int) $company['company_id'], (int) $employee['id'])

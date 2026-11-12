@@ -72,6 +72,38 @@ final class AttendanceRepository
     }
 
     /**
+     * Close out a register by marking every active person who has no record and
+     * is not on approved leave. Existing marks and leave are left untouched.
+     */
+    public function markPresentForUnmarked(int $companyId, string $workDate, int $actorId): int
+    {
+        $statement = $this->db->prepare(
+            'INSERT INTO attendance_records
+                (company_id, employee_id, work_date, clock_in, clock_out, status, source, note, recorded_by)
+             SELECT e.company_id, e.id, ?, NULL, NULL, \'present\', \'manual\', NULL, ?
+             FROM employees e
+             WHERE e.company_id = ? AND e.status = \'active\'
+               AND EXISTS (
+                   SELECT 1 FROM employments em
+                   WHERE em.company_id = e.company_id AND em.employee_id = e.id
+                     AND em.start_date <= ? AND (em.end_date IS NULL OR em.end_date >= ?)
+               )
+               AND NOT EXISTS (
+                   SELECT 1 FROM attendance_records a
+                   WHERE a.company_id = e.company_id AND a.employee_id = e.id AND a.work_date = ?
+               )
+               AND NOT EXISTS (
+                   SELECT 1 FROM leave_requests lr
+                   WHERE lr.company_id = e.company_id AND lr.employee_id = e.id
+                     AND lr.status = \'approved\' AND ? BETWEEN lr.start_date AND lr.end_date
+               )',
+        );
+        $statement->execute([$workDate, $actorId, $companyId, $workDate, $workDate, $workDate, $workDate]);
+
+        return $statement->rowCount();
+    }
+
+    /**
      * One person's rows between two dates, keyed by Y-m-d, for the timesheet.
      *
      * @return array<string,array<string,mixed>>
@@ -124,9 +156,14 @@ final class AttendanceRepository
              LEFT JOIN attendance_records a
                     ON a.employee_id = e.id AND a.company_id = e.company_id AND a.work_date = ?
              WHERE e.company_id = ? AND e.status = \'active\'
+               AND EXISTS (
+                   SELECT 1 FROM employments em2
+                   WHERE em2.company_id = e.company_id AND em2.employee_id = e.id
+                     AND em2.start_date <= ? AND (em2.end_date IS NULL OR em2.end_date >= ?)
+               )
              ORDER BY e.last_name, e.first_name',
         );
-        $statement->execute([$workDate, $workDate, $companyId]);
+        $statement->execute([$workDate, $workDate, $companyId, $workDate, $workDate]);
 
         return $statement->fetchAll();
     }

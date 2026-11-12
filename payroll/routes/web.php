@@ -59,6 +59,7 @@ return [
     ['GET', '/app/employees', [EmployeeController::class, 'index']],
     ['GET', '/app/employees/new', [EmployeeController::class, 'create']],
     ['POST', '/app/employees', [EmployeeController::class, 'store']],
+    ['POST', '/app/employees/cost-center', [EmployeeController::class, 'bulkCostCenter']],
     ['POST', '/app/employees/departments', [EmployeeDepartmentController::class, 'store']],
     ['GET', '/app/employees/{id}', [EmployeeController::class, 'show']],
     ['GET', '/app/employees/{id}/photo', [EmployeeController::class, 'photo']],
@@ -92,6 +93,7 @@ return [
     ['POST', '/app/finance/payments', [FinanceController::class, 'createPayment']],
     ['GET', '/app/finance/payments/{id}', [FinanceController::class, 'showPayment']],
     ['POST', '/app/finance/payments/{id}/release', [FinanceController::class, 'releasePayment']],
+    ['POST', '/app/finance/payments/{id}/cancel', [FinanceController::class, 'cancelPayment']],
     ['GET', '/app/finance/payments/{id}/file', [FinanceController::class, 'downloadPayment']],
     ['GET', '/app/finance/returns', [FinanceController::class, 'returns']],
     ['POST', '/app/finance/returns', [FinanceController::class, 'generateReturn']],
@@ -117,6 +119,7 @@ return [
 
     ['GET', '/app/attendance', [AttendanceController::class, 'index']],
     ['POST', '/app/attendance', [AttendanceController::class, 'mark']],
+    ['POST', '/app/attendance/bulk-present', [AttendanceController::class, 'bulkPresent']],
     ['GET', '/app/roster', [RosterController::class, 'index']],
     ['POST', '/app/roster', [RosterController::class, 'assign']],
     ['GET', '/app/leave', [LeaveController::class, 'index']],

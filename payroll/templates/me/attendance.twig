@@ -6,102 +6,92 @@
 {% block body %}
   <header class="page-head">
     <span class="kicker">My account</span>
-    <h1>Attendance</h1>
-    <p class="muted">{{ employee.first_name }} {{ employee.last_name }} ({{ employee.employee_no }}) · your daily record for {{ timesheet.label }}.</p>
+    <h1>Attendance calendar</h1>
+    <p class="muted">{{ employee.first_name }} {{ employee.last_name }} ({{ employee.employee_no }}) · your month at a glance. Open the timesheet for the hour-by-hour record.</p>
   </header>
 
   {% include 'partials/me_time_tabs.twig' %}
 
+  {% set labels = {
+    'present': 'Present',
+    'late': 'Late',
+    'absent': 'Absent',
+    'leave': 'On leave',
+    'holiday': 'Public holiday',
+    'off': 'Rest day',
+    'unmarked': 'Not marked',
+    'upcoming': 'Upcoming'
+  } %}
+
   <div class="ts-layout">
-    <section class="panel">
+    <section class="panel att-panel">
       <div class="panel-head">
         <div>
-          <h2>Daily record</h2>
-          <p class="muted">Read-only. Clock times come from the terminal or a correction by HR.</p>
+          <h2>{{ timesheet.label }}</h2>
+          <p class="muted">{{ timesheet.scheduled_days }} rostered day{{ timesheet.scheduled_days == 1 ? '' : 's' }} · {{ timesheet.summary.worked }} worked · {{ timesheet.summary.lost }} lost</p>
+        </div>
+        <div class="att-month-nav">
+          <a class="btn-ghost btn-sm" href="/me/attendance?month={{ prev_month }}" aria-label="Previous month">←</a>
+          <a class="btn-ghost btn-sm" href="/me/attendance?month={{ next_month }}" aria-label="Next month">→</a>
         </div>
       </div>
 
-      <form class="filter-bar" method="get" action="/me/attendance">
+      <form class="filter-bar att-month-form" method="get" action="/me/attendance">
         <label class="field inline-field">
           <span>Month</span>
           <input type="month" name="month" value="{{ month }}">
         </label>
-        <button class="btn-primary" type="submit">View month</button>
+        <button class="btn-primary" type="submit">Go to month</button>
       </form>
 
-      {% set labels = {
-        'present': 'Present',
-        'late': 'Late',
-        'absent': 'Absent',
-        'leave': 'On leave',
-        'holiday': 'Public holiday',
-        'off': 'Rest day',
-        'unmarked': 'Not marked',
-        'upcoming': 'Upcoming'
-      } %}
-
-      <div class="table-wrap">
-        <table class="list">
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Day</th>
-              <th>Shift</th>
-              <th>Status</th>
-              <th>Clock in</th>
-              <th>Clock out</th>
-              <th>Source</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for row in timesheet.rows %}
-              <tr class="{{ row.row_class }}">
-                <td class="mono">{{ row.date|date('d/m/Y') }}</td>
-                <td>{{ row.day }}</td>
-                <td>
-                  {% if row.holiday %}
-                    <span class="shift-tag holiday">{{ row.shift }}</span>
-                  {% elseif row.status == 'leave' %}
-                    <span class="shift-tag leave">{{ row.shift }}</span>
-                  {% elseif row.status == 'off' %}
-                    <span class="shift-tag off">{{ row.shift }}</span>
-                  {% elseif row.shift != '—' %}
-                    <span class="shift-tag">{{ row.shift }}</span>
-                    <small class="mono muted">{{ row.shift_label }}</small>
-                  {% else %}
-                    <span class="muted">—</span>
-                  {% endif %}
-                </td>
-                <td>
-                  {% if row.status in ['present', 'late', 'absent', 'leave', 'holiday', 'off'] %}
-                    <span class="status status-{{ row.status }}">{{ labels[row.status] }}</span>
-                  {% elseif row.status == 'upcoming' %}
-                    <span class="status">{{ labels[row.status] }}</span>
-                  {% else %}
-                    <span class="status">{{ labels[row.status] ?? 'Not marked' }}</span>
-                  {% endif %}
-                </td>
-                <td class="mono">{{ row.clock_in ?: '—' }}</td>
-                <td class="mono">{{ row.clock_out ?: '—' }}</td>
-                <td class="muted">{{ row.source ? (sources[row.source] ?? row.source|capitalize) : '—' }}</td>
-              </tr>
+      {% if weeks %}
+        <div class="att-calendar">
+          <div class="att-cal-head" aria-hidden="true">
+            <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+          </div>
+          <div class="att-cal-grid">
+            {% for week in weeks %}
+              {% for day in week %}
+                {% if day %}
+                  <a class="att-day att-day--{{ day.status }}{{ day.is_today ? ' is-today' : '' }}"
+                     href="/me/timesheet?month={{ month }}"
+                     title="{{ day.date|date('l, j F Y') }} · {{ labels[day.status] ?? day.status }}">
+                    <span class="att-day-top">
+                      <span class="att-day-num">{{ day.day_num }}</span>
+                      {% if day.is_today %}<span class="att-today">Today</span>{% endif %}
+                    </span>
+                    <span class="att-state att-state--{{ day.status }}">{{ labels[day.status] ?? day.status }}</span>
+                    {% if day.holiday %}
+                      <span class="att-detail">{{ day.shift }}</span>
+                    {% elseif day.status == 'leave' %}
+                      <span class="att-detail">Approved leave</span>
+                    {% elseif day.status == 'off' %}
+                      <span class="att-detail">Rest day</span>
+                    {% elseif day.shift != '—' %}
+                      <span class="att-detail">{{ day.shift }}{% if day.shift_label %} · {{ day.shift_label }}{% endif %}</span>
+                    {% endif %}
+                    {% if day.clock_in or day.clock_out %}
+                      <span class="att-times mono">{{ day.clock_in ?: '—' }} – {{ day.clock_out ?: '—' }}</span>
+                    {% elseif day.worked != '—' %}
+                      <span class="att-times mono">{{ day.worked }} hrs</span>
+                    {% endif %}
+                  </a>
+                {% else %}
+                  <span class="att-day att-day--blank" aria-hidden="true"></span>
+                {% endif %}
+              {% endfor %}
             {% endfor %}
-          </tbody>
-        </table>
-      </div>
-
-      {% include 'partials/pager.twig' with {
-        'page': page,
-        'pages': pages,
-        'total': total_rows,
-        'label': 'days',
-        'query': 'month=' ~ month
-      } only %}
+          </div>
+        </div>
+        <p class="hint">Calendar days open the full timesheet. Clock times come from the terminal or an HR correction; approved leave and public holidays are never counted as absence.</p>
+      {% else %}
+        <p class="muted">No attendance calendar for this month.</p>
+      {% endif %}
     </section>
 
     <aside class="ts-side">
       <section class="panel">
-        <h2>Summary</h2>
+        <h2>Month totals</h2>
         <table class="list summary-table">
           <tbody>
             <tr><td>Present</td><td class="num mono">{{ timesheet.summary.days.present }}</td></tr>
@@ -112,7 +102,21 @@
             <tr><td>Single clock</td><td class="num mono">{{ timesheet.summary.days.single_clock }}</td></tr>
           </tbody>
         </table>
-        <p class="hint">Unmarked days are shown for past weekdays. Approved leave and public holidays are never counted as absence.</p>
+      </section>
+
+      <section class="panel">
+        <h2>Hours</h2>
+        <table class="list summary-table">
+          <tbody>
+            <tr><td>Target</td><td class="num mono">{{ timesheet.summary.target }}</td></tr>
+            <tr><td>Worked</td><td class="num mono">{{ timesheet.summary.worked }}</td></tr>
+            <tr><td>Lost</td><td class="num mono">{{ timesheet.summary.lost }}</td></tr>
+            <tr><td>Overtime</td><td class="num mono">{{ timesheet.summary.ot }}</td></tr>
+            <tr><td>Holiday</td><td class="num mono">{{ timesheet.summary.holiday }}</td></tr>
+          </tbody>
+        </table>
+        <p class="hint">Target hours come from the roster: shift length less the break. Timesheet holds the full daily breakdown.</p>
+        <a class="text-link" href="/me/timesheet?month={{ month }}">Open timesheet {{ icons.svg('arrow-right', 14) }}</a>
       </section>
     </aside>
   </div>

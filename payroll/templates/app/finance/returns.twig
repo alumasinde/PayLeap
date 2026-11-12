@@ -61,7 +61,12 @@
                 <td class="mono">{{ item.period }}</td>
                 <td class="num mono">KES {{ item.amount_cents|money }}</td>
                 <td class="mono">{{ item.due_date ?: '—' }}</td>
-                <td><span class="chip{{ item.status == 'filed' ? ' on' : '' }}">{{ item.status|capitalize }}</span></td>
+                <td>
+                  <span class="chip{{ item.status == 'filed' ? ' on' : '' }}">{{ item.status|capitalize }}</span>
+                  {% if item.status == 'prepared' and item.due_date and item.due_date < today|date('Y-m-d') %}
+                    <span class="status status-absent">Overdue</span>
+                  {% endif %}
+                </td>
                 <td>{{ item.reference_no ?: '—' }}{% if item.filed_at %}<br><span class="muted mono">{{ item.filed_at }}</span>{% endif %}</td>
                 <td>
                   <div class="row-actions">
@@ -69,7 +74,7 @@
                     {% if can_generate and item.status == 'prepared' %}
                       <form method="post" action="/app/finance/returns/{{ item.id }}/file">
                         <input type="hidden" name="_token" value="{{ csrf_token() }}">
-                        <input name="reference" placeholder="Portal reference" aria-label="Portal reference">
+                        <input name="reference" placeholder="Portal reference" aria-label="Portal reference" required maxlength="120">
                         <button class="btn-primary btn-xs" type="submit">File</button>
                       </form>
                     {% endif %}

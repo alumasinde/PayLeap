@@ -894,6 +894,8 @@ a.chip.on:hover { border-color: var(--green); }
 }
 
 .stat-value.stat-money { font-size: 21px; }
+.stat-value.stat-value-sm { font-size: 1.05rem; line-height: 1.35; }
+.meta-cell { max-width: 26rem; overflow-wrap: anywhere; }
 
 .stat-card .stat-label {
   font-size: 12px;
@@ -1631,20 +1633,132 @@ progress::-moz-progress-bar { background: var(--green); border-radius: 999px; }
 
 .ts-side { display: grid; gap: 16px; }
 
-/* Section */
-div > section{
-	width: 897px;
-}
-
-/* Section */
-.ts-side .panel{
-	padding-left: 5px;
-	transform: translatex(-84px) translatey(-1px);
-	width: 394px;
-}
-
-
 .timesheet small { display: block; margin-top: 3px; font-size: 10px; }
+
+/* HR follow-up ------------------------------------------------------------- */
+
+.hr-queue-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.hr-queue-block {
+  display: grid;
+  align-content: start;
+  gap: 7px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--paper);
+}
+
+.hr-queue-list { display: grid; gap: 5px; margin: 0; padding: 0; list-style: none; }
+.hr-queue-list li { display: flex; justify-content: space-between; gap: 10px; font-size: 12.5px; }
+.hr-queue-list a { text-decoration: none; }
+
+.hr-gap-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: baseline;
+  gap: 8px;
+  padding-top: 5px;
+  border-top: 1px solid var(--line);
+  font-size: 12.5px;
+}
+.hr-gap-row:first-of-type { border-top: 0; padding-top: 0; }
+.hr-gap-row .text-link { font-size: 11.5px; }
+
+/* Attendance calendar ------------------------------------------------------ */
+
+.att-month-nav { display: flex; gap: 6px; }
+.att-month-form { margin: 0 0 14px; }
+
+.att-calendar {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.att-cal-head,
+.att-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.att-cal-head {
+  border-bottom: 1px solid var(--line);
+  background: var(--paper);
+}
+
+.att-cal-head span {
+  padding: 8px 10px;
+  color: var(--ink-3);
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.att-day {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 112px;
+  padding: 8px 9px 9px;
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  color: inherit;
+  text-decoration: none;
+  background: var(--surface);
+}
+
+.att-day:nth-child(7n) { border-right: 0; }
+.att-day:hover { background: var(--green-tint); color: inherit; }
+.att-day--blank { background: var(--paper); }
+.att-day--present { background: #f4faf6; }
+.att-day--late { background: #fdf8ed; }
+.att-day--absent { background: #fcf2ee; }
+.att-day--leave { background: #f2f6fb; }
+.att-day--holiday { background: #fdf8ed; }
+.att-day--off { background: #f7f8f7; }
+.att-day--unmarked { background: #fffdf8; }
+.att-day--upcoming { background: var(--surface); }
+.att-day.is-today { box-shadow: inset 0 0 0 2px var(--green); }
+
+.att-day-top { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
+.att-day-num { font-size: 13px; font-weight: 700; }
+.att-today { color: var(--green); font-size: 9.5px; font-weight: 700; text-transform: uppercase; }
+
+.att-state {
+  align-self: flex-start;
+  padding: 1px 5px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--ink-2);
+  font-size: 9.5px;
+  font-weight: 600;
+}
+
+.att-state--present { border-color: #c6e2d2; color: #12624b; }
+.att-state--late,
+.att-state--holiday { border-color: #ecdcb8; color: var(--ochre); }
+.att-state--absent { border-color: #eccfc4; color: var(--clay); }
+.att-state--leave { border-color: #cfdcea; color: var(--blue); }
+.att-state--upcoming { color: var(--ink-3); }
+
+.att-detail { color: var(--ink-2); font-size: 10px; line-height: 1.35; }
+.att-times { margin-top: auto; color: var(--ink-2); font-size: 10.5px; }
+
+@media (max-width: 760px) {
+  .att-day { min-height: 82px; padding: 6px; }
+  .att-detail { display: none; }
+  .att-times { font-size: 9.5px; }
+  .att-state { font-size: 8.5px; padding: 1px 3px; }
+}
+
 
 .shift-tag {
   display: inline-block;
@@ -2103,6 +2217,7 @@ div > section{
   .stat-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ts-layout { grid-template-columns: minmax(0, 1fr); }
   .ts-side { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .hr-queue-grid { grid-template-columns: minmax(0, 1fr); }
 }
 
 @media (max-width: 1024px) {
@@ -2371,3 +2486,36 @@ div > section{
 
   .portal-switch { order: 5; width: 100%; justify-content: center; }
 }
+
+.list th.check,
+.list td.check {
+  width: 38px;
+  text-align: center;
+}
+
+.bulk-bar {
+  display: flex;
+  align-items: end;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line, #e4e9e4);
+}
+
+.bulk-bar .field { min-width: 220px; margin: 0; }
+.bulk-bar .muted { flex: 1 1 220px; }
+
+.employee-checks {
+  display: grid;
+  gap: 5px;
+  max-height: 230px;
+  overflow: auto;
+  padding: 9px 10px;
+  border: 1px solid var(--line, #e4e9e4);
+  border-radius: 8px;
+  background: #fbfcfa;
+}
+
+.employee-check-row { margin: 0; }
+.employee-check-row span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

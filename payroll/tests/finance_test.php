@@ -143,11 +143,35 @@ $batch = $app->finance->payments->find($companyId, $batchId);
 check('a bank payment batch is prepared', $batch !== null && $batch['status'] === 'prepared');
 check('payment lines snapshot the net pay', (int) $app->finance->payments->lines($companyId, $batchId)[0]['amount_cents'] === (int) $line['net_cents']);
 
+$app->finance->service->cancelPayment($companyId, $batchId, $financeId);
+$cancelledBatch = $app->finance->payments->find($companyId, $batchId);
+check('a prepared payment batch can be cancelled', $cancelledBatch['status'] === 'cancelled');
+check('cancelling a batch leaves the run unpaid', $app->payroll->runs->find($companyId, $runId)['payment_status'] === 'unpaid');
+$batchId = $app->finance->service->createPayment($companyId, $runId, 'bank', $financeId);
+$replacement = $app->finance->payments->find($companyId, $batchId);
+check('a cancelled run can be prepared again with a fresh reference',
+    $replacement['status'] === 'prepared' && $replacement['reference'] !== $batch['reference']);
+check('the cancelled reference is not reused', $app->finance->payments->referenceExists($companyId, $batch['reference']));
+
 $app->finance->service->releasePayment($companyId, $batchId, $financeId);
 $paidRun = $app->payroll->runs->find($companyId, $runId);
 check('release marks the run paid', $paidRun['payment_status'] === 'paid' && $paidRun['paid_at'] !== null);
+check('a released batch cannot be cancelled', statusOf(fn () => $app->finance->service->cancelPayment($companyId, $batchId, $financeId)) === 409);
 
-$app->employees->service->update($companyId, $employeeId, ['monthly_salary' => '55000'], $ownerId);
+$app->employees->service->update($companyId, $employeeId, [
+    'monthly_salary' => '55000',
+    'salary_effective_date' => '2026-03-01',
+], $ownerId);
+$history = $app->employees->register->payRateHistory($companyId, $employeeId);
+check('a pay change adds a dated rate instead of rewriting history', count($history) === 2
+    && (int) $history[1]['salary_cents'] === 5000000
+    && (int) $history[0]['salary_cents'] === 5500000
+    && $history[1]['effective_from'] === '2025-01-01'
+    && $history[0]['effective_from'] === '2026-03-01');
+
+$app->employees->service->update($companyId, $employeeId, ['job_title' => 'Senior analyst'], $ownerId);
+check('an edit without a pay change leaves history untouched', count($app->employees->register->payRateHistory($companyId, $employeeId)) === 2);
+
 $adjustmentId = $app->payroll->service->prepareAdjustment($companyId, $runId, 'Salary correction', $ownerId);
 $adjustment = $app->payroll->runs->find($companyId, $adjustmentId);
 $adjustmentLine = $app->payroll->runs->lines($adjustmentId)[0];
@@ -161,9 +185,11 @@ $returnId = $app->finance->service->generateReturn($companyId, $runId, 'p10', $f
 $return = $app->finance->returns->find($companyId, $returnId);
 check('a P10 return is prepared from an approved run', $return !== null && $return['status'] === 'prepared');
 check('the return has a snapshot payload', str_contains((string) $return['payload'], 'employee_no'));
+check('a return cannot be filed without a portal reference', statusOf(fn () => $app->finance->service->markReturnFiled($companyId, $returnId, '  ', $financeId)) === 422);
 $app->finance->service->markReturnFiled($companyId, $returnId, 'KRA-123', $financeId);
 $filed = $app->finance->returns->find($companyId, $returnId);
 check('a return records its filing reference', $filed['status'] === 'filed' && $filed['reference_no'] === 'KRA-123');
+check('a filed return cannot be filed again', statusOf(fn () => $app->finance->service->markReturnFiled($companyId, $returnId, 'KRA-456', $financeId)) === 409);
 
 $report = $app->finance->service->report($companyId, 'gl-journal', '2026-03');
 check('the GL journal balances', $report['totals']['debit_cents'] === $report['totals']['credit_cents']);
@@ -253,6 +279,100 @@ $app->employees->service->update($rateCompanyId, $rateEmployeeId, [
 $rateRunId = $app->payroll->service->prepare($rateCompanyId, '2026-08', '', $rateOwnerId);
 $rateLine = $app->payroll->runs->lines($rateRunId)[0];
 check('a mid-month salary change is prorated', (int) $rateLine['gross_cents'] === 4700000, (string) $rateLine['gross_cents']);
+
+$app->employees->service->update($rateCompanyId, $rateEmployeeId, ['monthly_salary' => '63000'], $rateOwnerId);
+$defaultHistory = $app->employees->register->payRateHistory($rateCompanyId, $rateEmployeeId);
+check('a pay change without a date defaults to today', count($defaultHistory) === 3
+    && $defaultHistory[0]['effective_from'] === date('Y-m-d')
+    && (int) $defaultHistory[1]['salary_cents'] === 6200000);
+
+$app->employees->service->update($rateCompanyId, $rateEmployeeId, ['job_title' => 'Rate lead'], $rateOwnerId);
+check('an unchanged rate does not add another history row', count($app->employees->register->payRateHistory($rateCompanyId, $rateEmployeeId)) === 3);
+
+$secondRateEmployeeId = $app->employees->service->create($rateCompanyId, [
+    'first_name' => 'Second',
+    'last_name' => 'Rate',
+    'start_date' => '2026-01-01',
+    'monthly_salary' => '20000',
+], $rateOwnerId);
+$multiItemId = $app->finance->service->savePayItem($rateCompanyId, null, [
+    'code' => 'MULTI',
+    'name' => 'Multi allowance',
+    'kind' => 'earning',
+    'calc_type' => 'fixed',
+], $rateOwnerId);
+$assigned = $app->finance->service->assignPayItemMany($rateCompanyId, [
+    'employee_ids' => [(string) $rateEmployeeId, (string) $secondRateEmployeeId],
+    'pay_item_id' => (string) $multiItemId,
+    'amount' => '500',
+    'start_date' => '2026-01-01',
+], $rateOwnerId);
+check('a pay item can be assigned to several checked employees', $assigned === 2
+    && count($app->finance->payItems->assignments($rateCompanyId)) === 2);
+$repeatAssigned = $app->finance->service->assignPayItemMany($rateCompanyId, [
+    'employee_ids' => [(string) $rateEmployeeId, (string) $secondRateEmployeeId],
+    'pay_item_id' => (string) $multiItemId,
+    'amount' => '500',
+    'start_date' => '2026-01-01',
+], $rateOwnerId);
+check('duplicate multi-assignments are skipped', $repeatAssigned === 0
+    && count($app->finance->payItems->assignments($rateCompanyId)) === 2);
+check('multi-assignment rejects an invalid employee before writing', statusOf(fn () => $app->finance->service->assignPayItemMany(
+    $rateCompanyId,
+    [
+        'employee_ids' => [(string) $rateEmployeeId, '999999'],
+        'pay_item_id' => (string) $multiItemId,
+        'amount' => '500',
+        'start_date' => '2026-01-01',
+    ],
+    $rateOwnerId,
+)) === 422 && count($app->finance->payItems->assignments($rateCompanyId)) === 2);
+check('empty multi-assignment is refused', statusOf(fn () => $app->finance->service->assignPayItemMany(
+    $rateCompanyId,
+    ['employee_ids' => [], 'pay_item_id' => (string) $multiItemId, 'amount' => '500'],
+    $rateOwnerId,
+)) === 422);
+
+$capCompanyId = $app->companyService->create('Cap Co', 'cap-co');
+$capOwner = joinCompany($app, $capCompanyId, 'capowner@finance.test', 'owner');
+$capOwnerId = (int) $capOwner['id'];
+$capEmployeeId = $app->employees->service->create($capCompanyId, [
+    'first_name' => 'Cap',
+    'last_name' => 'Employee',
+    'start_date' => '2026-01-01',
+    'monthly_salary' => '30000',
+], $capOwnerId);
+$app->finance->service->createLoan($capCompanyId, [
+    'employee_id' => (string) $capEmployeeId,
+    'principal' => '1000',
+    'installments' => '1',
+    'start_period' => '2026-08',
+], $capOwnerId);
+$capDamageId = $app->finance->service->createDamage($capCompanyId, [
+    'employee_id' => (string) $capEmployeeId,
+    'description' => 'Large loss recovery',
+    'amount' => '100000',
+], $capOwnerId);
+$app->finance->service->decideDamage($capCompanyId, $capDamageId, 'approved', $capOwnerId);
+$capRunId = $app->payroll->service->prepare($capCompanyId, '2026-08', '', $capOwnerId);
+$capLine = $app->payroll->runs->lines($capRunId)[0];
+$capFloor = intdiv((int) $capLine['gross_cents'] + 2, 3);
+check('deductions cannot take net pay below one third of wages', (int) $capLine['net_cents'] >= $capFloor, (string) $capLine['net_cents'] . ' vs floor ' . $capFloor);
+check('the cap is recorded in the payslip breakdown',
+    (int) (json_decode((string) $capLine['breakdown'], true)['wage_floor_cents'] ?? 0) === $capFloor);
+$damageAfterFirst = $db->prepare('SELECT recovered_cents, amount_cents, run_id FROM loss_damage_claims WHERE id = ?');
+$damageAfterFirst->execute([$capDamageId]);
+$damageRow = $damageAfterFirst->fetch();
+check('a capped damage claim keeps its unpaid balance', (int) $damageRow['recovered_cents'] > 0
+    && (int) $damageRow['recovered_cents'] < (int) $damageRow['amount_cents']
+    && $damageRow['run_id'] !== null);
+$capNextRunId = $app->payroll->service->prepare($capCompanyId, '2026-09', '', $capOwnerId);
+$capNextLine = $app->payroll->runs->lines($capNextRunId)[0];
+$damageAfterNext = $db->prepare('SELECT recovered_cents FROM loss_damage_claims WHERE id = ?');
+$damageAfterNext->execute([$capDamageId]);
+check('the remaining damage recovery is carried to the next run',
+    (int) $damageAfterNext->fetchColumn() > (int) $damageRow['recovered_cents']
+    && (int) $capNextLine['net_cents'] >= intdiv((int) $capNextLine['gross_cents'] + 2, 3));
 
 $dashboard = $app->finance->service->dashboard($companyId);
 check('finance dashboard exposes cash and exceptions', isset($dashboard['unpaid_count'], $dashboard['missing_bank'], $dashboard['statutory']['total']));

@@ -225,8 +225,8 @@
           </label>
           <label class="field">
             <span>Pay effective from</span>
-            <input type="date" name="salary_effective_date" value="{{ values.salary_effective_date ?? employee.start_date ?? 'now'|date('Y-m-d') }}">
-            <small class="hint">Change this date to pay part of a month at the old rate and part at the new rate.</small>
+            <input type="date" name="salary_effective_date" value="{{ values.salary_effective_date ?? (editing ? 'now'|date('Y-m-d') : (values.start_date ?? employee.start_date ?? 'now'|date('Y-m-d'))) }}">
+            <small class="hint">{{ editing ? 'Defaults to today. Change it only when the new rate should start earlier or later.' : 'The date the first rate starts.' }}</small>
           </label>
         </div>
       </fieldset>

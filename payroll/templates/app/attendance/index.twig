@@ -43,6 +43,13 @@
           <h2>Mark a record</h2>
           <p class="muted">Times are optional. A status on its own is enough for leave or absence.</p>
         </div>
+        {% if summary.unmarked > 0 and not holiday %}
+          <form method="post" action="/app/attendance/bulk-present">
+            <input type="hidden" name="_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="work_date" value="{{ date }}">
+            <button class="btn-ghost btn-sm" type="submit">Mark {{ summary.unmarked }} unmarked present</button>
+          </form>
+        {% endif %}
       </div>
       {% if employees %}
         <form class="form-grid form-grid-4" method="post" action="/app/attendance">

@@ -255,6 +255,54 @@ final class DashboardRepository
         return (int) $statement->fetchColumn();
     }
 
+    /**
+     * People-admin work that should not wait for someone to remember it.
+     *
+     * @return array{
+     *   probation:list<array<string,mixed>>,
+     *   contracts:list<array<string,mixed>>,
+     *   no_manager:int,
+     *   no_department:int
+     * }
+     */
+    public function hrAttention(int $companyId, string $today): array
+    {
+        $soon = date('Y-m-d', strtotime($today . ' +60 days'));
+        $employeeSelect = 'SELECT e.id, e.employee_no, e.first_name, e.last_name,
+                                  em.probation_end, em.end_date
+                           FROM employees e
+                           LEFT JOIN employments em ON em.id = (' . $this->latestEmployment() . ')
+                           WHERE e.company_id = ? AND e.status = \'active\'';
+
+        $probation = $this->db->prepare(
+            $employeeSelect . ' AND em.probation_end BETWEEN ? AND ?
+             ORDER BY em.probation_end, e.last_name LIMIT 5',
+        );
+        $probation->execute([$companyId, $today, $soon]);
+
+        $contracts = $this->db->prepare(
+            $employeeSelect . ' AND em.end_date BETWEEN ? AND ?
+             ORDER BY em.end_date, e.last_name LIMIT 5',
+        );
+        $contracts->execute([$companyId, $today, $soon]);
+
+        $gaps = $this->db->prepare(
+            'SELECT COALESCE(SUM(e.manager_id IS NULL), 0) AS no_manager,
+                    COALESCE(SUM(e.department_id IS NULL), 0) AS no_department
+             FROM employees e
+             WHERE e.company_id = ? AND e.status = \'active\'',
+        );
+        $gaps->execute([$companyId]);
+        $row = $gaps->fetch() ?: [];
+
+        return [
+            'probation' => $probation->fetchAll(),
+            'contracts' => $contracts->fetchAll(),
+            'no_manager' => (int) ($row['no_manager'] ?? 0),
+            'no_department' => (int) ($row['no_department'] ?? 0),
+        ];
+    }
+
     public function pendingApprovalCount(
         int $companyId,
         bool $includeLeave,

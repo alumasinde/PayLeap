@@ -260,20 +260,44 @@ final class SelfServiceController
         $employee = $this->linkedEmployee($companyId);
         $month = $this->month((string) $this->app->request->query('month', date('Y-m')));
         $timesheet = $this->app->attendance->timesheet->month($companyId, (int) $employee['id'], $month);
-        $totalRows = count($timesheet['rows']);
-        [$page, $pages] = $this->pager($totalRows, self::MONTH_ROWS);
-        $timesheet['rows'] = array_slice($timesheet['rows'], ($page - 1) * self::MONTH_ROWS, self::MONTH_ROWS);
+        $start = DateTimeImmutable::createFromFormat('!Y-m', $month) ?: new DateTimeImmutable('first day of this month');
 
         echo $this->app->render('me/attendance.twig', [
             'employee' => $employee,
             'month' => $month,
             'timesheet' => $timesheet,
+            'weeks' => $this->calendarWeeks($timesheet['rows']),
+            'prev_month' => $start->modify('-1 month')->format('Y-m'),
+            'next_month' => $start->modify('+1 month')->format('Y-m'),
             'statuses' => AttendanceRepository::STATUSES,
-            'sources' => AttendanceRepository::SOURCES,
-            'page' => $page,
-            'pages' => $pages,
-            'total_rows' => $totalRows,
         ]);
+    }
+
+    /**
+     * Pad a month of timesheet rows into Monday-first calendar weeks.
+     *
+     * @param list<array<string,mixed>> $rows
+     * @return list<list<array<string,mixed>|null>>
+     */
+    private function calendarWeeks(array $rows): array
+    {
+        if ($rows === []) {
+            return [];
+        }
+
+        $first = new DateTimeImmutable((string) $rows[0]['date']);
+        $cells = array_fill(0, (int) $first->format('N') - 1, null);
+
+        foreach ($rows as $row) {
+            $row['is_today'] = $row['date'] === date('Y-m-d');
+            $cells[] = $row;
+        }
+
+        while (count($cells) % 7 !== 0) {
+            $cells[] = null;
+        }
+
+        return array_chunk($cells, 7);
     }
 
     public function timesheet(): void

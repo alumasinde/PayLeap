@@ -126,21 +126,29 @@ final class ClaimRepository
     public function damageForPeriod(int $companyId, bool $includeConsumed = false): array
     {
         $statement = $this->db->prepare(
-            'SELECT * FROM loss_damage_claims
+            'SELECT *, (amount_cents - recovered_cents) AS due_cents
+             FROM loss_damage_claims
              WHERE company_id = ? AND status = "approved" AND recover_via_payroll = 1'
-            . ($includeConsumed ? '' : ' AND run_id IS NULL'),
+            . ($includeConsumed ? '' : ' AND recovered_cents < amount_cents'),
         );
         $statement->execute([$companyId]);
 
         return $statement->fetchAll();
     }
 
-    public function markDamageRecovered(int $companyId, int $id, int $runId): void
+    public function markDamageRecovered(int $companyId, int $id, int $runId, int $amountCents): void
     {
         $this->db->prepare(
-            'UPDATE loss_damage_claims SET run_id = ?, recovered_at = UTC_TIMESTAMP()
-             WHERE id = ? AND company_id = ? AND status = "approved" AND run_id IS NULL',
-        )->execute([$runId, $id, $companyId]);
+            'UPDATE loss_damage_claims
+             SET recovered_cents = LEAST(amount_cents, recovered_cents + ?), run_id = ?
+             WHERE id = ? AND company_id = ? AND status = "approved" AND recovered_cents < amount_cents',
+        )->execute([$amountCents, $runId, $id, $companyId]);
+
+        $this->db->prepare(
+            'UPDATE loss_damage_claims
+             SET recovered_at = IF(recovered_cents >= amount_cents, UTC_TIMESTAMP(), recovered_at)
+             WHERE id = ? AND company_id = ?',
+        )->execute([$id, $companyId]);
     }
 
     /** @return list<array<string,mixed>> */

@@ -221,3 +221,60 @@
     window.clearInterval(timer);
   });
 })();
+
+(function () {
+  'use strict';
+
+  function visibleCheck(box) {
+    var row = box.closest('[data-employee-row]');
+    return !row || !row.hidden;
+  }
+
+  document.querySelectorAll('[data-check-all]').forEach(function (master) {
+    var scope = master.form || document;
+    var boxes = Array.prototype.slice.call(scope.querySelectorAll('[data-row-check]'));
+    var count = scope.querySelector('[data-selected-count]');
+
+    function sync() {
+      var shown = boxes.filter(visibleCheck);
+      var selected = shown.filter(function (box) { return box.checked; }).length;
+      master.checked = shown.length > 0 && selected === shown.length;
+      master.indeterminate = selected > 0 && selected < shown.length;
+      if (count) count.textContent = String(selected);
+    }
+
+    master.addEventListener('change', function () {
+      boxes.forEach(function (box) {
+        if (visibleCheck(box)) box.checked = master.checked;
+      });
+      sync();
+    });
+
+    boxes.forEach(function (box) {
+      box.addEventListener('change', sync);
+    });
+
+    sync();
+  });
+
+  document.querySelectorAll('[data-employee-filter]').forEach(function (filter) {
+    var form = filter.form;
+    if (!form) return;
+
+    filter.addEventListener('change', function () {
+      var department = filter.value;
+      form.querySelectorAll('[data-employee-row]').forEach(function (row) {
+        row.hidden = department !== '' && String(row.getAttribute('data-department')) !== department;
+      });
+
+      var master = form.querySelector('[data-check-all]');
+      var boxes = Array.prototype.slice.call(form.querySelectorAll('[data-row-check]')).filter(visibleCheck);
+      var selected = boxes.filter(function (box) { return box.checked; }).length;
+
+      if (master) {
+        master.checked = boxes.length > 0 && selected === boxes.length;
+        master.indeterminate = selected > 0 && selected < boxes.length;
+      }
+    });
+  });
+})();

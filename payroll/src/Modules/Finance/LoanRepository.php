@@ -23,7 +23,8 @@ final class LoanRepository
     {
         $statement = $this->db->prepare(
             'SELECT l.*, e.employee_no, e.first_name, e.last_name,
-                    COALESCE(SUM(CASE WHEN s.paid = 0 THEN s.principal_cents + s.interest_cents - s.paid_cents ELSE 0 END), 0) AS balance_cents
+                    COALESCE(SUM(CASE WHEN s.paid = 0 THEN s.principal_cents + s.interest_cents - s.paid_cents ELSE 0 END), 0) AS balance_cents,
+                    MIN(CASE WHEN s.paid = 0 THEN s.due_period END) AS next_due_period
              FROM loans l
              JOIN employees e ON e.id = l.employee_id AND e.company_id = l.company_id
              LEFT JOIN loan_schedule s ON s.loan_id = l.id AND s.company_id = l.company_id

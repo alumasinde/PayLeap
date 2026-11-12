@@ -29,6 +29,7 @@ final class PaymentRepository
                AND NOT EXISTS (
                    SELECT 1 FROM payment_batches b
                    WHERE b.company_id = r.company_id AND b.run_id = r.id
+                     AND b.status <> \'cancelled\'
                )
              ORDER BY r.period DESC, r.run_no, r.id',
         );
@@ -92,12 +93,24 @@ final class PaymentRepository
     public function existingForRun(int $companyId, int $runId): ?array
     {
         $statement = $this->db->prepare(
-            'SELECT * FROM payment_batches WHERE company_id = ? AND run_id = ? LIMIT 1',
+            'SELECT * FROM payment_batches
+             WHERE company_id = ? AND run_id = ? AND status <> \'cancelled\'
+             LIMIT 1',
         );
         $statement->execute([$companyId, $runId]);
         $row = $statement->fetch();
 
         return $row === false ? null : $row;
+    }
+
+    public function referenceExists(int $companyId, string $reference): bool
+    {
+        $statement = $this->db->prepare(
+            'SELECT 1 FROM payment_batches WHERE company_id = ? AND reference = ? LIMIT 1',
+        );
+        $statement->execute([$companyId, $reference]);
+
+        return $statement->fetchColumn() !== false;
     }
 
     /** @return list<array<string,mixed>> */
@@ -192,6 +205,49 @@ final class PaymentRepository
             }
 
             return $batchId;
+        } catch (Throwable $error) {
+            if ($own) {
+                $this->db->rollBack();
+            }
+
+            throw $error;
+        }
+    }
+
+    /** Void a prepared batch without changing the run, so it can be re-prepared. */
+    public function cancel(int $companyId, int $batchId, int $actorId): bool
+    {
+        $own = !$this->db->inTransaction();
+
+        if ($own) {
+            $this->db->beginTransaction();
+        }
+
+        try {
+            $statement = $this->db->prepare(
+                'UPDATE payment_batches
+                 SET status = \'cancelled\'
+                 WHERE id = ? AND company_id = ? AND status = \'prepared\'',
+            );
+            $statement->execute([$batchId, $companyId]);
+
+            if ($statement->rowCount() !== 1) {
+                if ($own) {
+                    $this->db->rollBack();
+                }
+
+                return false;
+            }
+
+            $this->db->prepare(
+                'UPDATE payment_batch_lines SET status = \'cancelled\' WHERE batch_id = ? AND company_id = ?',
+            )->execute([$batchId, $companyId]);
+
+            if ($own) {
+                $this->db->commit();
+            }
+
+            return true;
         } catch (Throwable $error) {
             if ($own) {
                 $this->db->rollBack();

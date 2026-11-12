@@ -28,8 +28,16 @@
         <input type="hidden" name="_token" value="{{ csrf_token() }}">
         <button class="btn-primary" type="submit">Release payment</button>
       </form>
+      <form method="post" action="/app/finance/payments/{{ batch.id }}/cancel">
+        <input type="hidden" name="_token" value="{{ csrf_token() }}">
+        <button class="btn-ghost" type="submit">Cancel batch</button>
+      </form>
     {% endif %}
   </div>
+
+  {% if batch.status == 'prepared' %}
+    <p class="hint">Cancelling voids this prepared file only. The payroll run stays approved and unpaid, and can be prepared again with the correct method or details.</p>
+  {% endif %}
 
   <section class="panel">
     <h2>Payment lines</h2>

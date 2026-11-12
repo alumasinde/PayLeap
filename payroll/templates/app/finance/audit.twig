@@ -33,7 +33,7 @@
                 <td>{{ entry.first_name ? entry.first_name ~ ' ' ~ entry.last_name : 'System' }}<br><span class="muted">{{ entry.email }}</span></td>
                 <td class="mono">{{ entry.action }}</td>
                 <td>{{ entry.entity ?: '—' }}{% if entry.entity_id %}<br><span class="muted mono">{{ entry.entity_id }}</span>{% endif %}</td>
-                <td class="mono" style="max-width:26rem;overflow-wrap:anywhere">{{ entry.meta ?: '—' }}</td>
+                <td class="mono meta-cell">{{ entry.meta ?: '—' }}</td>
                 <td class="mono">{{ entry.ip ?: '—' }}</td>
               </tr>
             {% endfor %}

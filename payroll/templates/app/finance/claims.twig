@@ -69,11 +69,11 @@
     <h2>Expense claims</h2>
     {% if expenses %}
       <div class="table-wrap"><table class="list">
-        <thead><tr><th>Employee</th><th>Category</th><th>Month</th><th class="num">Amount</th><th>Status</th><th></th></tr></thead>
+        <thead><tr><th>Employee</th><th>Category</th><th>Month</th><th class="num">Amount</th><th>Receipt</th><th>Status</th><th></th></tr></thead>
         <tbody>{% for item in expenses %}<tr>
           <td>{{ item.employee_no }} · {{ item.first_name }} {{ item.last_name }}</td><td>{{ item.category }}</td><td class="mono">{{ item.period }}</td>
-          <td class="num mono">KES {{ item.amount_cents|money }}</td><td><span class="chip{{ item.status == 'approved' ? ' on' : '' }}">{{ item.status|capitalize }}</span></td>
-          <td>{% if item.status == 'pending' %}<form class="row-actions" method="post" action="/app/finance/claims/expense/{{ item.id }}/decide"><input type="hidden" name="_token" value="{{ csrf_token() }}"><input type="hidden" name="decision" value="approved"><button class="btn-primary btn-xs">Approve</button></form>{% endif %}</td>
+          <td class="num mono">KES {{ item.amount_cents|money }}</td><td class="mono">{{ item.receipt_ref ?: '—' }}</td><td><span class="chip{{ item.status == 'approved' ? ' on' : '' }}">{{ item.status|capitalize }}</span></td>
+          <td>{% if item.status == 'pending' %}<div class="row-actions"><form method="post" action="/app/finance/claims/expense/{{ item.id }}/decide"><input type="hidden" name="_token" value="{{ csrf_token() }}"><input type="hidden" name="decision" value="approved"><button class="btn-primary btn-xs">Approve</button></form><form method="post" action="/app/finance/claims/expense/{{ item.id }}/decide"><input type="hidden" name="_token" value="{{ csrf_token() }}"><input type="hidden" name="decision" value="rejected"><button class="btn-ghost btn-xs">Reject</button></form></div>{% endif %}</td>
         </tr>{% endfor %}</tbody>
       </table></div>
     {% else %}<p class="muted">No expense claims.</p>{% endif %}
@@ -83,11 +83,14 @@
     <h2>Loss &amp; damage</h2>
     {% if damage %}
       <div class="table-wrap"><table class="list">
-        <thead><tr><th>Employee</th><th>Description</th><th class="num">Amount</th><th>Status</th><th></th></tr></thead>
+        <thead><tr><th>Employee</th><th>Description</th><th class="num">Amount</th><th class="num">Recovered</th><th class="num">Outstanding</th><th>Status</th><th></th></tr></thead>
         <tbody>{% for item in damage %}<tr>
           <td>{{ item.employee_no }} · {{ item.first_name }} {{ item.last_name }}</td><td>{{ item.description }}</td>
-          <td class="num mono">KES {{ item.amount_cents|money }}</td><td><span class="chip{{ item.status == 'approved' ? ' on' : '' }}">{{ item.status|capitalize }}</span></td>
-          <td>{% if item.status == 'pending' %}<form class="row-actions" method="post" action="/app/finance/claims/damage/{{ item.id }}/decide"><input type="hidden" name="_token" value="{{ csrf_token() }}"><input type="hidden" name="decision" value="approved"><button class="btn-primary btn-xs">Approve</button></form>{% endif %}</td>
+          <td class="num mono">KES {{ item.amount_cents|money }}</td>
+          <td class="num mono">KES {{ item.recovered_cents|money }}</td>
+          <td class="num mono">KES {{ (item.amount_cents - item.recovered_cents)|money }}</td>
+          <td><span class="chip{{ item.status == 'approved' ? ' on' : '' }}">{{ item.status|capitalize }}</span></td>
+          <td>{% if item.status == 'pending' %}<div class="row-actions"><form method="post" action="/app/finance/claims/damage/{{ item.id }}/decide"><input type="hidden" name="_token" value="{{ csrf_token() }}"><input type="hidden" name="decision" value="approved"><button class="btn-primary btn-xs">Approve</button></form><form method="post" action="/app/finance/claims/damage/{{ item.id }}/decide"><input type="hidden" name="_token" value="{{ csrf_token() }}"><input type="hidden" name="decision" value="rejected"><button class="btn-ghost btn-xs">Reject</button></form></div>{% endif %}</td>
         </tr>{% endfor %}</tbody>
       </table></div>
     {% else %}<p class="muted">No damage claims.</p>{% endif %}
@@ -129,7 +132,7 @@
         <tbody>{% for item in finals %}<tr>
           <td>{{ item.employee_no }} · {{ item.first_name }} {{ item.last_name }}</td><td class="mono">{{ item.period }}</td>
           <td class="num mono">KES {{ item.total_cents|money }}</td><td><span class="chip{{ item.status == 'approved' ? ' on' : '' }}">{{ item.status|capitalize }}</span></td>
-          <td>{% if item.status == 'draft' %}<form method="post" action="/app/finance/claims/final-dues/{{ item.id }}/decide"><input type="hidden" name="_token" value="{{ csrf_token() }}"><input type="hidden" name="decision" value="approved"><button class="btn-primary btn-xs">Approve</button></form>{% endif %}</td>
+          <td>{% if item.status == 'draft' %}<div class="row-actions"><form method="post" action="/app/finance/claims/final-dues/{{ item.id }}/decide"><input type="hidden" name="_token" value="{{ csrf_token() }}"><input type="hidden" name="decision" value="approved"><button class="btn-primary btn-xs">Approve</button></form><form method="post" action="/app/finance/claims/final-dues/{{ item.id }}/decide"><input type="hidden" name="_token" value="{{ csrf_token() }}"><input type="hidden" name="decision" value="rejected"><button class="btn-ghost btn-xs">Reject</button></form></div>{% endif %}</td>
         </tr>{% endfor %}</tbody>
       </table></div>
     {% endif %}

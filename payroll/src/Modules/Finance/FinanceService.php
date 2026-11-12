@@ -12,6 +12,7 @@ use Mshahara\Payroll\Support\AuditLogger;
 use Mshahara\Payroll\Support\HttpException;
 use Mshahara\Payroll\Support\Money;
 use PDO;
+use Throwable;
 
 /**
  * Finance operations that sit around payroll: pay structures, payment
@@ -102,12 +103,108 @@ final class FinanceService
     public function assignPayItem(int $companyId, array $input, int $actorId): int
     {
         $employeeId = (int) ($input['employee_id'] ?? 0);
-        $itemId = (int) ($input['pay_item_id'] ?? 0);
 
         if ($this->employees->find($companyId, $employeeId) === null) {
             throw new HttpException(422, 'Choose an employee from this company.');
         }
 
+        $values = $this->payItemAssignmentValues($companyId, $input);
+
+        if ($this->payItems->hasAssignment(
+            $companyId,
+            $employeeId,
+            $values['pay_item_id'],
+            $values['start_date'],
+            $values['end_date'],
+        )) {
+            throw new HttpException(409, 'That employee already has this pay item for the selected dates.');
+        }
+
+        $assignmentId = $this->payItems->assign($companyId, ['employee_id' => $employeeId] + $values);
+
+        $this->audit->record($companyId, $actorId, 'pay_item.assigned', 'employee_pay_item', (string) $assignmentId, [
+            'employee_id' => $employeeId,
+            'pay_item' => $values['pay_item_name'],
+        ]);
+
+        return $assignmentId;
+    }
+
+    /**
+     * Assign one pay item to a checked set of employees atomically. Every
+     * employee is validated before the first insert; one bad id rolls back
+     * the whole batch. Existing overlapping assignments are skipped.
+     *
+     * @param array<string,mixed> $input
+     * @return int number of new assignments
+     */
+    public function assignPayItemMany(int $companyId, array $input, int $actorId): int
+    {
+        $ids = $input['employee_ids'] ?? [];
+        $ids = is_array($ids) ? $ids : [$ids];
+        $ids = array_values(array_unique(array_filter(array_map('intval', $ids), static fn (int $id): bool => $id > 0)));
+
+        if ($ids === []) {
+            throw new HttpException(422, 'Select at least one employee.');
+        }
+
+        $values = $this->payItemAssignmentValues($companyId, $input);
+        $valid = [];
+
+        foreach ($ids as $employeeId) {
+            $employee = $this->employees->find($companyId, $employeeId);
+
+            if ($employee === null) {
+                throw new HttpException(422, 'One of the selected employees does not belong to this company.');
+            }
+
+            if ((string) $employee['status'] !== 'active') {
+                throw new HttpException(422, 'Pay items can only be assigned to active employees.');
+            }
+
+            $valid[] = $employeeId;
+        }
+
+        $this->db->beginTransaction();
+
+        try {
+            $assigned = 0;
+
+            foreach ($valid as $employeeId) {
+                if ($this->payItems->hasAssignment(
+                    $companyId,
+                    $employeeId,
+                    $values['pay_item_id'],
+                    $values['start_date'],
+                    $values['end_date'],
+                )) {
+                    continue;
+                }
+
+                $assignmentId = $this->payItems->assign($companyId, ['employee_id' => $employeeId] + $values);
+                $this->audit->record($companyId, $actorId, 'pay_item.assigned', 'employee_pay_item', (string) $assignmentId, [
+                    'employee_id' => $employeeId,
+                    'pay_item' => $values['pay_item_name'],
+                ]);
+                $assigned++;
+            }
+
+            $this->db->commit();
+
+            return $assigned;
+        } catch (Throwable $error) {
+            $this->db->rollBack();
+            throw $error;
+        }
+    }
+
+    /**
+     * @param array<string,mixed> $input
+     * @return array{pay_item_id:int,pay_item_name:string,amount_cents:?int,percent:?float,start_date:?string,end_date:?string}
+     */
+    private function payItemAssignmentValues(int $companyId, array $input): array
+    {
+        $itemId = (int) ($input['pay_item_id'] ?? 0);
         $item = $this->payItems->find($companyId, $itemId);
 
         if ($item === null || (int) $item['active'] !== 1) {
@@ -133,21 +230,14 @@ final class FinanceService
             throw new HttpException(422, 'The end date cannot be before the start date.');
         }
 
-        $assignmentId = $this->payItems->assign($companyId, [
-            'employee_id' => $employeeId,
+        return [
             'pay_item_id' => $itemId,
+            'pay_item_name' => (string) $item['name'],
             'amount_cents' => $amount,
             'percent' => $percentValue,
             'start_date' => $start,
             'end_date' => $end,
-        ]);
-
-        $this->audit->record($companyId, $actorId, 'pay_item.assigned', 'employee_pay_item', (string) $assignmentId, [
-            'employee_id' => $employeeId,
-            'pay_item' => $item['name'],
-        ]);
-
-        return $assignmentId;
+        ];
     }
 
     public function removePayItemAssignment(int $companyId, int $id, int $actorId): void
@@ -469,6 +559,22 @@ final class FinanceService
         }
 
         $reference = sprintf('PAY-%s-%03d', str_replace('-', '', (string) $run['period']), (int) $run['run_no']);
+        $attempt = 1;
+
+        while ($this->payments->referenceExists($companyId, $reference) && $attempt < 100) {
+            $attempt++;
+            $reference = sprintf(
+                'PAY-%s-%03d-R%d',
+                str_replace('-', '', (string) $run['period']),
+                (int) $run['run_no'],
+                $attempt,
+            );
+        }
+
+        if ($this->payments->referenceExists($companyId, $reference)) {
+            throw new HttpException(409, 'Could not allocate a payment reference for that run.');
+        }
+
         $batchId = $this->payments->create($companyId, $runId, $method, $reference, $actorId);
 
         $this->audit->record($companyId, $actorId, 'payment.batch_prepared', 'payment_batch', (string) $batchId, [
@@ -487,6 +593,15 @@ final class FinanceService
         }
 
         $this->audit->record($companyId, $actorId, 'payment.released', 'payment_batch', (string) $batchId);
+    }
+
+    public function cancelPayment(int $companyId, int $batchId, int $actorId): void
+    {
+        if (!$this->payments->cancel($companyId, $batchId, $actorId)) {
+            throw new HttpException(409, 'Only a prepared payment batch can be cancelled.');
+        }
+
+        $this->audit->record($companyId, $actorId, 'payment.batch_cancelled', 'payment_batch', (string) $batchId);
     }
 
     /**
@@ -544,13 +659,25 @@ final class FinanceService
 
     public function markReturnFiled(int $companyId, int $id, string $reference, int $actorId): void
     {
-        if ($this->returns->find($companyId, $id) === null) {
+        $return = $this->returns->find($companyId, $id);
+
+        if ($return === null) {
             throw new HttpException(404, 'That return does not exist.');
         }
 
-        $this->returns->markFiled($companyId, $id, trim($reference), $actorId);
+        if ((string) $return['status'] !== 'prepared') {
+            throw new HttpException(409, 'That return has already been filed.');
+        }
+
+        $reference = trim($reference);
+
+        if ($reference === '' || mb_strlen($reference) > 120) {
+            throw new HttpException(422, 'Enter the portal filing reference.');
+        }
+
+        $this->returns->markFiled($companyId, $id, $reference, $actorId);
         $this->audit->record($companyId, $actorId, 'return.filed', 'statutory_return', (string) $id, [
-            'reference' => trim($reference),
+            'reference' => $reference,
         ]);
     }
 

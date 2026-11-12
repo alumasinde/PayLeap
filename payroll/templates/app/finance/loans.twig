@@ -68,7 +68,7 @@
     {% if loans %}
       <div class="table-wrap">
         <table class="list">
-          <thead><tr><th>Reference</th><th>Employee</th><th>Type</th><th class="num">Principal</th><th class="num">Balance</th><th>Status</th></tr></thead>
+          <thead><tr><th>Reference</th><th>Employee</th><th>Type</th><th class="num">Principal</th><th class="num">Balance</th><th>Next due</th><th>Status</th></tr></thead>
           <tbody>
             {% for loan in loans %}
               <tr>
@@ -77,6 +77,7 @@
                 <td>{{ loan.type|capitalize }}</td>
                 <td class="num mono">KES {{ loan.principal_cents|money }}</td>
                 <td class="num mono">KES {{ loan.balance_cents|money }}</td>
+                <td class="mono">{{ loan.next_due_period ?: '—' }}</td>
                 <td><span class="chip{{ loan.status == 'settled' ? ' on' : '' }}">{{ loan.status|capitalize }}</span></td>
               </tr>
             {% endfor %}

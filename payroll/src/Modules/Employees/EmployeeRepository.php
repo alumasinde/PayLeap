@@ -284,6 +284,38 @@ final class EmployeeRepository
         return $statement->fetchColumn() !== false;
     }
 
+    /** @return list<string> */
+    public function costCenters(int $companyId): array
+    {
+        $statement = $this->db->prepare(
+            'SELECT DISTINCT cost_center FROM employees
+             WHERE company_id = ? AND cost_center IS NOT NULL AND cost_center <> \'\'
+             ORDER BY cost_center',
+        );
+        $statement->execute([$companyId]);
+
+        return $statement->fetchAll(PDO::FETCH_COLUMN);
+    }
+
+    /** @param list<int> $employeeIds */
+    public function setCostCenter(int $companyId, array $employeeIds, ?string $costCenter): int
+    {
+        $ids = array_values(array_unique(array_filter(array_map('intval', $employeeIds), static fn (int $id): bool => $id > 0)));
+
+        if ($ids === []) {
+            return 0;
+        }
+
+        $placeholders = implode(', ', array_fill(0, count($ids), '?'));
+        $statement = $this->db->prepare(
+            'UPDATE employees SET cost_center = ?
+             WHERE company_id = ? AND id IN (' . $placeholders . ')',
+        );
+        $statement->execute([$costCenter, $companyId, ...$ids]);
+
+        return $statement->rowCount();
+    }
+
     /** Next free EMP-nnnn number for a company. */
     public function nextNumber(int $companyId): string
     {
@@ -309,7 +341,7 @@ final class EmployeeRepository
      */
     public function activeForSelect(int $companyId, ?int $exceptId = null): array
     {
-        $sql = 'SELECT id, employee_no, first_name, last_name
+        $sql = 'SELECT id, employee_no, first_name, last_name, department_id
                 FROM employees
                 WHERE company_id = ? AND status = \'active\'';
         $params = [$companyId];
@@ -495,7 +527,7 @@ final class EmployeeRepository
     }
 
     /**
-     * @param array{status?:string,department_id?:int,search?:string} $filters
+     * @param array{status?:string,department_id?:int,search?:string,attention?:string} $filters
      * @return array{0:string,1:list<mixed>}
      */
     private function filter(int $companyId, array $filters): array
@@ -515,6 +547,14 @@ final class EmployeeRepository
         if ($departmentId > 0) {
             $where .= ' AND e.department_id = ?';
             $params[] = $departmentId;
+        }
+
+        $attention = (string) ($filters['attention'] ?? '');
+
+        if ($attention === 'no_manager') {
+            $where .= ' AND e.manager_id IS NULL';
+        } elseif ($attention === 'no_department') {
+            $where .= ' AND e.department_id IS NULL';
         }
 
         $search = trim((string) ($filters['search'] ?? ''));
@@ -656,7 +696,7 @@ final class EmployeeRepository
                 (int) $employmentId,
                 $newSalary,
                 $newBasis,
-                (string) ($data['salary_effective_date'] ?? $current['start_date'] ?? date('Y-m-d')),
+                (string) ($data['salary_effective_date'] ?? date('Y-m-d')),
             );
         }
     }
@@ -695,6 +735,21 @@ final class EmployeeRepository
              ORDER BY effective_from, id',
         );
         $statement->execute([$companyId, $employmentId, $periodEnd]);
+
+        return $statement->fetchAll();
+    }
+
+    /** @return list<array<string,mixed>> */
+    public function payRateHistory(int $companyId, int $employeeId): array
+    {
+        $statement = $this->db->prepare(
+            'SELECT r.salary_cents, r.pay_basis, r.effective_from, r.created_at
+             FROM employment_pay_rates r
+             JOIN employments em ON em.id = r.employment_id AND em.company_id = r.company_id
+             WHERE r.company_id = ? AND em.employee_id = ?
+             ORDER BY r.effective_from DESC, r.id DESC',
+        );
+        $statement->execute([$companyId, $employeeId]);
 
         return $statement->fetchAll();
     }

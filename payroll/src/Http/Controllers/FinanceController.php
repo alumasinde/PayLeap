@@ -34,6 +34,7 @@ final class FinanceController
             'items' => $this->app->finance->payItems->all($companyId),
             'assignments' => $this->app->finance->payItems->assignments($companyId),
             'employees' => $this->app->employees->register->activeForSelect($companyId),
+            'departments' => $this->app->employees->departments->all($companyId),
             'can_manage' => $this->app->can('payroll.run'),
         ]);
     }
@@ -74,13 +75,22 @@ final class FinanceController
         $this->app->requirePermission('payroll.run');
 
         try {
-            $this->app->finance->service->assignPayItem((int) $company['company_id'], $this->app->request->all(), (int) $this->app->user['id']);
+            $count = $this->app->finance->service->assignPayItemMany(
+                (int) $company['company_id'],
+                $this->app->request->all(),
+                (int) $this->app->user['id'],
+            );
         } catch (HttpException $error) {
             $this->app->flash->add('error', $error->getMessage());
             $this->app->redirect('/app/finance/pay-items');
         }
 
-        $this->app->flash->add('success', 'Pay item assigned.');
+        $this->app->flash->add(
+            'success',
+            $count === 0
+                ? 'Those employees already have this pay item for the selected dates.'
+                : 'Pay item assigned to ' . $count . ' employee' . ($count === 1 ? '' : 's') . '.',
+        );
         $this->app->redirect('/app/finance/pay-items');
     }
 
@@ -158,6 +168,22 @@ final class FinanceController
         }
 
         $this->app->flash->add('success', 'Payment released and the run marked paid.');
+        $this->app->redirect('/app/finance/payments/' . (int) ($params['id'] ?? 0));
+    }
+
+    public function cancelPayment(array $params): void
+    {
+        $company = $this->app->requireCompany();
+        $this->app->requirePermission('payment.release');
+
+        try {
+            $this->app->finance->service->cancelPayment((int) $company['company_id'], (int) ($params['id'] ?? 0), (int) $this->app->user['id']);
+        } catch (HttpException $error) {
+            $this->app->flash->add('error', $error->getMessage());
+            $this->app->redirect('/app/finance/payments/' . (int) ($params['id'] ?? 0));
+        }
+
+        $this->app->flash->add('success', 'Payment batch cancelled. The run is available for a fresh batch.');
         $this->app->redirect('/app/finance/payments/' . (int) ($params['id'] ?? 0));
     }
 
@@ -278,7 +304,7 @@ final class FinanceController
         $this->app->requirePermission('reports.view');
         $companyId = (int) $company['company_id'];
         $this->app->finance->repository->ensureGlDefaults($companyId);
-        $period = (string) $this->app->request->query('period', date('Y-m'));
+        $period = $this->reportPeriod($companyId, (string) $this->app->request->query('period', ''));
 
         echo $this->app->render('app/finance/reports.twig', [
             'period' => $period,
@@ -302,7 +328,7 @@ final class FinanceController
         $this->app->requirePermission('reports.view');
         $companyId = (int) $company['company_id'];
         $key = (string) ($params['key'] ?? 'payroll-summary');
-        $period = (string) $this->app->request->query('period', date('Y-m'));
+        $period = $this->reportPeriod($companyId, (string) $this->app->request->query('period', ''));
 
         try {
             $report = $this->app->finance->service->report($companyId, $key, $period);
@@ -325,7 +351,7 @@ final class FinanceController
         $this->app->requirePermission('reports.export');
         $companyId = (int) $company['company_id'];
         $key = (string) ($params['key'] ?? 'payroll-summary');
-        $period = (string) $this->app->request->query('period', date('Y-m'));
+        $period = $this->reportPeriod($companyId, (string) $this->app->request->query('period', ''));
 
         try {
             $report = $this->app->finance->service->report($companyId, $key, $period);
@@ -561,6 +587,17 @@ final class FinanceController
             'page' => $page,
             'pages' => $pages,
         ]);
+    }
+
+    private function reportPeriod(int $companyId, string $requested): string
+    {
+        $requested = trim($requested);
+
+        if ($requested !== '') {
+            return $requested;
+        }
+
+        return $this->app->finance->repository->latestApprovedPeriod($companyId) ?? date('Y-m');
     }
 
     /**

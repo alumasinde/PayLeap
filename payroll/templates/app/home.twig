@@ -127,11 +127,70 @@
     </article>
   </div>
 
+  {% if hr_attention %}
+    <section class="panel hr-queue">
+      <div class="panel-head">
+        <div>
+          <h2>People follow-up</h2>
+          <p class="muted">Reviews, contract dates and record gaps that need an HR decision, not just a page visit.</p>
+        </div>
+        <a class="text-link" href="/app/employees">Open register {{ icons.svg('arrow-right', 14) }}</a>
+      </div>
+      <div class="hr-queue-grid">
+        <div class="hr-queue-block">
+          <span class="sub-label">Probation reviews · next 60 days</span>
+          {% if hr_attention.probation %}
+            <ul class="hr-queue-list">
+              {% for item in hr_attention.probation %}
+                <li>
+                  <a href="/app/employees/{{ item.id }}">{{ item.first_name }} {{ item.last_name }}</a>
+                  <span class="muted mono">{{ item.probation_end|date('j M') }}</span>
+                </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p class="muted">No probation reviews due.</p>
+          {% endif %}
+        </div>
+        <div class="hr-queue-block">
+          <span class="sub-label">Contracts ending · next 60 days</span>
+          {% if hr_attention.contracts %}
+            <ul class="hr-queue-list">
+              {% for item in hr_attention.contracts %}
+                <li>
+                  <a href="/app/employees/{{ item.id }}">{{ item.first_name }} {{ item.last_name }}</a>
+                  <span class="muted mono">{{ item.end_date|date('j M') }}</span>
+                </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p class="muted">No contracts ending soon.</p>
+          {% endif %}
+        </div>
+        <div class="hr-queue-block">
+          <span class="sub-label">Record gaps</span>
+          <div class="hr-gap-row"><span>No manager</span><strong class="mono">{{ hr_attention.no_manager }}</strong><a class="text-link" href="/app/employees?attention=no_manager">Review</a></div>
+          <div class="hr-gap-row"><span>No department</span><strong class="mono">{{ hr_attention.no_department }}</strong><a class="text-link" href="/app/employees?attention=no_department">Review</a></div>
+        </div>
+        <div class="hr-queue-block">
+          <span class="sub-label">Today's register</span>
+          <div class="hr-gap-row"><span>Unmarked people</span><strong class="mono">{{ unmarked }}</strong><a class="text-link" href="/app/attendance">Close out</a></div>
+          <p class="hint">A complete register keeps absence, leave and payroll proration trustworthy.</p>
+        </div>
+      </div>
+    </section>
+  {% endif %}
+
   {% if finance %}
     <section class="panel">
       <div class="panel-head">
         <div><h2>Finance controls</h2><p class="muted">Cash, statutory liabilities and exceptions before the next payment run.</p></div>
-        <a class="text-link" href="/app/finance/reports?period={{ finance.latest ? finance.latest.period : today|date('Y-m') }}">Reports {{ icons.svg('arrow-right', 14) }}</a>
+        <div class="row-actions">
+          {% if finance.pending_claims > 0 %}
+            <a class="chip on" href="/app/finance/claims">{{ finance.pending_claims }} claim{{ finance.pending_claims == 1 ? '' : 's' }} waiting</a>
+          {% endif %}
+          <a class="text-link" href="/app/finance/reports">Reports {{ icons.svg('arrow-right', 14) }}</a>
+        </div>
       </div>
       <div class="payroll-figures">
         <div class="figure"><span>Statutory liability</span><strong class="mono">KES {{ finance.statutory.total|money }}</strong></div>
