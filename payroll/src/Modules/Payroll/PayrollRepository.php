@@ -127,6 +127,45 @@ final class PayrollRepository
         return $row === false ? null : $row;
     }
 
+    /**
+     * Approved payslips for one login, resolved through its employee record.
+     *
+     * @return list<array<string,mixed>>
+     */
+    public function payslipsForEmployee(int $companyId, int $userId): array
+    {
+        $statement = $this->db->prepare(
+            'SELECT l.*, r.period, r.label AS run_label, r.status AS run_status,
+                    r.rate_version_id, r.approved_at
+             FROM payroll_lines l
+             JOIN payroll_runs r ON r.id = l.run_id
+             JOIN employees e ON e.id = l.employee_id AND e.company_id = r.company_id
+             WHERE r.company_id = ? AND e.user_id = ? AND r.status = ?
+             ORDER BY r.period DESC, l.id',
+        );
+        $statement->execute([$companyId, $userId, 'approved']);
+
+        return $statement->fetchAll();
+    }
+
+    /** One approved payslip, only for the employee linked to this login. */
+    public function payslipForEmployee(int $companyId, int $userId, int $lineId): ?array
+    {
+        $statement = $this->db->prepare(
+            'SELECT l.*, r.period, r.label AS run_label, r.status AS run_status,
+                    r.rate_version_id, r.approved_at
+             FROM payroll_lines l
+             JOIN payroll_runs r ON r.id = l.run_id
+             JOIN employees e ON e.id = l.employee_id AND e.company_id = r.company_id
+             WHERE l.id = ? AND r.company_id = ? AND e.user_id = ? AND r.status = ?
+             LIMIT 1',
+        );
+        $statement->execute([$lineId, $companyId, $userId, 'approved']);
+        $row = $statement->fetch();
+
+        return $row === false ? null : $row;
+    }
+
     /** @return list<array<string,mixed>> */
     public function lines(int $runId): array
     {

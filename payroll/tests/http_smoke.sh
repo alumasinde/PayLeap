@@ -62,6 +62,58 @@ if [ "$session_before" != "$session_after" ]; then ok "session id rotates on log
 
 status=$(curl -s -b "$JAR" -o "$APP_HTML" -w '%{http_code}' "$BASE/app")
 expect "GET /app is 200" "$status" "200"
+
+for portal_name in hr finance ess; do
+  status=$(curl -s -b "$JAR" -o /dev/null -w '%{http_code}' "$BASE/$portal_name")
+  expect "GET /$portal_name is 200" "$status" "200"
+done
+
+curl -s -b "$JAR" -o "$APP_HTML" "$BASE/hr"
+if grep -q 'href="/app/departments"' "$APP_HTML" \
+  && grep -q 'href="/app/employees?status=exited"' "$APP_HTML" \
+  && grep -q 'href="/app/settings?tab=documents"' "$APP_HTML"; then
+  ok "HR sidebar links departments, archived people and documents"
+else
+  bad "HR sidebar links departments, archived people and documents"
+fi
+
+curl -s -b "$JAR" -o "$APP_HTML" "$BASE/finance"
+if grep -q "Payroll runs" "$APP_HTML" && grep -q "View only" "$APP_HTML"; then
+  ok "finance sidebar links payroll runs and read-only employees"
+else
+  bad "finance sidebar links payroll runs and read-only employees"
+fi
+
+curl -s -b "$JAR" -o "$APP_HTML" "$BASE/app/employees"
+if grep -q "View only" "$APP_HTML" && grep -q 'href="/finance"' "$APP_HTML"; then
+  ok "finance keeps its shell on the shared employee register"
+else
+  bad "finance keeps its shell on the shared employee register"
+fi
+curl -s -b "$JAR" -o /dev/null "$BASE/hr"
+
+for path in "/app/employees?status=exited" "/app/settings?tab=documents" "/app/departments"; do
+  status=$(curl -s -b "$JAR" -o /dev/null -w '%{http_code}' "$BASE$path")
+  expect "GET $path is 200" "$status" "200"
+done
+
+curl -s -b "$JAR" -o "$APP_HTML" "$BASE/app/departments"
+if grep -q "All departments" "$APP_HTML" && grep -q 'action="/app/departments"' "$APP_HTML"; then
+  ok "departments page lists teams and has the add form"
+else
+  bad "departments page lists teams and has the add form"
+fi
+
+dtoken=$(grep -o 'name="_token" value="[^"]*"' "$APP_HTML" | head -1 | sed 's/.*value="//;s/"$//')
+status=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR" -c "$JAR" -X POST "$BASE/app/departments" \
+  --data-urlencode "_token=$dtoken" \
+  --data-urlencode "name=Smoke Operations")
+expect "department creation redirects" "$status" "302"
+
+curl -s -b "$JAR" -o "$APP_HTML" "$BASE/app/departments"
+if grep -q "Smoke Operations" "$APP_HTML"; then ok "the new department is listed"; else bad "the new department is listed"; fi
+
+curl -s -b "$JAR" -o "$APP_HTML" "$BASE/app"
 if grep -q "Smoke Co" "$APP_HTML"; then ok "workspace shows the company"; else bad "workspace shows the company"; fi
 if grep -q "Owner" "$APP_HTML"; then ok "workspace shows the database role name"; else bad "workspace shows the database role name"; fi
 
@@ -199,6 +251,15 @@ expect "self-approval answers with a redirect" "$status" "302"
 curl -s -b "$JAR" -o "$APP_HTML" "$BASE$pay_path"
 if grep -q "Draft" "$APP_HTML"; then ok "self-approval leaves the run in draft"; else bad "self-approval leaves the run in draft"; fi
 
+status=$(curl -s -b "$JAR" -o "$APP_HTML" -w '%{http_code}' "$BASE/app/payroll/approvals")
+expect "GET /app/payroll/approvals is 200" "$status" "200"
+if grep -q "Smoke payroll" "$APP_HTML" && grep -q "Prepared by you" "$APP_HTML"; then
+  ok "approvals queue lists the draft and blocks self-approval"
+else
+  bad "approvals queue lists the draft and blocks self-approval"
+fi
+
+curl -s -b "$JAR" -o "$APP_HTML" "$BASE$pay_path"
 slip_path=$(grep -o 'href="/app/payroll/[0-9]*/lines/[0-9]*/payslip"' "$APP_HTML" | head -1 | sed 's/href="//;s/"$//')
 if [ -n "$slip_path" ]; then ok "the run links to a payslip"; else bad "the run links to a payslip"; fi
 
@@ -221,10 +282,10 @@ if grep -q "Archived" "$APP_HTML"; then ok "archive is shown on the record"; els
 
 # ----------------------------------------------------------------------- me
 
-status=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR" "$BASE/me")
-expect "GET /me is 200" "$status" "200"
+status=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR" "$BASE/me/account")
+expect "GET /me/account is 200" "$status" "200"
 
-curl -s -b "$JAR" -o "$APP_HTML" "$BASE/me"
+curl -s -b "$JAR" -o "$APP_HTML" "$BASE/me/account"
 ptoken=$(grep -o 'name="_token" value="[^"]*"' "$APP_HTML" | head -1 | sed 's/.*value="//;s/"$//')
 
 status=$(curl -s -o /dev/null -w '%{http_code}' -c "$JAR" -b "$JAR" -X POST "$BASE/me/profile" \
@@ -233,7 +294,7 @@ status=$(curl -s -o /dev/null -w '%{http_code}' -c "$JAR" -b "$JAR" -X POST "$BA
   --data-urlencode "last_name=Ownerly")
 expect "profile update redirects" "$status" "302"
 
-curl -s -b "$JAR" -o "$APP_HTML" "$BASE/me"
+curl -s -b "$JAR" -o "$APP_HTML" "$BASE/me/account"
 if grep -q "Ownerly" "$APP_HTML"; then ok "profile change is shown"; else bad "profile change is shown"; fi
 
 status=$(curl -s -o /dev/null -w '%{http_code}' -c "$JAR" -b "$JAR" -X POST "$BASE/me/password" \
@@ -243,7 +304,7 @@ status=$(curl -s -o /dev/null -w '%{http_code}' -c "$JAR" -b "$JAR" -X POST "$BA
   --data-urlencode "password_confirmation=brand new password 3")
 expect "password change redirects" "$status" "302"
 
-status=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR" "$BASE/me")
+status=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR" "$BASE/me/account")
 expect "password change keeps this session" "$status" "200"
 
 logout_token=$(grep -o 'name="_token" value="[^"]*"' "$APP_HTML" | head -1 | sed 's/.*value="//;s/"$//')
@@ -280,7 +341,7 @@ expect "temporary password signs in" "$status" "302"
 status=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR" "$BASE/app")
 expect "workspace is blocked until the password changes" "$status" "302"
 
-curl -s -b "$JAR" -o "$APP_HTML" "$BASE/me"
+curl -s -b "$JAR" -o "$APP_HTML" "$BASE/me/account"
 mtoken=$(grep -o 'name="_token" value="[^"]*"' "$APP_HTML" | head -1 | sed 's/.*value="//;s/"$//')
 
 status=$(curl -s -o /dev/null -w '%{http_code}' -c "$JAR" -b "$JAR" -X POST "$BASE/me/password" \
@@ -293,9 +354,22 @@ expect "choosing a new password redirects" "$status" "302"
 status=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR" "$BASE/app")
 expect "workspace opens after choosing a new password" "$status" "200"
 
+# A fresh sign-in lands in the person's portal, not the legacy /app shell.
+curl -s -b "$JAR" -o "$APP_HTML" "$BASE/me/account"
+xtoken=$(grep -o 'name="_token" value="[^"]*"' "$APP_HTML" | head -1 | sed 's/.*value="//;s/"$//')
+status=$(curl -s -o /dev/null -w '%{http_code}' -c "$JAR" -b "$JAR" -X POST "$BASE/logout" --data-urlencode "_token=$xtoken")
+expect "the landing check signs out" "$status" "302"
+
+curl -s -c "$JAR" -b "$JAR" -o "$LOGIN_HTML" "$BASE/login"
+ltoken=$(grep -o 'name="_token" value="[^"]*"' "$LOGIN_HTML" | head -1 | sed 's/.*value="//;s/"$//')
+read -r status landing <<< "$(curl -s -o /dev/null -w '%{http_code} %{redirect_url}' -c "$JAR" -b "$JAR" -X POST "$BASE/login" \
+  --data-urlencode "_token=$ltoken" --data-urlencode "email=$email" --data-urlencode "password=brand new password 2")"
+expect "login with the new password works" "$status" "302"
+expect "login lands in the HR portal" "${landing#"$BASE"}" "/hr"
+
 # ------------------------------------------------------- sign out everywhere
 
-curl -s -b "$JAR" -o "$APP_HTML" "$BASE/me"
+curl -s -b "$JAR" -o "$APP_HTML" "$BASE/me/account"
 mtoken=$(grep -o 'name="_token" value="[^"]*"' "$APP_HTML" | head -1 | sed 's/.*value="//;s/"$//')
 if [ -n "$mtoken" ]; then ok "account page carries a CSRF token"; else bad "account page carries a CSRF token"; fi
 

@@ -6,6 +6,7 @@ use Mshahara\Payroll\Http\Controllers\AccessController;
 use Mshahara\Payroll\Http\Controllers\AccountController;
 use Mshahara\Payroll\Http\Controllers\AttendanceController;
 use Mshahara\Payroll\Http\Controllers\AuthController;
+use Mshahara\Payroll\Http\Controllers\DepartmentController;
 use Mshahara\Payroll\Http\Controllers\DocumentController;
 use Mshahara\Payroll\Http\Controllers\EmployeeController;
 use Mshahara\Payroll\Http\Controllers\EmployeeDepartmentController;
@@ -16,6 +17,7 @@ use Mshahara\Payroll\Http\Controllers\PayrollController;
 use Mshahara\Payroll\Http\Controllers\RoleController;
 use Mshahara\Payroll\Http\Controllers\RosterController;
 use Mshahara\Payroll\Http\Controllers\SelfServiceController;
+use Mshahara\Payroll\Http\Controllers\SelfServicePayslipController;
 use Mshahara\Payroll\Http\Controllers\SettingsController;
 use Mshahara\Payroll\Http\Controllers\WorkspaceController;
 
@@ -39,6 +41,9 @@ return [
     ['POST', '/invite/{token}', [InviteController::class, 'accept']],
 
     ['GET', '/app', [WorkspaceController::class, 'home']],
+    ['GET', '/hr', [WorkspaceController::class, 'hr']],
+    ['GET', '/finance', [WorkspaceController::class, 'finance']],
+    ['GET', '/ess', [WorkspaceController::class, 'ess']],
     ['GET', '/app/access', [AccessController::class, 'index']],
     ['POST', '/app/access/invite', [AccessController::class, 'invite']],
     ['POST', '/app/access/members/{id}/role', [AccessController::class, 'changeRole']],
@@ -47,6 +52,8 @@ return [
     ['GET', '/app/access/roles/{id}', [RoleController::class, 'edit']],
     ['POST', '/app/access/roles/{id}', [RoleController::class, 'update']],
 
+    ['GET', '/app/departments', [DepartmentController::class, 'index']],
+    ['POST', '/app/departments', [DepartmentController::class, 'store']],
     ['GET', '/app/employees', [EmployeeController::class, 'index']],
     ['GET', '/app/employees/new', [EmployeeController::class, 'create']],
     ['POST', '/app/employees', [EmployeeController::class, 'store']],
@@ -62,6 +69,7 @@ return [
 
     ['GET', '/app/payroll', [PayrollController::class, 'index']],
     ['POST', '/app/payroll', [PayrollController::class, 'store']],
+    ['GET', '/app/payroll/approvals', [PayrollController::class, 'approvals']],
     ['GET', '/app/payroll/{id}', [PayrollController::class, 'show']],
     ['GET', '/app/payroll/{id}/lines/{lineId}/payslip', [PayrollController::class, 'payslip']],
     ['POST', '/app/payroll/{id}/approve', [PayrollController::class, 'approve']],
@@ -87,13 +95,17 @@ return [
     ['POST', '/app/settings/documents/{id}/toggle', [DocumentController::class, 'toggle']],
     ['POST', '/app/settings/documents/{id}/delete', [DocumentController::class, 'destroy']],
 
-    ['GET', '/me', [WorkspaceController::class, 'me']],
+    ['GET', '/me', [SelfServiceController::class, 'profile']],
+    ['GET', '/me/account', [WorkspaceController::class, 'me']],
     ['GET', '/me/profile', [SelfServiceController::class, 'profile']],
     ['POST', '/me/profile', [AccountController::class, 'updateProfile']],
     ['GET', '/me/attendance', [SelfServiceController::class, 'attendance']],
     ['GET', '/me/timesheet', [SelfServiceController::class, 'timesheet']],
     ['GET', '/me/leave', [SelfServiceController::class, 'leave']],
     ['POST', '/me/leave/request', [SelfServiceController::class, 'submitLeave']],
+    ['GET', '/ess/leave/approvals', [SelfServiceController::class, 'teamLeave']],
+    ['GET', '/ess/payslips', [SelfServicePayslipController::class, 'index']],
+    ['GET', '/ess/payslips/{line}', [SelfServicePayslipController::class, 'show']],
     ['POST', '/me/password', [AccountController::class, 'changePassword']],
     ['GET', '/me/documents', [DocumentController::class, 'index']],
     ['GET', '/me/documents/{id}', [DocumentController::class, 'show']],

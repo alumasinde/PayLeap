@@ -1,0 +1,92 @@
+{% extends 'layout.twig' %}
+{% import 'partials/icons.twig' as icons %}
+
+{% block title %}Departments — {{ app_name }}{% endblock %}
+
+{% block body %}
+  <section class="page-head">
+    <div class="page-head-row">
+      <div>
+        <span class="kicker">People</span>
+        <h1>Departments</h1>
+        <p class="muted">Teams from the employee register. Departments group people now and will carry cost reporting later.</p>
+      </div>
+      <div class="page-head-actions">
+        <a class="btn-ghost" href="/app/employees">{{ icons.svg('users', 16) }} All employees</a>
+        {% if can_edit %}
+          <a class="btn-primary" href="#add-department">{{ icons.svg('user-plus', 16) }} Add department</a>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+
+  <div class="stat-grid">
+    <div class="stat">
+      <span class="stat-label">Departments</span>
+      <strong>{{ departments|length }}</strong>
+    </div>
+    <div class="stat">
+      <span class="stat-label">People assigned</span>
+      <strong>{{ assigned_count }}</strong>
+    </div>
+    <div class="stat">
+      <span class="stat-label">Largest department</span>
+      <strong>{{ largest_name ?: '—' }}</strong>
+    </div>
+  </div>
+
+  <section class="panel">
+    <div class="panel-head">
+      <div>
+        <h2>All departments</h2>
+        <p class="muted">Active people are counted against their current department.</p>
+      </div>
+    </div>
+
+    {% if departments %}
+      <div class="table-wrap">
+        <table class="list">
+          <thead>
+            <tr>
+              <th>Department</th>
+              <th class="num">Active people</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for department in departments %}
+              <tr>
+                <td><strong>{{ department.name }}</strong></td>
+                <td class="num mono">{{ department.employee_count }}</td>
+                <td>
+                  <a class="btn-ghost btn-sm" href="/app/employees?department_id={{ department.id }}">View people</a>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="muted">No departments yet. Add one to group the register and report cost by team.</p>
+    {% endif %}
+  </section>
+
+  {% if can_edit %}
+    <section class="panel" id="add-department">
+      <div class="panel-head">
+        <div>
+          <h2>Add a department</h2>
+          <p class="muted">Department names must be unique within the company.</p>
+        </div>
+      </div>
+      <form class="inline-form" method="post" action="/app/departments">
+        <input type="hidden" name="_token" value="{{ csrf_token() }}">
+        <label class="field">
+          <span>Department name</span>
+          <input type="text" name="name" maxlength="80" required placeholder="e.g. Customer Success">
+        </label>
+        <button class="btn-primary" type="submit">Add department</button>
+      </form>
+    </section>
+  {% endif %}
+{% endblock %}

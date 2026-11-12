@@ -1,0 +1,46 @@
+{% extends 'layout.twig' %}
+
+{% block title %}My payslips — {{ app_name }}{% endblock %}
+
+{% block body %}
+  <section class="page-head">
+    <span class="kicker">Employee self-service</span>
+    <h1>My payslips</h1>
+    <p class="muted">{{ employee.employee_no }} · Approved runs only</p>
+  </section>
+
+  <section class="panel">
+    {% if payslips %}
+      <div class="table-wrap">
+        <table class="list">
+          <thead>
+            <tr>
+              <th>Period</th>
+              <th>Run</th>
+              <th class="num">Gross</th>
+              <th class="num">Deductions</th>
+              <th class="num">Net pay</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for payslip in payslips %}
+              <tr>
+                <td class="mono">{{ payslip.period|date('F Y') }}</td>
+                <td>{{ payslip.run_label }}</td>
+                <td class="num mono">{{ payslip.gross_cents|money }}</td>
+                <td class="num mono">{{ payslip.deductions_cents|money }}</td>
+                <td class="num mono">{{ payslip.net_cents|money }}</td>
+                <td><a class="btn-ghost btn-sm" href="/ess/payslips/{{ payslip.id }}">Open</a></td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="muted">No approved payslips yet. They appear here once payroll for the month is approved.</p>
+    {% endif %}
+  </section>
+
+  <p class="muted"><a href="/ess">Back to my overview</a></p>
+{% endblock %}

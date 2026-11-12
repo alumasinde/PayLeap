@@ -1,0 +1,84 @@
+{% extends 'layout.twig' %}
+{% import 'partials/icons.twig' as icons %}
+
+{% block title %}Payroll approvals — {{ app_name }}{% endblock %}
+
+{% block body %}
+  <section class="page-head">
+    <div class="page-head-row">
+      <div>
+        <span class="kicker">Payroll</span>
+        <h1>Approvals</h1>
+        <p class="muted">Draft runs waiting for a second person. You cannot approve a run you prepared yourself.</p>
+      </div>
+      <div class="page-head-actions">
+        <a class="btn-ghost" href="/app/payroll">{{ icons.svg('wallet', 16) }} Payroll runs</a>
+      </div>
+    </div>
+  </section>
+
+  <div class="stat-grid">
+    <div class="stat">
+      <span class="stat-label">Draft runs</span>
+      <strong>{{ runs|length }}</strong>
+    </div>
+    <div class="stat">
+      <span class="stat-label">People covered</span>
+      <strong>{{ people_count }}</strong>
+    </div>
+    <div class="stat">
+      <span class="stat-label">Net payable</span>
+      <strong class="mono">KES {{ net_cents|money }}</strong>
+    </div>
+  </div>
+
+  <section class="panel">
+    {% if runs %}
+      <div class="table-wrap">
+        <table class="list approvals-table">
+          <thead>
+            <tr>
+              <th>Month</th>
+              <th>Run</th>
+              <th class="num">People</th>
+              <th class="num">Gross</th>
+              <th class="num">Net</th>
+              <th>Prepared by</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for run in runs %}
+              <tr>
+                <td class="mono" data-label="Month"><a href="/app/payroll/{{ run.id }}">{{ run.period }}</a></td>
+                <td data-label="Run">
+                  <a href="/app/payroll/{{ run.id }}">{{ run.label }}</a><br>
+                  <span class="muted">{{ run.rate_label }}</span>
+                </td>
+                <td class="num" data-label="People">{{ run.employee_count }}</td>
+                <td class="num mono" data-label="Gross">{{ run.gross_cents|money }}</td>
+                <td class="num mono" data-label="Net">{{ run.net_cents|money }}</td>
+                <td data-label="Prepared by">{{ run.prepared_first }} {{ run.prepared_last }}</td>
+                <td class="approval-action">
+                  {% if (run.prepared_by ~ '') == (current_user.id ~ '') %}
+                    <span class="chip">Prepared by you</span>
+                  {% else %}
+                    <form method="post" action="/app/payroll/{{ run.id }}/approve">
+                      <input type="hidden" name="_token" value="{{ csrf_token() }}">
+                      <input type="hidden" name="return_to" value="approvals">
+                      <button class="btn-primary btn-sm" type="submit">Approve</button>
+                    </form>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="muted">Nothing is waiting for approval. Draft runs will appear here after they are prepared.</p>
+    {% endif %}
+  </section>
+
+  <p class="hint">Approved runs are locked. A correction would be a new adjustment run.</p>
+{% endblock %}

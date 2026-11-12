@@ -11,6 +11,7 @@ use Mshahara\Payroll\Auth\InvitationService;
 use Mshahara\Payroll\Auth\PasswordResetService;
 use Mshahara\Payroll\Authz\PermissionGate;
 use Mshahara\Payroll\Authz\PermissionRepository;
+use Mshahara\Payroll\Authz\PortalResolver;
 use Mshahara\Payroll\Authz\RoleRepository;
 use Mshahara\Payroll\Authz\RoleService;
 use Mshahara\Payroll\Companies\CompanyRepository;
@@ -107,6 +108,7 @@ final class Bootstrap
         $app->userRepository = new UserRepository($app->db);
         $app->accountService = new AccountService($app->userRepository, $app->auditLogger);
         $app->permissionGate = new PermissionGate($app->db);
+        $app->portalResolver = new PortalResolver();
         $leaveRepository = new LeaveRepository($app->db);
         $shiftRepository = new ShiftRepository($app->db);
         $holidayRepository = new HolidayRepository($app->db);

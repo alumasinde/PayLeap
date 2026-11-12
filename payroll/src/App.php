@@ -9,6 +9,8 @@ use Mshahara\Payroll\Auth\InvitationService;
 use Mshahara\Payroll\Auth\PasswordResetService;
 use Mshahara\Payroll\Authz\PermissionGate;
 use Mshahara\Payroll\Authz\PermissionRepository;
+use Mshahara\Payroll\Authz\Portal;
+use Mshahara\Payroll\Authz\PortalResolver;
 use Mshahara\Payroll\Authz\RoleRepository;
 use Mshahara\Payroll\Authz\RoleService;
 use Mshahara\Payroll\Companies\CompanyRepository;
@@ -53,6 +55,7 @@ final class App
     public RoleRepository $roleRepository;
     public RoleService $roleService;
     public PermissionRepository $permissionRepository;
+    public PortalResolver $portalResolver;
     public UserRepository $userRepository;
     public AccountService $accountService;
     public ModuleRepository $moduleRepository;
@@ -70,6 +73,7 @@ final class App
     public FlashBag $flash;
     public Request $request;
     public string $root;
+    public ?Portal $portal = null;
 
     /** @var array<string,mixed> */
     public array $user = [];
@@ -82,6 +86,10 @@ final class App
 
     /** @var array<string,object> */
     private array $controllers = [];
+
+    private bool $employeeResolved = false;
+    /** @var array<string,mixed>|null */
+    private ?array $employeeCache = null;
 
     public static function boot(string $root, ?Request $request = null): self
     {
@@ -109,16 +117,92 @@ final class App
     public function resolveContext(): void
     {
         $this->user = $this->authentication->user() ?? [];
+        $this->employeeResolved = false;
+        $this->employeeCache = null;
 
         if ($this->user === []) {
             $this->memberships = [];
             $this->company = null;
+            $this->portal = null;
+            $this->session->forget('portal');
 
             return;
         }
 
         $this->memberships = $this->companyRepository->membershipsFor((int) $this->user['id']);
         $this->company = $this->companyRepository->active((int) $this->user['id'], $this->memberships);
+
+        if ($this->company === null) {
+            $this->portal = null;
+            $this->session->forget('portal');
+
+            return;
+        }
+
+        $available = $this->portalResolver->available($this->permissionCheck(), $this->currentEmployee() !== null);
+        $default = $this->portalResolver->resolve($this->permissionCheck(), $this->currentEmployee() !== null);
+        $preferred = Portal::tryFrom((string) $this->session->get('portal', ''));
+
+        if ($preferred !== null && !in_array($preferred, $available, true)) {
+            $preferred = null;
+        }
+
+        $portal = $this->portalResolver->forPath($this->request->path(), $default, $preferred);
+
+        if (!in_array($portal, $available, true)) {
+            $portal = $default;
+        }
+
+        $this->portal = $portal;
+        $this->session->put('portal', $portal->value);
+    }
+
+    /** @return \Closure(string):bool */
+    private function permissionCheck(): \Closure
+    {
+        return fn (string $permission): bool => $this->can($permission);
+    }
+
+    /** @return list<Portal> */
+    public function availablePortals(): array
+    {
+        if ($this->user === [] || $this->company === null) {
+            return [];
+        }
+
+        return $this->portalResolver->available($this->permissionCheck(), $this->currentEmployee() !== null);
+    }
+
+    public function portalAvailable(Portal $portal): bool
+    {
+        return in_array($portal, $this->availablePortals(), true);
+    }
+
+    /** The portal this person lands in after signing in. */
+    public function homePath(): string
+    {
+        if ($this->user === [] || $this->company === null) {
+            return '/app';
+        }
+
+        return $this->portalResolver->resolve($this->permissionCheck(), $this->currentEmployee() !== null)->path();
+    }
+
+    /** @return list<array{value:string,label:string,path:string,active:bool}> */
+    public function portalLinks(): array
+    {
+        $links = [];
+
+        foreach ($this->availablePortals() as $portal) {
+            $links[] = [
+                'value' => $portal->value,
+                'label' => $portal->short(),
+                'path' => $portal->path(),
+                'active' => $this->portal === $portal,
+            ];
+        }
+
+        return $links;
     }
 
     /** @return array<string,mixed> */
@@ -189,6 +273,9 @@ final class App
             'today' => date('Y-m-d'),
             'current_employee' => $this->currentEmployee(),
             'has_workspace' => $this->hasWorkspace(),
+            'portal' => $this->portal?->value,
+            'portal_label' => $this->portal?->label(),
+            'portals' => $this->portalLinks(),
         ];
 
         return $this->twig->render($template, $data + $defaults);
@@ -208,11 +295,17 @@ final class App
     /** @return array<string,mixed>|null */
     private function currentEmployee(): ?array
     {
-        if ($this->user === [] || $this->company === null) {
-            return null;
+        if ($this->employeeResolved) {
+            return $this->employeeCache;
         }
 
-        return $this->employees->register->forUser(
+        $this->employeeResolved = true;
+
+        if ($this->user === [] || $this->company === null) {
+            return $this->employeeCache = null;
+        }
+
+        return $this->employeeCache = $this->employees->register->forUser(
             (int) $this->company['company_id'],
             (int) $this->user['id'],
         );

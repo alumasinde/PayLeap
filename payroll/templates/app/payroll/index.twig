@@ -4,9 +4,18 @@
 
 {% block body %}
   <section class="page-head">
-    <span class="kicker">Payroll</span>
-    <h1>Payroll runs</h1>
-    <p class="muted">Calculated with the shared statutory engine. A run is approved by someone other than the person who prepared it.</p>
+    <div class="page-head-row">
+      <div>
+        <span class="kicker">Payroll</span>
+        <h1>Payroll runs</h1>
+        <p class="muted">Calculated with the shared statutory engine. A run is approved by someone other than the person who prepared it.</p>
+      </div>
+      {% if can_approve %}
+        <div class="page-head-actions">
+          <a class="btn-ghost" href="/app/payroll/approvals">Approvals{% if draft_count > 0 %} ({{ draft_count }}){% endif %}</a>
+        </div>
+      {% endif %}
+    </div>
   </section>
 
   <div class="grid-2">

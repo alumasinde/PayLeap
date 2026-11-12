@@ -24,12 +24,41 @@ final class PayrollController
         $companyId = (int) $company['company_id'];
 
         $suggested = $this->nextPeriod($companyId);
+        $runs = $this->app->payroll->runs->listForCompany($companyId);
+        $drafts = array_filter($runs, static fn (array $run): bool => $run['status'] === 'draft');
 
         echo $this->app->render('app/payroll/index.twig', [
-            'runs' => $this->app->payroll->runs->listForCompany($companyId),
+            'runs' => $runs,
+            'draft_count' => count($drafts),
             'suggested_period' => $suggested,
             'rates' => $this->app->payroll->rates->forDate($suggested . '-01'),
             'can_run' => $this->app->can('payroll.run'),
+            'can_approve' => $this->app->can('payroll.approve'),
+        ]);
+    }
+
+    /** Draft runs waiting for a second person. */
+    public function approvals(): void
+    {
+        $company = $this->app->requireCompany();
+        $this->app->requirePermission('payroll.approve');
+        $companyId = (int) $company['company_id'];
+        $runs = array_values(array_filter(
+            $this->app->payroll->runs->listForCompany($companyId),
+            static fn (array $run): bool => $run['status'] === 'draft',
+        ));
+        $people = 0;
+        $net = 0;
+
+        foreach ($runs as $run) {
+            $people += (int) $run['employee_count'];
+            $net += (int) $run['net_cents'];
+        }
+
+        echo $this->app->render('app/payroll/approvals.twig', [
+            'runs' => $runs,
+            'people_count' => $people,
+            'net_cents' => $net,
         ]);
     }
 
@@ -111,6 +140,9 @@ final class PayrollController
         $this->app->requirePermission('payroll.approve');
 
         $runId = (int) ($params['id'] ?? 0);
+        $returnTo = $this->app->request->string('return_to') === 'approvals'
+            ? '/app/payroll/approvals'
+            : '/app/payroll/' . $runId;
 
         try {
             $this->app->payroll->service->approve(
@@ -120,11 +152,11 @@ final class PayrollController
             );
         } catch (HttpException $error) {
             $this->app->flash->add('error', $error->getMessage());
-            $this->app->redirect('/app/payroll/' . $runId);
+            $this->app->redirect($returnTo);
         }
 
         $this->app->flash->add('success', 'Payroll run approved.');
-        $this->app->redirect('/app/payroll/' . $runId);
+        $this->app->redirect($returnTo);
     }
 
     /** The first month from now that has no run yet. */

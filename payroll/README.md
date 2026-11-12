@@ -18,7 +18,10 @@ are live alongside it. Attendance records carry a source, so a biometric reader
 or face scanner can post clock times into the same rows and audit trail later.
 **Settings** holds the company policy those screens read: leave types with
 gender eligibility, public holidays, shift times and breaks, and the clock or
-meal devices on site. The `modules` table says exactly what is live.
+meal devices on site. The **portal layer** gives every member the right shell
+for their permissions (`/hr`, `/finance`, `/ess`), and **ESS payslips** show
+their own approved months without exposing another person's line. The `modules`
+table says exactly what is live.
 
 No framework. Twig + PDO + PHP 8.2, Composer for autoload and Twig only.
 
@@ -62,7 +65,10 @@ are stored in MySQL by default (`SESSION_DRIVER=database`); set
 | `GET/POST /forgot` | Request a reset link (same answer for unknown emails) |
 | `GET/POST /reset/{token}` | Choose a new password (single use, one hour) |
 | `GET/POST /invite/{token}` | Accept an invitation, set the first password |
-| `GET /app` | Dashboard: headcount, attendance, leave, payroll and quick actions for the current role |
+| `GET /app` | Legacy workspace entry; redirects to `/ess` when the role resolves there |
+| `GET /hr` | HR & administration portal (`employees.edit`, `leave.approve.all`, `settings.manage` and similar) |
+| `GET /finance` | Finance & payroll portal (`payroll.view`, `returns.view`, `loans.view` and similar) |
+| `GET /ess` | Employee self-service overview, open to every member |
 | `GET /app/access` | Members, roles and pending invitations (`users.manage`/`users.invite`) |
 | `POST /app/access/invite` | Send an invitation with a role |
 | `POST /app/access/members/{id}/role` | Change a member's role |
@@ -96,14 +102,22 @@ are stored in MySQL by default (`SESSION_DRIVER=database`); set
 | `POST /app/settings/shifts/{id}/toggle` | Enable or retire a shift |
 | `POST /app/settings/devices` | Register a clock or meal device |
 | `POST /app/settings/devices/{id}/toggle` | Enable or retire a device |
+| `GET /ess/payslips` | Your own payslips from approved runs only (404 for anyone else's line) |
+| `GET /ess/payslips/{line}` | One of your own approved payslips |
+| `GET /ess/leave/approvals` | Team leave for a HOD or company approver (`leave.approve.team` / `leave.approve.all`), decided through the normal endpoint |
 | `POST /me/profile` | Change your own first and last name |
 | `POST /me/password` | Change your password; other sessions are revoked |
 | `GET /me` | The signed-in person's own account (self-service shell) |
 | `POST /me/sign-out-everywhere` | End every session for the account, including the current one |
 | `POST /app/company` | Switch company (membership checked, session rotated) |
 
-Roles are never in the URL. `/app` is the role context, `/me` is the personal
-context, and the guard resolves both from the request.
+Roles are never in the URL. The portal is also never a role name: permissions
+decide which shells a person can enter. HR runs people, finance runs money, ESS
+is the personal shell every member has. A HOD deliberately resolves to ESS, not
+HR, so departmental leave approvals sit beside their own leave and payslips;
+`/app` and `/me` keep working for existing bookmarks. A portal changes the
+navigation and landing page, never an authorization check — controllers still
+call `requirePermission()`.
 
 ## Auth model
 
@@ -139,12 +153,13 @@ php tests/auth_test.php       # services: tokens, resets, CSRF, rate limits, gat
 php tests/employee_test.php   # register: numbers, validation, scope, archive
 php tests/leave_test.php      # approvals: manager scope, self-approval, linking
 php tests/payroll_test.php    # runs: engine parity, totals, approval, scope
+php tests/portal_test.php     # portals: permission resolution, ESS payslip scope, HOD approvals
 php tests/smtp_test.php       # SMTP wire format against a local stub
 bash tests/http_smoke.sh      # HTTP: CSRF 419, invite, register, payroll, reset
 ```
 
-`auth_test.php`, `employee_test.php` and `payroll_test.php` recreate
-`mshahara_payroll_test` from scratch on every run.
+`auth_test.php`, `employee_test.php`, `payroll_test.php` and `portal_test.php`
+recreate `mshahara_payroll_test` from scratch on every run.
 
 ## Decisions
 
@@ -248,6 +263,6 @@ bash tests/http_smoke.sh      # HTTP: CSRF 419, invite, register, payroll, reset
 
 ## Next
 
-Self-service payslips, contract and document storage, and an adapter for
-terminal clock files. The module catalogue lives in the `modules` table; feature
-code lives in `src/Modules/`.
+Contract and document storage, and an adapter for terminal clock files. The
+module catalogue lives in the `modules` table; feature code lives in
+`src/Modules/`.

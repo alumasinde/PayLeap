@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Mshahara\Payroll\Http\Controllers;
 
 use Mshahara\Payroll\App;
+use Mshahara\Payroll\Authz\Portal;
 
 final class WorkspaceController
 {
@@ -14,10 +15,51 @@ final class WorkspaceController
 
     public function root(): void
     {
-        $this->app->redirect($this->app->user === [] ? '/login' : '/app');
+        $this->app->redirect($this->app->user === [] ? '/login' : $this->app->homePath());
     }
 
     public function home(): void
+    {
+        // A person whose role resolves to ESS belongs there, even if the old
+        // /app bookmark still has workspace permissions behind it.
+        if ($this->app->portal === Portal::ESS) {
+            $this->app->redirect('/ess');
+        }
+
+        $this->renderHome();
+    }
+
+    public function hr(): void
+    {
+        $this->entry(Portal::HR);
+    }
+
+    public function finance(): void
+    {
+        $this->entry(Portal::FINANCE);
+    }
+
+    public function ess(): void
+    {
+        $this->app->requireCompany();
+        $this->app->portal = Portal::ESS;
+        $this->me();
+    }
+
+    /** A portal is a shell; entering one still cannot widen what the role may do. */
+    private function entry(Portal $portal): void
+    {
+        $this->app->requireCompany();
+
+        if (!$this->app->portalAvailable($portal)) {
+            $this->app->abort(403, 'That portal is not part of your role.');
+        }
+
+        $this->app->portal = $portal;
+        $this->renderHome();
+    }
+
+    private function renderHome(): void
     {
         $company = $this->app->requireCompany();
         $companyId = (int) $company['company_id'];
@@ -113,6 +155,10 @@ final class WorkspaceController
             $actions[] = ['label' => 'Prepare payroll', 'href' => '/app/payroll', 'icon' => 'wallet', 'note' => 'Start this month'];
         }
 
+        if ($this->app->portal === Portal::FINANCE && $this->app->can('payroll.approve')) {
+            $actions[] = ['label' => 'Review approvals', 'href' => '/app/payroll/approvals', 'icon' => 'check-circle', 'note' => 'Draft runs waiting'];
+        }
+
         if ($this->app->can('attendance.edit')) {
             $actions[] = ['label' => 'Mark attendance', 'href' => '/app/attendance', 'icon' => 'clock', 'note' => 'Today\'s register'];
         }
@@ -199,9 +245,10 @@ final class WorkspaceController
         $this->app->session->regenerate();
         $this->app->companyRepository->select($companyId);
         $this->app->csrf->rotate();
+        $this->app->resolveContext();
 
         $this->app->auditLogger->record($companyId, (int) $user['id'], 'company.switched', 'company', (string) $companyId);
 
-        $this->app->redirect('/app');
+        $this->app->redirect($this->app->homePath());
     }
 }

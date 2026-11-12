@@ -18,7 +18,7 @@
   <div class="app-layout">
     <aside class="sidebar" id="sidebar" aria-label="Sidebar">
       <div class="sidebar-top">
-        <a class="side-brand" href="{{ self_service ? '/me' : '/app' }}">
+        <a class="side-brand" href="{{ portal == 'finance' ? '/finance' : (portal == 'ess' ? '/ess' : '/hr') }}">
           <span class="side-logo">{{ icons.svg('briefcase', 18) }}</span>
           <span class="side-brand-text">
             <strong>{{ app_name }}</strong>
@@ -38,28 +38,34 @@
       </div>
 
       <nav class="side-nav" aria-label="Main">
-        {% if has_workspace %}
-          <a class="side-link{{ current_path == '/app' ? ' is-active' : '' }}" href="/app">
+        {% if portal == 'ess' %}
+          <a class="side-link{{ current_path == '/ess' ? ' is-active' : '' }}" href="/ess">
+            {{ icons.svg('grid', 18) }}<span>Overview</span>
+          </a>
+        {% elseif portal == 'finance' %}
+          <a class="side-link{{ current_path == '/finance' ? ' is-active' : '' }}" href="/finance">
             {{ icons.svg('grid', 18) }}<span>Dashboard</span>
           </a>
         {% else %}
-          <a class="side-link{{ current_path == '/me' ? ' is-active' : '' }}" href="/me">
-            {{ icons.svg('grid', 18) }}<span>Overview</span>
+          <a class="side-link{{ current_path == '/hr' or current_path == '/app' ? ' is-active' : '' }}" href="/hr">
+            {{ icons.svg('grid', 18) }}<span>Dashboard</span>
           </a>
         {% endif %}
 
-        {% if can('employees.view') %}
-          <details class="side-group"{{ current_path starts with '/app/employees' ? ' open' }}>
+        {% if portal == 'hr' and can('employees.view') %}
+          <details class="side-group"{{ current_path starts with '/app/employees' or current_path == '/app/departments' ? ' open' }}>
             <summary class="side-group-head">
-              {{ icons.svg('users', 18) }}<span>HR services</span>{{ icons.svg('chevron-down', 14) }}
+              {{ icons.svg('users', 18) }}<span>People</span>{{ icons.svg('chevron-down', 14) }}
             </summary>
             <div class="side-group-body">
-              <a class="side-sub{{ current_path starts with '/app/employees' ? ' is-active' : '' }}" href="/app/employees">Employees</a>
+              <a class="side-sub{{ current_path == '/app/employees' and not ('status=exited' in current_query) ? ' is-active' : '' }}" href="/app/employees">Employees</a>
+              <a class="side-sub{{ current_path == '/app/departments' ? ' is-active' : '' }}" href="/app/departments">Departments</a>
+              <a class="side-sub{{ current_path == '/app/employees' and 'status=exited' in current_query ? ' is-active' : '' }}" href="/app/employees?status=exited">Archived employees</a>
             </div>
           </details>
         {% endif %}
 
-        {% if can('leave.view') %}
+        {% if portal == 'hr' and can('leave.view') %}
           <details class="side-group"{{ current_path starts with '/app/leave' ? ' open' }}>
             <summary class="side-group-head">
               {{ icons.svg('calendar', 18) }}<span>Leave &amp; absence</span>{{ icons.svg('chevron-down', 14) }}
@@ -71,7 +77,7 @@
           </details>
         {% endif %}
 
-        {% if can('attendance.view') %}
+        {% if portal == 'hr' and can('attendance.view') %}
           <details class="side-group"{{ current_path starts with '/app/attendance' or current_path starts with '/app/roster' ? ' open' }}>
             <summary class="side-group-head">
               {{ icons.svg('clock', 18) }}<span>Time &amp; attendance</span>{{ icons.svg('chevron-down', 14) }}
@@ -84,13 +90,31 @@
           </details>
         {% endif %}
 
-        {% if can('payroll.view') %}
-          <a class="side-link{{ current_path starts with '/app/payroll' ? ' is-active' : '' }}" href="/app/payroll">
-            {{ icons.svg('wallet', 18) }}<span>Payroll</span>
+        {% if portal == 'finance' and can('payroll.view') %}
+          <a class="side-link{{ current_path starts with '/app/payroll' and current_path != '/app/payroll/approvals' ? ' is-active' : '' }}" href="/app/payroll">
+            {{ icons.svg('wallet', 18) }}<span>Payroll runs</span>
           </a>
         {% endif %}
 
-        {% if can('users.manage') or can('users.invite') or can('settings.manage') %}
+        {% if portal == 'finance' and can('payroll.approve') %}
+          <a class="side-link{{ current_path == '/app/payroll/approvals' ? ' is-active' : '' }}" href="/app/payroll/approvals">
+            {{ icons.svg('check-circle', 18) }}<span>Approvals</span>
+          </a>
+        {% endif %}
+
+        {% if portal == 'finance' and can('employees.view') %}
+          <a class="side-link{{ current_path starts with '/app/employees' ? ' is-active' : '' }}" href="/app/employees">
+            {{ icons.svg('users', 18) }}<span>Employees</span><span class="side-tag">View only</span>
+          </a>
+        {% endif %}
+
+        {% if portal == 'hr' and can('settings.manage') %}
+          <a class="side-link{{ current_path == '/app/settings' and 'tab=documents' in current_query ? ' is-active' : '' }}" href="/app/settings?tab=documents">
+            {{ icons.svg('file', 18) }}<span>Documents</span>
+          </a>
+        {% endif %}
+
+        {% if portal == 'hr' and (can('users.manage') or can('users.invite') or can('settings.manage')) %}
           <details class="side-group"{{ current_path starts with '/app/access' or current_path starts with '/app/settings' ? ' open' }}>
             <summary class="side-group-head">
               {{ icons.svg('shield', 18) }}<span>Organisation</span>{{ icons.svg('chevron-down', 14) }}
@@ -100,30 +124,38 @@
                 <a class="side-sub{{ current_path starts with '/app/access' ? ' is-active' : '' }}" href="/app/access">Users &amp; access</a>
               {% endif %}
               {% if can('settings.manage') %}
-                <a class="side-sub{{ current_path starts with '/app/settings' ? ' is-active' : '' }}" href="/app/settings">Settings</a>
+                <a class="side-sub{{ current_path starts with '/app/settings' and not ('tab=documents' in current_query) ? ' is-active' : '' }}" href="/app/settings">Settings</a>
               {% endif %}
             </div>
           </details>
         {% endif %}
 
-        {% if self_service %}
-          <details class="side-group"{{ current_path starts with '/me/' ? ' open' }}>
+        {% if portal == 'ess' %}
+          <details class="side-group"{{ current_path == '/me' or current_path == '/me/profile' or current_path starts with '/me/' or current_path starts with '/ess/payslips' ? ' open' }}>
             <summary class="side-group-head">
               {{ icons.svg('user', 18) }}<span>My workspace</span>{{ icons.svg('chevron-down', 14) }}
             </summary>
             <div class="side-group-body">
-              <a class="side-sub{{ current_path == '/me/profile' ? ' is-active' : '' }}" href="/me/profile">My profile</a>
-              <a class="side-sub{{ current_path == '/me/leave' ? ' is-active' : '' }}" href="/me/leave">Leave</a>
-              <a class="side-sub{{ current_path == '/me/attendance' ? ' is-active' : '' }}" href="/me/attendance">Attendance</a>
-              <a class="side-sub{{ current_path == '/me/timesheet' ? ' is-active' : '' }}" href="/me/timesheet">Timesheet</a>
-              <a class="side-sub{{ current_path starts with '/me/documents' ? ' is-active' : '' }}" href="/me/documents">Documents</a>
+              <a class="side-sub{{ current_path == '/me' or current_path == '/me/profile' ? ' is-active' : '' }}" href="/me">My profile</a>
+              <a class="side-sub{{ current_path starts with '/ess/payslips' ? ' is-active' : '' }}" href="/ess/payslips">My payslips</a>
+              <a class="side-sub{{ current_path == '/me/leave' ? ' is-active' : '' }}" href="/me/leave">My leave</a>
+              <a class="side-sub{{ current_path == '/me/attendance' ? ' is-active' : '' }}" href="/me/attendance">My attendance</a>
+              <a class="side-sub{{ current_path == '/me/timesheet' ? ' is-active' : '' }}" href="/me/timesheet">My timesheet</a>
+              <a class="side-sub{{ current_path starts with '/me/documents' ? ' is-active' : '' }}" href="/me/documents">My documents</a>
+              <a class="side-sub{{ current_path == '/me/account' ? ' is-active' : '' }}" href="/me/account">Account settings</a>
             </div>
           </details>
+
+          {% if can('leave.approve.team') or can('leave.approve.all') %}
+            <a class="side-link{{ current_path == '/ess/leave/approvals' ? ' is-active' : '' }}" href="/ess/leave/approvals">
+              {{ icons.svg('calendar', 18) }}<span>Team leave</span>
+            </a>
+          {% endif %}
         {% endif %}
 
-        {% if has_workspace %}
-          <a class="side-link{{ current_path starts with '/me' ? ' is-active' : '' }}" href="/me">
-            {{ icons.svg('user', 18) }}<span>My account</span>
+        {% if portal != 'ess' %}
+          <a class="side-link{{ current_path == '/me/account' ? ' is-active' : '' }}" href="/me/account">
+            {{ icons.svg('user', 18) }}<span>Account settings</span>
           </a>
         {% endif %}
       </nav>
@@ -156,7 +188,15 @@
           <span class="company-pill">{{ icons.svg('building', 16) }}{{ current_company.company_name }}</span>
         {% endif %}
 
-        {% if can('employees.view') %}
+        {% if portals|length > 1 %}
+          <nav class="portal-switch" aria-label="Switch portal">
+            {% for item in portals %}
+              <a class="portal-link{{ item.active ? ' is-active' : '' }}" href="{{ item.path }}">{{ item.label }}</a>
+            {% endfor %}
+          </nav>
+        {% endif %}
+
+        {% if portal == 'hr' and can('employees.view') %}
           <form class="topbar-search" method="get" action="/app/employees" role="search">
             {{ icons.svg('search', 17) }}
             <input type="search" name="search" placeholder="Search employees" aria-label="Search employees">
@@ -164,9 +204,15 @@
         {% endif %}
 
         <div class="topbar-actions">
-          {% if not self_service %}
+          {% if portal != 'ess' %}
             {% set approvals = pending_approvals() %}
-            {% set bell_href = can('leave.view') ? '/app/leave' : (can('payroll.view') ? '/app/payroll' : '/me') %}
+            {% if portal == 'finance' %}
+              {% set bell_href = can('payroll.approve') ? '/app/payroll/approvals' : '/app/payroll' %}
+            {% elseif can('leave.view') %}
+              {% set bell_href = '/app/leave' %}
+            {% else %}
+              {% set bell_href = '/me' %}
+            {% endif %}
             <a class="icon-btn" href="{{ bell_href }}" aria-label="Pending approvals{% if approvals > 0 %} ({{ approvals }}){% endif %}">
               {{ icons.svg('bell', 19) }}
               {% if approvals > 0 %}<span class="icon-badge">{{ approvals }}</span>{% endif %}
@@ -191,7 +237,8 @@
               {% if current_company %}
                 <span class="pop-company">{{ icons.svg('building', 16) }}{{ current_company.company_name }}</span>
               {% endif %}
-              <a class="pop-link" href="/me">{{ icons.svg('user', 16) }}My account</a>
+              <a class="pop-link" href="/me">{{ icons.svg('user', 16) }}My profile</a>
+              <a class="pop-link" href="/me/account">{{ icons.svg('settings', 16) }}Account settings</a>
               <form method="post" action="/logout">
                 <input type="hidden" name="_token" value="{{ csrf_token() }}">
                 <button class="pop-link pop-button" type="submit">{{ icons.svg('log-out', 16) }}Sign out</button>

@@ -39,9 +39,14 @@
         </div>
       </div>
       <div class="action-grid">
-        <a class="action-card" href="/me/profile">
+        <a class="action-card" href="/me">
           <span class="action-icon">{{ icons.svg('user', 18) }}</span>
           <span><strong>My profile</strong><small>Personal and job details</small></span>
+          {{ icons.svg('arrow-up-right', 15) }}
+        </a>
+        <a class="action-card" href="/ess/payslips">
+          <span class="action-icon">{{ icons.svg('wallet', 18) }}</span>
+          <span><strong>My payslips</strong><small>Approved months</small></span>
           {{ icons.svg('arrow-up-right', 15) }}
         </a>
         <a class="action-card" href="/me/leave">
@@ -64,6 +69,13 @@
           <span><strong>Documents</strong><small>Reading assigned to you</small></span>
           {{ icons.svg('arrow-up-right', 15) }}
         </a>
+        {% if can('leave.approve.team') or can('leave.approve.all') %}
+          <a class="action-card" href="/ess/leave/approvals">
+            <span class="action-icon">{{ icons.svg('calendar', 18) }}</span>
+            <span><strong>Team leave</strong><small>Approve your department</small></span>
+            {{ icons.svg('arrow-up-right', 15) }}
+          </a>
+        {% endif %}
       </div>
     </section>
   {% endif %}
@@ -81,7 +93,7 @@
           <div><dt>Email</dt><dd>{{ current_user.email }}</dd></div>
           <div><dt>Role</dt><dd>{{ role_label }}</dd></div>
         </dl>
-        <p class="hint"><a class="text-link" href="/me/profile">Open my profile</a> for the full read-only record.</p>
+        <p class="hint"><a class="text-link" href="/me">Open my profile</a> for the full read-only record.</p>
       {% else %}
         <p class="muted">This login is not linked to an employee record yet. Ask HR to link it so your payslips and leave show here.</p>
         <dl class="facts">
@@ -109,7 +121,9 @@
       <h2>Access</h2>
       <p class="muted">This page is yours. It shows only your own data — never the workspace tools, even when your role has them.</p>
       <p class="row-actions">
-        {% if has_workspace %}<a class="btn-ghost" href="/app">Back to workspace</a>{% endif %}
+        {% if portals|length > 1 or (portals|length == 1 and portals[0].value != 'ess') %}
+          <a class="btn-ghost" href="{{ portals[0].path }}">Back to workspace</a>
+        {% endif %}
         <a class="btn-ghost" href="/me/documents">Documents to read</a>
       </p>
 

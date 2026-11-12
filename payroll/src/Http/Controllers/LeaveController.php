@@ -95,6 +95,9 @@ final class LeaveController
         }
 
         $requestId = (int) ($params['id'] ?? 0);
+        $returnTo = $this->app->request->string('return_to') === 'ess'
+            ? '/ess/leave/approvals'
+            : '/app/leave';
 
         try {
             $this->app->leave->service->decide(
@@ -108,10 +111,10 @@ final class LeaveController
             );
         } catch (HttpException $error) {
             $this->app->flash->add('error', $error->getMessage());
-            $this->app->redirect('/app/leave');
+            $this->app->redirect($returnTo);
         }
 
         $this->app->flash->add('success', 'Leave request updated.');
-        $this->app->redirect('/app/leave');
+        $this->app->redirect($returnTo);
     }
 }

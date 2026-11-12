@@ -5,6 +5,9 @@
 {% block body_class %}payslip-page{% endblock %}
 
 {% block body %}
+  {% set back_href = payslip_back is defined and payslip_back ? payslip_back : '/app/payroll/' ~ run.id %}
+  {% set back_text = payslip_back_label is defined and payslip_back_label ? payslip_back_label : 'Back to run' %}
+
   <section class="payslip-head">
     <div>
       <span class="kicker">{{ current_company.company_name }}</span>
@@ -13,7 +16,7 @@
     </div>
     <div class="row-actions no-print">
       <button class="btn-primary" type="button" data-print>Print payslip</button>
-      <a class="btn-ghost" href="/app/payroll/{{ run.id }}">Back to run</a>
+      <a class="btn-ghost" href="{{ back_href }}">{{ back_text }}</a>
     </div>
   </section>
 

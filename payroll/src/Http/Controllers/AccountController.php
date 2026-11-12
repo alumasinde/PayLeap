@@ -27,11 +27,11 @@ final class AccountController
             );
         } catch (HttpException $error) {
             $this->app->flash->add('error', $error->getMessage());
-            $this->app->redirect('/me');
+            $this->app->redirect('/me/account');
         }
 
         $this->app->flash->add('success', 'Your name was updated.');
-        $this->app->redirect('/me');
+        $this->app->redirect('/me/account');
     }
 
     public function changePassword(): void
@@ -49,13 +49,13 @@ final class AccountController
             );
         } catch (HttpException $error) {
             $this->app->flash->add('error', $error->getMessage());
-            $this->app->redirect('/me');
+            $this->app->redirect('/me/account');
         }
 
         // Keep this device signed in; every other session has the old epoch.
         $this->app->authentication->refreshEpoch($epoch);
 
         $this->app->flash->add('success', 'Password changed. Other devices were signed out.');
-        $this->app->redirect('/me');
+        $this->app->redirect('/me/account');
     }
 }

@@ -4,12 +4,6 @@
 {% block title %}My profile — {{ app_name }}{% endblock %}
 
 {% block body %}
-  <section class="page-head">
-    <span class="kicker">My account</span>
-    <h1>My profile</h1>
-    <p class="muted">{{ current_company.company_name }} · Your record is read-only. Ask HR to correct any detail.</p>
-  </section>
-
   <div class="profile-shell">
     <aside class="profile-rail">
       <span class="profile-avatar" aria-hidden="true">{{ (employee.first_name|first ~ employee.last_name|first)|upper }}</span>
@@ -22,7 +16,21 @@
         <div class="rail-item"><span>Hired</span><strong class="mono">{{ employee.start_date|date('d/m/Y') }}</strong></div>
         <div class="rail-item"><span>Service</span><strong>{{ service_years }}</strong></div>
         <div class="rail-item"><span>Type</span><strong>{{ types[employee.employment_type] ?? employee.employment_type }}</strong></div>
+        <div class="rail-item">
+          <span>Contract</span>
+          <strong>
+            {% if employee.employment_type == 'fixed_term' and employee.employment_end_date %}
+              {{ employee.start_date|date('d/m/Y') }} – {{ employee.employment_end_date|date('d/m/Y') }}
+            {% elseif employee.employment_type == 'fixed_term' %}
+              Fixed term
+            {% else %}
+              Open-ended
+            {% endif %}
+          </strong>
+        </div>
+        <div class="rail-item"><span>Job title</span><strong>{{ employee.job_title ?: '—' }}</strong></div>
         <div class="rail-item"><span>Department</span><strong>{{ employee.department_name ?: '—' }}</strong></div>
+        <div class="rail-item"><span>Cost center</span><strong>{{ employee.cost_center ?: '—' }}</strong></div>
         <div class="rail-item">
           <span>Manager</span>
           <strong>{% if employee.manager_first_name %}{{ employee.manager_first_name }} {{ employee.manager_last_name }}{% else %}—{% endif %}</strong>
@@ -35,13 +43,12 @@
     <div class="profile-main">
       <nav class="profile-tabs" data-tabs aria-label="My record">
         <button class="profile-tab is-active" type="button" data-tab="personal">{{ icons.svg('user', 16) }} Personal</button>
-        <button class="profile-tab" type="button" data-tab="employment">{{ icons.svg('briefcase', 16) }} Employment</button>
         <button class="profile-tab" type="button" data-tab="statutory">{{ icons.svg('shield', 16) }} Statutory</button>
-        <button class="profile-tab" type="button" data-tab="benevolence">{{ icons.svg('user', 16) }} Emergency</button>
         <button class="profile-tab" type="button" data-tab="education">{{ icons.svg('briefcase', 16) }} Education</button>
-        <button class="profile-tab" type="button" data-tab="hierarchy">{{ icons.svg('users', 16) }} Reporting</button>
-        <button class="profile-tab" type="button" data-tab="payment">{{ icons.svg('wallet', 16) }} Pay &amp; bank</button>
+        <button class="profile-tab" type="button" data-tab="benevolence">{{ icons.svg('user', 16) }} Benevolence</button>
         <button class="profile-tab" type="button" data-tab="documents">{{ icons.svg('file', 16) }} Documents</button>
+        <button class="profile-tab" type="button" data-tab="hierarchy">{{ icons.svg('users', 16) }} Hierarchy</button>
+        <button class="profile-tab" type="button" data-tab="payment">{{ icons.svg('wallet', 16) }} Payment</button>
       </nav>
 
       <section class="profile-panel" data-tab-panel="personal">
@@ -56,9 +63,7 @@
           <div class="detail"><span>Email</span><strong>{{ employee.email ?: '—' }}</strong></div>
           <div class="detail"><span>Address</span><strong>{{ employee.address ?: '—' }}</strong></div>
         </div>
-      </section>
 
-      <section class="profile-panel" data-tab-panel="employment" hidden>
         <div class="section-bar">{{ icons.svg('briefcase', 15) }} Employment</div>
         <div class="detail-grid">
           <div class="detail"><span>Employee number</span><strong class="mono">{{ employee.employee_no }}</strong></div>
@@ -231,5 +236,5 @@
     </div>
   </div>
 
-  <p class="back-link"><a href="/me">Back to my account</a></p>
+  <p class="back-link"><a href="/me/account">Account settings</a></p>
 {% endblock %}

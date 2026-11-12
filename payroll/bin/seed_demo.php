@@ -235,6 +235,46 @@ $db->prepare(
 
 echo "Employee login ready for ACM-002\n";
 
+/* HR and Finance demo logins ---------------------------------------------- */
+
+$teamLogins = [
+    ['Lilian', 'Achieng', 'hr@mshahara.test', 'HrPass!2026', 'hr'],
+    ['Grace', 'Wanjiku', 'finance@mshahara.test', 'FinancePass!2026', 'finance'],
+];
+
+foreach ($teamLogins as [$first, $last, $teamEmail, $teamPassword, $roleKey]) {
+    $statement = $db->prepare('SELECT id FROM users WHERE email = ? LIMIT 1');
+    $statement->execute([$teamEmail]);
+    $teamUserId = $statement->fetchColumn();
+    $teamCreated = false;
+
+    if ($teamUserId === false) {
+        $db->prepare(
+            'INSERT INTO users (first_name, last_name, email, password_hash, email_verified_at, status)
+             VALUES (?, ?, ?, ?, UTC_TIMESTAMP(), \'active\')',
+        )->execute([$first, $last, $teamEmail, PasswordHasher::hash($teamPassword)]);
+        $teamUserId = (int) $db->lastInsertId();
+        $teamCreated = true;
+        echo "Created {$roleKey} login {$teamEmail}\n";
+    } else {
+        $teamUserId = (int) $teamUserId;
+    }
+
+    $db->prepare('INSERT IGNORE INTO memberships (company_id, user_id, status) VALUES (?, ?, \'active\')')
+        ->execute([$companyId, $teamUserId]);
+
+    $teamMembership = $db->prepare('SELECT id FROM memberships WHERE company_id = ? AND user_id = ? LIMIT 1');
+    $teamMembership->execute([$companyId, $teamUserId]);
+    $teamMembershipId = (int) $teamMembership->fetchColumn();
+
+    $teamRole = $db->prepare('SELECT id FROM roles WHERE company_id = ? AND `key` = ? LIMIT 1');
+    $teamRole->execute([$companyId, $roleKey]);
+    $teamRoleId = (int) $teamRole->fetchColumn();
+
+    $db->prepare('INSERT IGNORE INTO user_roles (membership_id, role_id) VALUES (?, ?)')
+        ->execute([$teamMembershipId, $teamRoleId]);
+}
+
 /* Reporting lines --------------------------------------------------------- */
 
 $teamRows = $db->prepare(

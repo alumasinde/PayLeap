@@ -26,10 +26,10 @@ final class EmployeeDepartmentController
             );
         } catch (HttpException $error) {
             $this->app->flash->add('error', $error->getMessage());
-            $this->app->redirect('/app/employees');
+            $this->app->redirect('/app/departments');
         }
 
         $this->app->flash->add('success', 'Department added.');
-        $this->app->redirect('/app/employees');
+        $this->app->redirect('/app/departments');
     }
 }

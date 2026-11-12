@@ -1,0 +1,65 @@
+{% extends 'layout.twig' %}
+
+{% block title %}Team leave — {{ app_name }}{% endblock %}
+
+{% block body %}
+  <section class="page-head">
+    <span class="kicker">Employee self-service</span>
+    <h1>Team leave</h1>
+    <p class="muted">
+      Pending requests for {{ can_approve_all ? 'the company' : 'your department and direct reports' }}.
+      {{ pending_count }} waiting for a decision.
+    </p>
+  </section>
+
+  <section class="panel">
+    {% if requests %}
+      <div class="table-wrap">
+        <table class="list">
+          <thead>
+            <tr>
+              <th>Employee</th>
+              <th>Type</th>
+              <th>Dates</th>
+              <th class="num">Days</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for request in requests %}
+              <tr>
+                <td>
+                  {{ request.first_name }} {{ request.last_name }}<br>
+                  <span class="muted mono">{{ request.employee_no }}</span>
+                </td>
+                <td>{{ request.leave_type }}</td>
+                <td class="mono">{{ request.start_date }} – {{ request.end_date }}</td>
+                <td class="num">{{ request.days|round }}</td>
+                <td>
+                  <div class="row-actions">
+                    <form method="post" action="/app/leave/{{ request.id }}/decide">
+                      <input type="hidden" name="_token" value="{{ csrf_token() }}">
+                      <input type="hidden" name="decision" value="approved">
+                      <input type="hidden" name="return_to" value="ess">
+                      <button class="btn-primary btn-sm" type="submit">Approve</button>
+                    </form>
+                    <form method="post" action="/app/leave/{{ request.id }}/decide">
+                      <input type="hidden" name="_token" value="{{ csrf_token() }}">
+                      <input type="hidden" name="decision" value="rejected">
+                      <input type="hidden" name="return_to" value="ess">
+                      <button class="btn-ghost btn-sm" type="submit">Reject</button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="muted">Nothing is waiting for your decision.</p>
+    {% endif %}
+  </section>
+
+  <p class="muted"><a href="/ess">Back to my overview</a></p>
+{% endblock %}

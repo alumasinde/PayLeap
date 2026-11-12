@@ -99,30 +99,4 @@
     {% endif %}
   </section>
 
-  {% if can_edit %}
-    <section class="panel">
-      <h2>Departments</h2>
-      {% if departments %}
-        <ul class="role-list">
-          {% for department in departments %}
-            <li>
-              <strong>{{ department.name }}</strong>
-              <span class="muted">{{ department.employee_count }} active</span>
-            </li>
-          {% endfor %}
-        </ul>
-      {% else %}
-        <p class="muted">No departments yet. Add one to group people and cost reports.</p>
-      {% endif %}
-
-      <form class="inline-form" method="post" action="/app/employees/departments">
-        <input type="hidden" name="_token" value="{{ csrf_token() }}">
-        <label class="field">
-          <span>New department</span>
-          <input type="text" name="name" maxlength="80" required>
-        </label>
-        <button class="btn-ghost" type="submit">Add</button>
-      </form>
-    </section>
-  {% endif %}
 {% endblock %}

@@ -28,6 +28,11 @@ final class SelfServiceController
     {
         $company = $this->app->requireCompany();
         $companyId = (int) $company['company_id'];
+
+        if ($this->app->employees->register->forUser($companyId, (int) $this->app->user['id']) === null) {
+            $this->app->redirect('/me/account');
+        }
+
         $employee = $this->linkedEmployee($companyId);
 
         echo $this->app->render('me/profile.twig', [
@@ -133,6 +138,32 @@ final class SelfServiceController
             'page' => $page,
             'pages' => $pages,
             'open_apply' => $this->app->request->query('apply', '') === '1',
+        ]);
+    }
+
+    /** Departmental (or, with leave.approve.all, company-wide) approvals in ESS. */
+    public function teamLeave(): void
+    {
+        $company = $this->app->requireCompany();
+        $companyId = (int) $company['company_id'];
+        $canApproveAll = $this->app->can('leave.approve.all');
+        $canApproveTeam = $this->app->can('leave.approve.team');
+
+        if (!$canApproveAll && !$canApproveTeam) {
+            $this->app->abort(403, 'Your role cannot decide leave.');
+        }
+
+        $scope = $this->app->leave->service->scopeFor(
+            $companyId,
+            (int) $this->app->user['id'],
+            $canApproveAll,
+            $canApproveTeam,
+        );
+
+        echo $this->app->render('me/leave_approvals.twig', [
+            'requests' => $this->app->leave->requests->listForCompany($companyId, 'pending', $scope),
+            'pending_count' => $this->app->leave->requests->pendingCount($companyId, $scope),
+            'can_approve_all' => $canApproveAll,
         ]);
     }
 

@@ -15,7 +15,7 @@ final class AuthController
     public function showLogin(): void
     {
         if ($this->app->user !== []) {
-            $this->app->redirect('/app');
+            $this->app->redirect($this->app->homePath());
         }
 
         echo $this->app->render('auth/login.twig', [
@@ -62,17 +62,16 @@ final class AuthController
         $this->app->authentication->startSession($user);
         $this->app->limiter->clear('login-account', $email . '|' . $ip);
 
-        $memberships = $this->app->companyRepository->membershipsFor((int) $user['id']);
-        $this->app->companyRepository->active((int) $user['id'], $memberships);
+        $this->app->resolveContext();
 
         $this->app->auditLogger->record(null, (int) $user['id'], 'auth.login', 'user', (string) $user['id']);
 
         if ((int) ($user['must_change_password'] ?? 0) === 1) {
             $this->app->flash->add('error', 'You signed in with a temporary password. Choose a new one to continue.');
-            $this->app->redirect('/me');
+            $this->app->redirect('/me/account');
         }
 
-        $this->app->redirect($next ?? '/app');
+        $this->app->redirect($next ?? $this->app->homePath());
     }
 
     public function logout(): void

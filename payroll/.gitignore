@@ -5,3 +5,4 @@
 /storage/logs/*
 !/storage/mail/.gitkeep
 !/storage/logs/.gitkeep
+listings.txt
