@@ -3,7 +3,7 @@
 
 {% macro days(value) %}{{ value == value|round ? value|number_format(0) : value|number_format(2) }}{% endmacro %}
 
-{% block title %}Dashboard — {{ app_name }}{% endblock %}
+{% block title %}Dashboard {% endblock %}
 
 {% block body %}
   <section class="dash-head">

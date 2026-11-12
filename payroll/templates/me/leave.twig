@@ -3,7 +3,7 @@
 
 {% macro days(value) %}{{ value == value|round ? value|number_format(0) : value|number_format(2) }}{% endmacro %}
 
-{% block title %}Leave — {{ app_name }}{% endblock %}
+{% block title %}Leave {% endblock %}
 
 {% block body %}
   <header class="page-head page-head-row">

@@ -2,7 +2,7 @@
 
 {% set editing = employee is not null %}
 
-{% block title %}{{ editing ? 'Edit employee' : 'Add employee' }} — {{ app_name }}{% endblock %}
+{% block title %}{{ editing ? 'Edit employee' : 'Add employee' }} {% endblock %}
 
 {% block body %}
   <section class="page-head">
