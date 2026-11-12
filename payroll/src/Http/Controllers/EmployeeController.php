@@ -88,7 +88,42 @@ final class EmployeeController
             'can_edit' => $this->app->can('employees.edit'),
             'can_salary' => $this->app->can('employees.salary.view'),
             'can_bank' => $this->app->can('employees.bank.view'),
+            'leave_encashment' => $this->app->can('employees.edit')
+                ? $this->encashmentQuote((int) $company['company_id'], (int) $employee['id'])
+                : null,
         ]);
+    }
+
+    public function encashLeave(array $params): void
+    {
+        $company = $this->app->requireCompany();
+        $this->app->requirePermission('employees.edit');
+        $employeeId = (int) ($params['id'] ?? 0);
+
+        try {
+            $this->app->leave->encashment->create(
+                (int) $company['company_id'],
+                $employeeId,
+                date('Y-m-d'),
+                (int) $this->app->user['id'],
+            );
+        } catch (HttpException $error) {
+            $this->app->flash->add('error', $error->getMessage());
+            $this->app->redirect('/app/employees/' . $employeeId);
+        }
+
+        $this->app->flash->add('success', 'Leave encashment recorded for the next payroll run.');
+        $this->app->redirect('/app/employees/' . $employeeId);
+    }
+
+    /** @return array<string,mixed>|null */
+    private function encashmentQuote(int $companyId, int $employeeId): ?array
+    {
+        try {
+            return $this->app->leave->encashment->quote($companyId, $employeeId, date('Y-m-d'));
+        } catch (HttpException) {
+            return null;
+        }
     }
 
     public function photo(array $params): void
@@ -207,6 +242,20 @@ final class EmployeeController
         } catch (HttpException $error) {
             $this->app->flash->add('error', $error->getMessage());
             $this->app->redirect('/app/employees/' . $employeeId);
+        }
+
+        try {
+            $this->app->leave->encashment->create(
+                (int) $company['company_id'],
+                $employeeId,
+                $this->app->request->string('exit_date') === ''
+                    ? date('Y-m-d')
+                    : $this->app->request->string('exit_date'),
+                (int) $this->app->user['id'],
+            );
+        } catch (HttpException) {
+            // No untaken annual leave, no salary or no configured type: the
+            // archive still succeeds and HR can record encashment separately.
         }
 
         $this->app->flash->add('success', 'Employee archived.');

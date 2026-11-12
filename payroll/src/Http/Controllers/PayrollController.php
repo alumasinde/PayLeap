@@ -123,12 +123,17 @@ final class PayrollController
 
         $breakdown = json_decode((string) $line['breakdown'], true);
         $slip = is_array($breakdown) && is_array($breakdown['payslip'] ?? null) ? $breakdown['payslip'] : null;
+        $leave = is_array($breakdown) && is_array($breakdown['leave'] ?? null) ? $breakdown['leave'] : null;
 
         echo $this->app->render('app/payroll/payslip.twig', [
             'run' => $run,
             'line' => $line,
             'employee' => $this->app->employees->register->find($companyId, (int) $line['employee_id']),
             'slip' => $slip,
+            'leave' => $leave,
+            'base_salary_cents' => is_array($breakdown) && isset($breakdown['base_salary_cents'])
+                ? (int) $breakdown['base_salary_cents']
+                : (int) $line['gross_cents'],
             'can_bank' => $this->app->can('employees.bank.view'),
             'generated_at' => gmdate('Y-m-d H:i'),
         ]);

@@ -13,11 +13,12 @@ use PDO;
 final class LeaveRepository
 {
     public const DEFAULT_TYPES = [
-        ['name' => 'Annual leave', 'days' => 21.00, 'accrual' => 'monthly', 'waiting' => 0, 'basis' => 'working', 'paid' => 1, 'gender' => 'any', 'document' => 0],
-        ['name' => 'Sick leave', 'days' => 14.00, 'accrual' => 'fixed', 'waiting' => 2, 'basis' => 'working', 'paid' => 1, 'gender' => 'any', 'document' => 1],
-        ['name' => 'Maternity leave', 'days' => 90.00, 'accrual' => 'fixed', 'waiting' => 0, 'basis' => 'calendar', 'paid' => 1, 'gender' => 'female', 'document' => 1],
-        ['name' => 'Paternity leave', 'days' => 14.00, 'accrual' => 'fixed', 'waiting' => 0, 'basis' => 'calendar', 'paid' => 1, 'gender' => 'male', 'document' => 1],
-        ['name' => 'Compassionate leave', 'days' => 5.00, 'accrual' => 'fixed', 'waiting' => 0, 'basis' => 'working', 'paid' => 1, 'gender' => 'any', 'document' => 0],
+        ['name' => 'Annual leave', 'code' => 'annual', 'days' => 21.00, 'accrual' => 'monthly', 'waiting' => 0, 'basis' => 'working', 'paid' => 1, 'gender' => 'any', 'document' => 0],
+        ['name' => 'Sick leave', 'code' => 'sick', 'days' => 14.00, 'accrual' => 'fixed', 'waiting' => 2, 'basis' => 'working', 'paid' => 1, 'gender' => 'any', 'document' => 1],
+        ['name' => 'Maternity leave', 'code' => 'maternity', 'days' => 90.00, 'accrual' => 'fixed', 'waiting' => 0, 'basis' => 'calendar', 'paid' => 1, 'gender' => 'female', 'document' => 1],
+        ['name' => 'Paternity leave', 'code' => 'paternity', 'days' => 14.00, 'accrual' => 'fixed', 'waiting' => 0, 'basis' => 'calendar', 'paid' => 1, 'gender' => 'male', 'document' => 1],
+        ['name' => 'Compassionate leave', 'code' => 'compassionate', 'days' => 5.00, 'accrual' => 'fixed', 'waiting' => 0, 'basis' => 'working', 'paid' => 1, 'gender' => 'any', 'document' => 0],
+        ['name' => 'Pre-adoptive leave', 'code' => 'pre_adoptive', 'days' => 30.00, 'accrual' => 'fixed', 'waiting' => 0, 'basis' => 'calendar', 'paid' => 1, 'gender' => 'any', 'document' => 1],
     ];
 
     public function __construct(private readonly PDO $db)
@@ -27,24 +28,40 @@ final class LeaveRepository
     /** Safe to run more than once. */
     public function provisionDefaults(int $companyId): void
     {
+        $ruleCodes = [
+            'annual' => 'annual_leave_days',
+            'sick' => 'sick_leave_days',
+            'maternity' => 'maternity_leave_days',
+            'paternity' => 'paternity_leave_days',
+            'pre_adoptive' => 'pre_adoptive_leave_days',
+        ];
+        $rules = $this->db->query(
+            "SELECT code, value_decimal FROM statutory_rules WHERE country_code = 'KE' AND value_decimal IS NOT NULL",
+        )->fetchAll(PDO::FETCH_KEY_PAIR);
+
         $statement = $this->db->prepare(
             'INSERT IGNORE INTO leave_types
-                (company_id, name, days_per_year, accrual_rule, accrual_start_months, day_basis,
-                 paid, gender_restriction, requires_document)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                (company_id, name, system_code, days_per_year, accrual_rule, accrual_start_months, day_basis,
+                 paid, gender_restriction, requires_document, expiry_months)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         );
 
         foreach (self::DEFAULT_TYPES as $type) {
+            $days = isset($ruleCodes[$type['code']], $rules[$ruleCodes[$type['code']]])
+                ? (float) $rules[$ruleCodes[$type['code']]]
+                : $type['days'];
             $statement->execute([
                 $companyId,
                 $type['name'],
-                $type['days'],
+                $type['code'],
+                $days,
                 $type['accrual'],
                 $type['waiting'],
                 $type['basis'],
                 $type['paid'],
                 $type['gender'],
                 $type['document'],
+                18,
             ]);
         }
     }
@@ -100,13 +117,15 @@ final class LeaveRepository
         $this->db
             ->prepare(
                 'INSERT INTO leave_types
-                    (company_id, name, days_per_year, accrual_rule, accrual_start_months, day_basis,
-                     paid, gender_restriction, requires_document, carry_over_max, active)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                    (company_id, name, system_code, days_per_year, accrual_rule, accrual_start_months, day_basis,
+                     paid, gender_restriction, requires_document, carry_over_max, expiry_months,
+                     daily_pay_percent, active)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
             )
             ->execute([
                 $companyId,
                 $data['name'],
+                $data['system_code'] ?? null,
                 $data['days_per_year'],
                 $data['accrual_rule'],
                 $data['accrual_start_months'],
@@ -115,6 +134,8 @@ final class LeaveRepository
                 $data['gender_restriction'],
                 $data['requires_document'],
                 $data['carry_over_max'],
+                $data['expiry_months'] ?? 18,
+                $data['daily_pay_percent'] ?? 100,
                 $data['active'],
             ]);
 
@@ -129,7 +150,7 @@ final class LeaveRepository
                 'UPDATE leave_types
                  SET name = ?, days_per_year = ?, accrual_rule = ?, accrual_start_months = ?,
                      day_basis = ?, paid = ?, gender_restriction = ?, requires_document = ?,
-                     carry_over_max = ?, active = ?
+                     carry_over_max = ?, system_code = ?, expiry_months = ?, daily_pay_percent = ?, active = ?
                  WHERE id = ? AND company_id = ?',
             )
             ->execute([
@@ -142,6 +163,9 @@ final class LeaveRepository
                 $data['gender_restriction'],
                 $data['requires_document'],
                 $data['carry_over_max'],
+                $data['system_code'] ?? null,
+                $data['expiry_months'] ?? 18,
+                $data['daily_pay_percent'] ?? 100,
                 $data['active'],
                 $typeId,
                 $companyId,
@@ -201,7 +225,7 @@ final class LeaveRepository
     public function balances(int $companyId, int $employeeId, int $year, ?string $asOf = null): array
     {
         $statement = $this->db->prepare(
-            'SELECT lt.id, lt.name, lt.days_per_year, lt.accrual_rule, lt.accrual_start_months,
+            'SELECT lt.id, lt.name, lt.system_code, lt.days_per_year, lt.accrual_rule, lt.accrual_start_months,
                     lt.gender_restriction, lt.carry_over_max, em.start_date AS employment_start,
                     COALESCE(SUM(CASE WHEN lr.status = \'approved\' THEN lr.days ELSE 0 END), 0) AS taken,
                     COALESCE(SUM(CASE WHEN lr.status = \'pending\' THEN lr.days ELSE 0 END), 0) AS pending
@@ -219,7 +243,7 @@ final class LeaveRepository
              WHERE lt.company_id = ? AND lt.active = 1
                AND (lt.gender_restriction = \'any\' OR e.gender IS NULL OR e.gender = \'\'
                     OR lt.gender_restriction = e.gender)
-             GROUP BY lt.id, lt.name, lt.days_per_year, lt.accrual_rule,
+             GROUP BY lt.id, lt.name, lt.system_code, lt.days_per_year, lt.accrual_rule,
                       lt.accrual_start_months, lt.gender_restriction, lt.carry_over_max,
                       em.start_date
              ORDER BY lt.name',
@@ -286,6 +310,31 @@ final class LeaveRepository
         return array_map(static fn (array $row): int => (int) $row['id'], $statement->fetchAll());
     }
 
+    /**
+     * Employees with their current employment dates for accrual posting.
+     * Exited people stay in the result so their final month can still post.
+     *
+     * @return list<array<string,mixed>>
+     */
+    public function employeesForAccrual(int $companyId, string $asOf): array
+    {
+        $statement = $this->db->prepare(
+            'SELECT e.id, e.first_name, e.last_name, e.status,
+                    em.start_date, em.end_date AS exit_date
+             FROM employees e
+             JOIN employments em ON em.id = (
+                 SELECT em2.id FROM employments em2
+                 WHERE em2.employee_id = e.id AND em2.company_id = e.company_id
+                 ORDER BY em2.start_date DESC, em2.id DESC LIMIT 1
+             )
+             WHERE e.company_id = ? AND em.start_date <= ?
+             ORDER BY e.id',
+        );
+        $statement->execute([$companyId, $asOf]);
+
+        return $statement->fetchAll();
+    }
+
     /** A pending or approved request that shares any day with the range. */
     public function overlaps(int $companyId, int $employeeId, string $startDate, string $endDate): bool
     {
@@ -299,6 +348,68 @@ final class LeaveRepository
         $statement->execute([$companyId, $employeeId, $endDate, $startDate]);
 
         return $statement->fetchColumn() !== false;
+    }
+
+    /** @return list<array<string,mixed>> */
+    public function approvedForPeriod(int $companyId, int $employeeId, string $from, string $to): array
+    {
+        $statement = $this->db->prepare(
+            'SELECT lr.*, lt.name AS leave_type, lt.system_code, lt.paid, lt.day_basis,
+                    lt.daily_pay_percent
+             FROM leave_requests lr
+             JOIN leave_types lt ON lt.id = lr.leave_type_id AND lt.company_id = lr.company_id
+             WHERE lr.company_id = ? AND lr.employee_id = ? AND lr.status = ?
+               AND lr.start_date <= ? AND lr.end_date >= ?
+             ORDER BY lr.start_date, lr.id',
+        );
+        $statement->execute([$companyId, $employeeId, 'approved', $to, $from]);
+
+        return $statement->fetchAll();
+    }
+
+    /** Approved days for a type before a date in the same leave year. */
+    public function approvedDaysBefore(
+        int $companyId,
+        int $employeeId,
+        int $typeId,
+        string $yearStart,
+        string $before,
+    ): float {
+        $statement = $this->db->prepare(
+            'SELECT COALESCE(SUM(lr.days), 0)
+             FROM leave_requests lr
+             WHERE lr.company_id = ? AND lr.employee_id = ? AND lr.leave_type_id = ?
+               AND lr.status = ? AND lr.start_date >= ? AND lr.end_date < ?',
+        );
+        $statement->execute([$companyId, $employeeId, $typeId, 'approved', $yearStart, $before]);
+
+        return round((float) $statement->fetchColumn(), 2);
+    }
+
+    /** @return list<array<string,mixed>> */
+    public function planner(int $companyId, string $from, string $to, ?array $scope = null): array
+    {
+        $where = ' WHERE lr.company_id = ? AND lr.status IN (?, ?)
+                   AND lr.start_date <= ? AND lr.end_date >= ?';
+        $params = [$companyId, 'pending', 'approved', $to, $from];
+        [$scopeSql, $scopeParams] = $this->scopeClause($scope);
+        $where .= $scopeSql;
+        array_push($params, ...$scopeParams);
+
+        $statement = $this->db->prepare(
+            'SELECT lr.id, lr.start_date, lr.end_date, lr.days, lr.status,
+                    e.first_name, e.last_name, e.employee_no, e.id AS employee_id,
+                    d.name AS department_name, lt.name AS leave_type
+             FROM leave_requests lr
+             JOIN employees e ON e.id = lr.employee_id AND e.company_id = lr.company_id
+             JOIN leave_types lt ON lt.id = lr.leave_type_id AND lt.company_id = lr.company_id
+             LEFT JOIN departments d ON d.id = e.department_id
+             ' . $where . '
+             ORDER BY lr.start_date, e.last_name, e.first_name',
+        );
+        $statement->execute($params);
+
+        return $statement->fetchAll();
     }
 
     /**
@@ -381,6 +492,8 @@ final class LeaveRepository
 
         if (($scope['employee_id'] ?? null) !== null) {
             $clauses[] = $alias . '.manager_id = ?';
+            $params[] = $scope['employee_id'];
+            $clauses[] = $alias . '.id = ?';
             $params[] = $scope['employee_id'];
         }
 
@@ -499,6 +612,14 @@ final class LeaveRepository
         $statement->execute([$decision, $actorId, $note, $requestId, $companyId, 'pending']);
 
         return $statement->rowCount() === 1;
+    }
+
+    public function setApprovalProgress(int $companyId, int $requestId, int $currentStep, int $totalSteps): void
+    {
+        $this->db->prepare(
+            'UPDATE leave_requests SET current_step = ?, total_steps = ?
+             WHERE id = ? AND company_id = ? AND status = ?',
+        )->execute([$currentStep, $totalSteps, $requestId, $companyId, 'pending']);
     }
 
     /** Only pending or approved requests can be cancelled. */

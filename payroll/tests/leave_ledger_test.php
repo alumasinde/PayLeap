@@ -157,6 +157,51 @@ try {
 
 check('an expired batch is excluded from FIFO', $expiredThrew);
 
+$reconcileCompany = $app->companyService->create('Reconcile Co', 'reconcile-co');
+$reconcileEmployee = $app->employees->service->create($reconcileCompany, [
+    'first_name' => 'Rhea',
+    'last_name' => 'Reconcile',
+    'start_date' => '2024-01-01',
+], 1);
+$reconcileAnnual = null;
+
+foreach ($app->leave->requests->types($reconcileCompany) as $type) {
+    if ($type['system_code'] === 'annual') {
+        $reconcileAnnual = $type;
+    }
+}
+
+$opening = $ledger->createBatch(
+    $reconcileCompany,
+    $reconcileEmployee,
+    (int) $reconcileAnnual['id'],
+    '2024-01-01',
+    '2026-01-31',
+    21.00,
+    null,
+    'opening',
+    'opening:' . $reconcileCompany . ':' . $reconcileEmployee . ':' . $reconcileAnnual['id'] . ':2026',
+    null,
+);
+$ledger->addTransaction($reconcileCompany, $opening, 'accrual', 21.00, '2026-01-31', 'opening_balance', null, null, null, 'Legacy opening');
+$posted = $ledger->createBatch(
+    $reconcileCompany,
+    $reconcileEmployee,
+    (int) $reconcileAnnual['id'],
+    '2026-01-01',
+    '2026-01-31',
+    21.00,
+    null,
+    'accrual',
+    'accrual:' . $reconcileCompany . ':' . $reconcileEmployee . ':' . $reconcileAnnual['id'] . ':2026-01',
+    null,
+);
+$ledger->addTransaction($reconcileCompany, $posted, 'accrual', 21.00, '2026-01-31', 'leave_accrual', null, null, null, 'Posted accrual');
+$result = $app->leave->reconciliation->reconcileCompany($reconcileCompany);
+check('reconciliation finds the duplicate opening', $result['openings_adjusted'] === 1);
+check('reconciliation removes the opening double count', abs($ledger->balance($reconcileCompany, (int) $reconcileEmployee, (int) $reconcileAnnual['id'], '2026-01-31') - 21.0) < 0.001);
+check('reconciliation is idempotent', $app->leave->reconciliation->reconcileCompany($reconcileCompany)['openings_adjusted'] === 0);
+
 echo "\n";
 if ($failures !== 0) {
     echo $failures . ' of ' . $checks . " ledger checks failed.\n";

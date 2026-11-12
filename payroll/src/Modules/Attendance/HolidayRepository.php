@@ -119,11 +119,22 @@ final class HolidayRepository
         return $statement->fetchColumn() !== false;
     }
 
-    public function create(int $companyId, string $date, string $name): int
+    public function create(
+        int $companyId,
+        string $date,
+        string $name,
+        bool $gazetted = true,
+        string $source = 'company',
+        ?string $observedDate = null,
+    ): int
     {
         $this->db
-            ->prepare('INSERT INTO public_holidays (company_id, holiday_date, name) VALUES (?, ?, ?)')
-            ->execute([$companyId, $date, $name]);
+            ->prepare(
+                'INSERT INTO public_holidays
+                    (company_id, holiday_date, name, is_gazetted, source, observed_date)
+                 VALUES (?, ?, ?, ?, ?, ?)',
+            )
+            ->execute([$companyId, $date, $name, $gazetted ? 1 : 0, $source, $observedDate]);
 
         return (int) $this->db->lastInsertId();
     }

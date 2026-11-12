@@ -91,6 +91,13 @@
           <div class="section-bar">{{ icons.svg('settings', 15) }} Record</div>
           <div class="row-actions">
             {% if employee.status == 'active' %}
+              {% if leave_encashment and leave_encashment.days > 0 %}
+                <form class="row-actions" method="post" action="/app/employees/{{ employee.id }}/encash-leave">
+                  <input type="hidden" name="_token" value="{{ csrf_token() }}">
+                  <span class="muted">Encash {{ leave_encashment.days }} annual day(s) · {{ leave_encashment.amount_cents|money }}</span>
+                  <button class="btn-ghost btn-sm" type="submit">Record encashment</button>
+                </form>
+              {% endif %}
               <form class="row-actions" method="post" action="/app/employees/{{ employee.id }}/archive">
                 <input type="hidden" name="_token" value="{{ csrf_token() }}">
                 <label class="inline-label" for="exit-date">Last working day</label>

@@ -27,6 +27,9 @@ final class LeaveService
         private readonly AuditLogger $auditLogger,
         private readonly LeaveLedgerRepository $ledger,
         private readonly LeaveBalanceService $balances,
+        private readonly LeaveAccrualService $accrual,
+        private readonly LeaveSettingsRepository $settings,
+        private readonly LeaveApprovalRepository $approvals,
     ) {
     }
 
@@ -83,24 +86,47 @@ final class LeaveService
             $this->requireEligible($request);
         }
 
+        $actor = $this->employees->forUser($companyId, $actorId);
+        $actorEmployeeId = $actor === null ? null : (int) $actor['id'];
+        $stepNo = max(1, (int) ($request['current_step'] ?? 1));
+        $totalSteps = max(1, (int) ($request['total_steps'] ?? 1));
+        $step = $this->approvals->current($companyId, $requestId, $stepNo);
+
+        if ($step !== null) {
+            if (!$this->approvals->actorCanDecide($step, $actorEmployeeId, $canAll)) {
+                throw new HttpException(403, 'This approval step belongs to another approver.');
+            }
+        }
+
         $note = trim($note);
 
         if (mb_strlen($note) > 255) {
             throw new HttpException(422, 'The decision note is too long.');
         }
 
-        if ($decision === 'approved') {
-            $this->balances->balances(
-                $companyId,
-                (int) $request['employee_id'],
-                (int) substr((string) $request['start_date'], 0, 4),
-            );
-        }
+        // A decision is a write request, so it may safely ensure the employee's
+        // accrual batches exist before the FIFO allocation. A GET never does.
+        $this->accrual->postEmployeeThrough(
+            $companyId,
+            (int) $request['employee_id'],
+            date('Y-m-d'),
+            $actorId,
+        );
+
+        $this->accrual->postEmployeeThrough(
+            $companyId,
+            (int) $request['employee_id'],
+            (string) $request['end_date'],
+            $actorId,
+            true,
+        );
 
         try {
             $this->db->beginTransaction();
 
-            if ($decision === 'approved') {
+            $finalApproval = $decision === 'approved' && ($step === null || $stepNo >= $totalSteps);
+
+            if ($finalApproval) {
                 $this->ledger->allocateRequest(
                     $companyId,
                     $requestId,
@@ -112,7 +138,22 @@ final class LeaveService
                 );
             }
 
-            if (!$this->requests->decide($companyId, $requestId, $decision, $actorId, $note === '' ? null : $note)) {
+            if ($step !== null) {
+                $this->approvals->decide(
+                    $companyId,
+                    $requestId,
+                    $stepNo,
+                    $decision,
+                    $actorId,
+                    $note === '' ? null : $note,
+                );
+
+                if ($decision === 'approved' && $stepNo < $totalSteps) {
+                    $this->requests->setApprovalProgress($companyId, $requestId, $stepNo + 1, $totalSteps);
+                } elseif (!$this->requests->decide($companyId, $requestId, $decision, $actorId, $note === '' ? null : $note)) {
+                    throw new HttpException(409, 'That leave request has already been decided.');
+                }
+            } elseif (!$this->requests->decide($companyId, $requestId, $decision, $actorId, $note === '' ? null : $note)) {
                 throw new HttpException(409, 'That leave request has already been decided.');
             }
 
@@ -137,7 +178,12 @@ final class LeaveService
             'leave.request.' . $decision,
             'leave_request',
             (string) $requestId,
-            ['employee_id' => (int) $request['employee_id'], 'days' => (float) $request['days']],
+            [
+                'employee_id' => (int) $request['employee_id'],
+                'days' => (float) $request['days'],
+                'step' => $stepNo,
+                'total_steps' => $totalSteps,
+            ],
         );
     }
 
@@ -179,7 +225,19 @@ final class LeaveService
             $this->db->beginTransaction();
 
             if ((string) $request['status'] === 'approved') {
-                $this->ledger->reverseRequest($companyId, $requestId, date('Y-m-d'), $actorId);
+                $reversed = $this->ledger->reverseRequest($companyId, $requestId, date('Y-m-d'), $actorId);
+
+                if ($reversed === 0) {
+                    $this->ledger->restoreLegacyRequest(
+                        $companyId,
+                        $requestId,
+                        (int) $request['employee_id'],
+                        (int) $request['leave_type_id'],
+                        (float) $request['days'],
+                        date('Y-m-d'),
+                        $actorId,
+                    );
+                }
             }
 
             if (!$this->requests->cancel($companyId, $requestId, $actorId)) {
@@ -275,6 +333,19 @@ final class LeaveService
             throw new HttpException(422, 'You already have leave covering one of those days.');
         }
 
+        // A POST may safely bring the ledger up to date. GET requests never do.
+        $this->accrual->postEmployeeThrough($companyId, $employeeId, date('Y-m-d'), $actorId);
+
+        if (($type['accrual_rule'] ?? '') === 'fixed' && $end > new \DateTimeImmutable('today')) {
+            $this->accrual->postEmployeeThrough(
+                $companyId,
+                $employeeId,
+                $end->format('Y-m-d'),
+                $actorId,
+                true,
+            );
+        }
+
         $balance = null;
 
         foreach ($this->balances->balances(
@@ -308,6 +379,17 @@ final class LeaveService
             'days' => $days,
             'reason' => $reason === '' ? null : $reason,
         ]);
+
+        $steps = $this->approvals->start(
+            $companyId,
+            $requestId,
+            $this->settings->forCompany($companyId),
+            $this->employees->managerFor($companyId, $employeeId),
+        );
+
+        if ($steps > 1) {
+            $this->requests->setApprovalProgress($companyId, $requestId, 1, $steps);
+        }
 
         $this->auditLogger->record($companyId, $actorId, 'leave.request.submitted', 'leave_request', (string) $requestId, [
             'employee_id' => $employeeId,
@@ -348,6 +430,13 @@ final class LeaveService
         $accrual = (string) ($input['accrual_rule'] ?? 'fixed');
         $basis = (string) ($input['day_basis'] ?? 'working');
         $waiting = (int) ($input['accrual_start_months'] ?? 0);
+        $systemCode = trim((string) ($input['system_code'] ?? ''));
+        $expiryMonths = (int) ($input['expiry_months'] ?? ($existing['expiry_months'] ?? 18));
+        $dailyPercent = round((float) ($input['daily_pay_percent'] ?? ($existing['daily_pay_percent'] ?? 100)), 2);
+
+        if ($systemCode === '' && $existing !== null) {
+            $systemCode = (string) ($existing['system_code'] ?? '');
+        }
 
         if (!in_array($gender, self::GENDERS, true)) {
             throw new HttpException(422, 'Choose who may take this leave type.');
@@ -365,6 +454,18 @@ final class LeaveService
             throw new HttpException(422, 'Choose whether this leave counts working or calendar days.');
         }
 
+        if ($systemCode !== '' && preg_match('/^[a-z][a-z0-9_]{1,39}$/', $systemCode) !== 1) {
+            throw new HttpException(422, 'The system code must be lowercase letters, numbers or underscores.');
+        }
+
+        if ($expiryMonths < 0 || $expiryMonths > 60) {
+            throw new HttpException(422, 'The expiry window must be between 0 and 60 months.');
+        }
+
+        if ($dailyPercent < 0 || $dailyPercent > 100) {
+            throw new HttpException(422, 'The daily pay percentage must be between 0 and 100.');
+        }
+
         $data = [
             'name' => $name,
             'days_per_year' => $days,
@@ -375,6 +476,9 @@ final class LeaveService
             'gender_restriction' => $gender,
             'requires_document' => !empty($input['requires_document']) ? 1 : 0,
             'carry_over_max' => $carry,
+            'system_code' => $systemCode === '' ? null : $systemCode,
+            'expiry_months' => $expiryMonths,
+            'daily_pay_percent' => $dailyPercent,
             'active' => !empty($input['active']) ? 1 : 0,
         ];
 

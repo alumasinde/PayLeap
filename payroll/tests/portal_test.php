@@ -210,7 +210,7 @@ foreach ($types as $type) {
     }
 }
 
-$start = date('Y-m-d', strtotime('+3 days'));
+$start = date('Y-m-d', strtotime('next monday'));
 $requestId = $app->leave->service->submit(
     $companyId,
     $employeeA,

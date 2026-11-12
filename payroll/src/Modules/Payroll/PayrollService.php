@@ -9,6 +9,7 @@ use InvalidArgumentException;
 use Mshahara\Paye\Calculator;
 use Mshahara\Paye\Ruleset;
 use Mshahara\Payroll\Modules\Employees\EmployeeRepository;
+use Mshahara\Payroll\Modules\Leave\LeavePayrollService;
 use Mshahara\Payroll\Support\AuditLogger;
 use Mshahara\Payroll\Support\HttpException;
 use Mshahara\Payroll\Support\Money;
@@ -32,6 +33,7 @@ final class PayrollService
         private readonly RateVersionRepository $rates,
         private readonly AuditLogger $auditLogger,
         private readonly Calculator $calculator,
+        private readonly LeavePayrollService $leavePayroll,
     ) {
     }
 
@@ -87,7 +89,15 @@ final class PayrollService
         ];
 
         foreach ($staff as $employee) {
-            $grossCents = (int) $employee['monthly_salary_cents'];
+            $baseCents = (int) $employee['monthly_salary_cents'];
+            $leave = $this->leavePayroll->adjust(
+                $companyId,
+                (int) $employee['id'],
+                $periodStart,
+                $periodEnd,
+                $baseCents,
+            );
+            $grossCents = max(0, $baseCents + (int) $leave['holiday_premium_cents'] + (int) $leave['encashment_cents'] - (int) $leave['leave_deduction_cents']);
             $gross = $grossCents / 100;
 
             $slip = $this->calculator->payslip($gross, $rate);
@@ -109,8 +119,16 @@ final class PayrollService
                 'housing_levy_employer_cents' => Money::fromShillings((float) $cost['housing_levy']),
                 'nita_cents' => Money::fromShillings((float) $cost['nita']),
                 'employer_cost_cents' => Money::fromShillings((float) $cost['total_cost']),
+                'leave_deduction_cents' => (int) $leave['leave_deduction_cents'],
+                'holiday_premium_cents' => (int) $leave['holiday_premium_cents'],
+                'toil_days' => (float) $leave['toil_days'],
                 'breakdown' => json_encode(
-                    ['payslip' => $slip, 'employer' => $cost],
+                    [
+                        'payslip' => $slip,
+                        'employer' => $cost,
+                        'leave' => $leave,
+                        'base_salary_cents' => $baseCents,
+                    ],
                     JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR,
                 ),
             ];
@@ -139,6 +157,7 @@ final class PayrollService
         try {
             $runId = $this->runs->create($companyId, $header);
             $this->runs->addLines($runId, $lines);
+            $this->leavePayroll->markEncashed($companyId, $periodEnd, $runId);
             $this->db->commit();
         } catch (PDOException $error) {
             $this->db->rollBack();

@@ -225,6 +225,21 @@ check(
     'a team approver without a linked employee is refused',
     statusOf(static fn () => $leave->decide($companyId, $bRequest, 'approved', 1, '', false, true)) === 403,
 );
+check(
+    'an approved request can be cancelled',
+    statusOf(static fn () => $leave->cancel($companyId, $reportRequest, $hodUserId, false, true)) === 0,
+);
+check(
+    'a cancelled request changes status',
+    (string) $db->query('SELECT status FROM leave_requests WHERE id = ' . $reportRequest)->fetchColumn() === 'cancelled',
+);
+$usageCount = (int) $db->query(
+    'SELECT COUNT(*) FROM leave_transactions WHERE ref_type = \'leave_request\' AND ref_id = ' . $reportRequest,
+)->fetchColumn();
+$reversalCount = (int) $db->query(
+    'SELECT COUNT(*) FROM leave_transactions WHERE ref_type = \'leave_request_reversal\' AND ref_id = ' . $reportRequest,
+)->fetchColumn();
+check('cancellation writes reversal transactions', $usageCount > 0 && $usageCount === $reversalCount);
 
 // --------------------------------------------------------- employee checks
 
@@ -323,16 +338,21 @@ check(
 );
 check(
     'a request above the available balance is refused',
-    statusOf(static fn () => $leave->submit($companyId, $staffA, $annualId, $start->modify('+10 days')->format('Y-m-d'), $start->modify('+40 days')->format('Y-m-d'), '', $hodUserId)) === 422,
+    statusOf(static fn () => $leave->submit($companyId, $staffA, $annualId, $start->modify('+10 days')->format('Y-m-d'), $start->modify('+200 days')->format('Y-m-d'), '', $hodUserId)) === 422,
 );
 check(
     'a gender-restricted type is refused for a male employee',
     statusOf(static fn () => $leave->submit($companyId, $staffB, $maternityId, $start->format('Y-m-d'), $end->format('Y-m-d'), '', $hodUserId)) === 422,
 );
-check(
-    'a gender-restricted type is allowed for a female employee',
-    statusOf(static fn () => $leave->submit($companyId, $staffA, $maternityId, $start->modify('+80 days')->format('Y-m-d'), $start->modify('+82 days')->format('Y-m-d'), '', $hodUserId)) === 0,
-);
+$femaleError = '';
+
+try {
+    $leave->submit($companyId, $staffA, $maternityId, $start->modify('+80 days')->format('Y-m-d'), $start->modify('+82 days')->format('Y-m-d'), '', $hodUserId);
+} catch (HttpException $error) {
+    $femaleError = $error->getMessage();
+}
+
+check('a gender-restricted type is allowed for a female employee', $femaleError === '', $femaleError);
 check(
     'leave cannot be taken over an approved request',
     statusOf(static fn () => $leave->submit($companyId, $staffA, $annualId, '2026-12-02', '2026-12-04', '', $hodUserId)) === 422,

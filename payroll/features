@@ -27,7 +27,7 @@ Conventions carried over from the README, applied to every table below:
 | Payslips (printable) | Built | Reads stored breakdown |
 | Payslip PDF, branding, email, password-protected | Next | See section 5 |
 | Self-service portal | Next | `/me` shell exists |
-| Leave | Built | Configurable types (days, accrual method and waiting period, working/calendar day basis, gender eligibility, carry-over, documents), requests, approval decision, and derived balances (entitlement, accrued, taken, pending, available) |
+| Leave | Built | Ledger-only balances; posted monthly accrual and fixed grants; FIFO allocations with cancellation reversals; carry-over expiry with HR review; statutory rules and sick pay tiers as data; multi-level manager→HR approval; holiday calendar, observed days, holiday premium and TOIL; HR/ESS planner; exit encashment; payroll bridge |
 | Attendance, overtime | Built | Daily register, monthly timesheet against the roster, public holidays with separate holiday hours, source-tagged capture, clock and meal device registry; overtime rates still a gap |
 | Loans, advances | Gap | Needed before payroll is usable for real clients |
 | Allowances, earnings, deductions (recurring + one-off) | Gap | Critical: payroll is incomplete without it |
@@ -132,9 +132,15 @@ Names are suggestions. Prefix is not needed; `company_id` on all unless marked g
 ### Time
 | Table | Key columns / purpose |
 | --- | --- |
-| `leave_types` | company_id, name, days_per_year, accrual_rule, paid, gender_restriction, carry_over_max, requires_document, active |
+| `leave_types` | company_id, name, system_code, days_per_year, accrual_rule, accrual_start_months, day_basis, paid, gender_restriction, carry_over_max, expiry_months, daily_pay_percent, requires_document, active |
 | `leave_policies` | leave_type_id, applies_to (employment type/grade), entitlement |
-| `leave_balances` (later) | employee_id, leave_type_id, year, entitled, taken, carried_over; today balances are derived from `leave_types` and approved requests |
+| `leave_batches` / `leave_transactions` | append-only grants and postings: accrual, usage, expiry, adjustment, reversal; unique source key and transaction idempotency key; FIFO allocations in `leave_request_allocations` |
+| `leave_settings` | company_id, carry_over_expiry_months, forfeit_excess, multi_level_approval, daily_rate_divisor, holiday_work_multiplier, planner_enabled, encashment_enabled |
+| `statutory_rules` / `leave_pay_tiers` | cited Employment Act values and sick full/half-pay tiers, seeded per company and read by services |
+| `leave_exceptions` | batch_id, employee_id, leave_type_id, kind (carry_over/sick/encashment), days, status, resolved_by, resolution |
+| `leave_approval_steps` | request_id, step_no, approver_employee_id, approver_permission, status, decided_by, decided_at |
+| `leave_encashments` | employee_id, leave_type_id, encashment_date, days, amount_cents, status, payroll_run_id |
+| `toil_entries` | employee_id, attendance_record_id, work_date, hours, days, status |
 | `leave_requests` | employee_id, leave_type_id, start, end, days, reason, status, decided_by, decided_at |
 | `approval_workflows` | company_id, entity_type, step_no, approver (role or manager) |
 | `approvals` | entity_type, entity_id, step_no, approver_id, decision, at, note |

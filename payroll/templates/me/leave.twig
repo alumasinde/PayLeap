@@ -13,6 +13,7 @@
       <p class="muted">{{ employee.first_name }} {{ employee.last_name }} ({{ employee.employee_no }}) · {{ year }} balances and your own requests.</p>
     </div>
     <div class="page-head-actions">
+      <a class="btn-ghost btn-sm" href="/me/leave/planner">Team planner</a>
       {% if balances %}
         <button class="btn-primary" type="button" data-modal-open="leave-modal">{{ icons.svg('calendar', 16) }} Request leave</button>
       {% endif %}
@@ -53,7 +54,10 @@
                   <td class="mono">{{ request.start_date|date('j M Y') }} – {{ request.end_date|date('j M Y') }}</td>
                   <td class="mono">{{ request.end_date|date_modify('+1 day')|date('j M Y') }}</td>
                   <td class="num mono">{{ _self.days(request.days) }}</td>
-                  <td><span class="status status-{{ request.status }}">{{ request.status|capitalize }}</span></td>
+                  <td>
+                    <span class="status status-{{ request.status }}">{{ request.status|capitalize }}</span>
+                    {% if request.status == 'pending' and request.total_steps > 1 %}<br><span class="muted">Step {{ request.current_step }} of {{ request.total_steps }}</span>{% endif %}
+                  </td>
                   <td class="mono">{{ request.created_at|date('j M Y') }}</td>
                   <td>
                     {% if request.decision_note %}
@@ -139,13 +143,39 @@
               </tr>
             </tfoot>
           </table>
-          <p class="hint">Entitled is the full yearly policy. Accrued is what you have earned so far in {{ year }}; Available is accrued less taken and pending days.</p>
+          <p class="hint">Entitled is the full yearly policy. Accrued and Available come from posted ledger transactions; Available is the ledger balance less pending days. Merely opening this page does not create or change a balance.</p>
         {% else %}
           <p class="muted">No leave types are configured for you yet. Ask HR.</p>
         {% endif %}
       </section>
     </aside>
   </div>
+
+  {% if ledger_activity %}
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>Ledger activity</h2>
+          <p class="muted">The posted transactions behind the balance. Positive days are grants and reversals; negative days are usage and expiry.</p>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="list">
+          <thead><tr><th>Date</th><th>Type</th><th>Transaction</th><th class="num">Days</th></tr></thead>
+          <tbody>
+            {% for entry in ledger_activity %}
+              <tr>
+                <td class="mono">{{ entry.effective_date|date('d/m/Y') }}</td>
+                <td>{{ entry.leave_type }}</td>
+                <td>{{ entry.note ?: entry.type }}</td>
+                <td class="num mono">{{ entry.days > 0 ? '+' : '' }}{{ _self.days(entry.days) }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  {% endif %}
 
   {% if balances %}
     <dialog class="modal" id="leave-modal"{% if open_apply %} data-autoopen{% endif %}>
@@ -190,7 +220,7 @@
           </label>
         </div>
 
-        <p class="hint">Dates are inclusive. Working-day types skip weekends and public holidays; calendar-day types count every date. A request needs a free date range and enough accrued days. Your manager or HR decides it; you cannot approve your own leave.</p>
+        <p class="hint">Dates are inclusive. Working-day types skip weekends and public holidays; calendar-day types count every date. A request needs a free date range and enough posted ledger days. Your manager or HR decides it; you cannot approve your own leave{% if leave_settings.multi_level_approval %} and a two-step request needs both decisions{% endif %}.</p>
 
         <div class="modal-actions">
           <button class="btn-ghost" type="button" data-modal-close>Cancel</button>

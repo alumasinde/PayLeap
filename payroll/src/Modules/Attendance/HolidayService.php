@@ -40,6 +40,26 @@ final class HolidayService
 
         $holidayId = $this->holidays->create($companyId, $date, $name);
 
+        // Public Holidays Act: when a fixed holiday falls on a Sunday, the
+        // first following non-holiday is observed. Store that as its own day so
+        // leave day-counting and timesheets see it without special-case logic.
+        if ((int) $day->format('N') === 7) {
+            $observed = $day->modify('+1 day');
+
+            while ($this->holidays->dateExists($companyId, $observed->format('Y-m-d'))) {
+                $observed = $observed->modify('+1 day');
+            }
+
+            $this->holidays->create(
+                $companyId,
+                $observed->format('Y-m-d'),
+                $name . ' (observed)',
+                true,
+                'observed',
+                $date,
+            );
+        }
+
         $this->auditLogger->record($companyId, $actorId, 'holiday.added', 'public_holiday', (string) $holidayId, [
             'date' => $date,
             'name' => $name,

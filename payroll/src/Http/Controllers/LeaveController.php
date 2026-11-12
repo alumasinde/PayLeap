@@ -31,7 +31,7 @@ final class LeaveController
         }
 
         $view = (string) $this->app->request->query('view', 'requests');
-        $view = $view === 'balances' ? 'balances' : 'requests';
+        $view = in_array($view, ['balances', 'planner'], true) ? $view : 'requests';
 
         $canApproveAll = $this->app->can('leave.approve.all');
         $canApproveTeam = $this->app->can('leave.approve.team');
@@ -41,6 +41,8 @@ final class LeaveController
         $employee = $this->selectedEmployee($companyId, (int) $this->app->request->query('employee_id', 0), $employees);
         $year = (int) $this->app->request->query('year', date('Y'));
         $year = $year >= 2000 && $year <= 2100 ? $year : (int) date('Y');
+        $month = (int) $this->app->request->query('month', date('n'));
+        $month = $month >= 1 && $month <= 12 ? $month : (int) date('n');
 
         echo $this->app->render('app/leave/index.twig', [
             'view' => $view,
@@ -53,10 +55,45 @@ final class LeaveController
             'employees' => $employees,
             'selected_employee' => $employee,
             'year' => $year,
+            'month' => $month,
             'balances' => $view === 'balances' && $employee !== null
-                ? $this->app->leave->balance->balances($companyId, (int) $employee['id'], $year)
+                ? $this->app->leave->balance->balances(
+                    $companyId,
+                    (int) $employee['id'],
+                    $year,
+                    $year < (int) date('Y') ? $year . '-12-31' : date('Y-m-d'),
+                )
                 : [],
+            'planner' => $view === 'planner'
+                ? $this->app->leave->planner->month($companyId, $year, $month, $scope)
+                : null,
+            'leave_settings' => $this->app->leave->settings->forCompany($companyId),
+            'exceptions' => $view === 'balances'
+                ? $this->app->leave->accrual->exceptions($companyId)
+                : [],
+            'statutory_rules' => $this->app->leave->statutory->all(),
         ]);
+    }
+
+    public function resolveException(array $params): void
+    {
+        $company = $this->app->requireCompany();
+        $this->app->requirePermission('leave.approve.all');
+
+        try {
+            $this->app->leave->accrual->resolveException(
+                (int) $company['company_id'],
+                (int) ($params['id'] ?? 0),
+                $this->app->request->string('action') === 'forfeit' ? 'forfeit' : 'retain',
+                (int) $this->app->user['id'],
+            );
+        } catch (HttpException $error) {
+            $this->app->flash->add('error', $error->getMessage());
+            $this->app->redirect('/app/leave?view=balances');
+        }
+
+        $this->app->flash->add('success', 'Leave carry-over review updated.');
+        $this->app->redirect('/app/leave?view=balances');
     }
 
     /**

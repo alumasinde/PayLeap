@@ -43,9 +43,17 @@ use Mshahara\Payroll\Modules\Documents\DocumentRepository;
 use Mshahara\Payroll\Modules\Documents\DocumentService;
 use Mshahara\Payroll\Modules\Leave\LeaveModule;
 use Mshahara\Payroll\Modules\Leave\LeaveBalanceService;
+use Mshahara\Payroll\Modules\Leave\LeaveAccrualService;
+use Mshahara\Payroll\Modules\Leave\LeaveApprovalRepository;
+use Mshahara\Payroll\Modules\Leave\LeaveEncashmentService;
 use Mshahara\Payroll\Modules\Leave\LeaveLedgerRepository;
+use Mshahara\Payroll\Modules\Leave\LeavePayrollService;
+use Mshahara\Payroll\Modules\Leave\LeavePlannerService;
+use Mshahara\Payroll\Modules\Leave\LeaveReconciliationService;
 use Mshahara\Payroll\Modules\Leave\LeaveRepository;
 use Mshahara\Payroll\Modules\Leave\LeaveService;
+use Mshahara\Payroll\Modules\Leave\LeaveSettingsRepository;
+use Mshahara\Payroll\Modules\Leave\StatutoryRuleRepository;
 use Mshahara\Payroll\Modules\Payroll\PayrollModule;
 use Mshahara\Payroll\Modules\Payroll\PayrollRepository;
 use Mshahara\Payroll\Modules\Payroll\PayrollService;
@@ -151,7 +159,31 @@ final class Bootstrap
             new AnnouncementService($announcementRepository, $app->auditLogger),
         );
         $leaveLedger = new LeaveLedgerRepository($app->db);
-        $leaveBalance = new LeaveBalanceService($app->db, $leaveRepository, $leaveLedger);
+        $leaveSettings = new LeaveSettingsRepository($app->db);
+        $leaveStatutory = new StatutoryRuleRepository($app->db);
+        $leaveApproval = new LeaveApprovalRepository($app->db);
+        $leaveBalance = new LeaveBalanceService($leaveRepository, $leaveLedger);
+        $leaveAccrual = new LeaveAccrualService($app->db, $leaveRepository, $leaveLedger, $leaveSettings);
+        $attendanceRepository = new AttendanceRepository($app->db);
+        $timesheetService = new TimesheetService($attendanceRepository, $shiftRepository, $leaveRepository, $holidayRepository);
+        $app->attendance = new AttendanceModule(
+            $attendanceRepository,
+            new AttendanceService($attendanceRepository, $employeeRepository, $app->auditLogger),
+            $shiftRepository,
+            new ShiftService($shiftRepository, $employeeRepository, $app->auditLogger),
+            $timesheetService,
+            $holidayRepository,
+            new HolidayService($holidayRepository, $app->auditLogger),
+            $deviceRepository,
+            new DeviceService($deviceRepository, $app->auditLogger),
+        );
+        $leavePayroll = new LeavePayrollService(
+            $app->db,
+            $leaveRepository,
+            $leaveSettings,
+            $holidayRepository,
+            $timesheetService,
+        );
         $app->leave = new LeaveModule(
             $leaveRepository,
             new LeaveService(
@@ -161,21 +193,20 @@ final class Bootstrap
                 $app->auditLogger,
                 $leaveLedger,
                 $leaveBalance,
+                $leaveAccrual,
+                $leaveSettings,
+                $leaveApproval,
             ),
             $leaveLedger,
             $leaveBalance,
-        );
-        $attendanceRepository = new AttendanceRepository($app->db);
-        $app->attendance = new AttendanceModule(
-            $attendanceRepository,
-            new AttendanceService($attendanceRepository, $employeeRepository, $app->auditLogger),
-            $shiftRepository,
-            new ShiftService($shiftRepository, $employeeRepository, $app->auditLogger),
-            new TimesheetService($attendanceRepository, $shiftRepository, $leaveRepository, $holidayRepository),
-            $holidayRepository,
-            new HolidayService($holidayRepository, $app->auditLogger),
-            $deviceRepository,
-            new DeviceService($deviceRepository, $app->auditLogger),
+            $leaveAccrual,
+            $leaveSettings,
+            $leaveStatutory,
+            $leaveApproval,
+            new LeavePlannerService($leaveRepository),
+            new LeaveEncashmentService($app->db, $leaveRepository, $leaveLedger, $leaveSettings, $employeeRepository),
+            $leavePayroll,
+            new LeaveReconciliationService($app->db, $leaveLedger),
         );
         $payrollRepository = new PayrollRepository($app->db);
         $rateVersionRepository = new RateVersionRepository($app->db);
@@ -189,6 +220,7 @@ final class Bootstrap
                 $rateVersionRepository,
                 $app->auditLogger,
                 new Calculator(),
+                $leavePayroll,
             ),
         );
         $app->invitationService = new InvitationService(

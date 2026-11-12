@@ -44,6 +44,8 @@ final class SettingsController
             'devices' => $this->app->attendance->devices->all($companyId),
             'documents' => $this->app->documents->repository->all($companyId),
             'genders' => ['any' => 'Everyone', 'female' => 'Female', 'male' => 'Male'],
+            'leave_settings' => $this->app->leave->settings->forCompany($companyId),
+            'statutory_rules' => $this->app->leave->statutory->all(),
             'device_kinds' => DeviceRepository::KINDS,
             'device_purposes' => DeviceRepository::PURPOSES,
         ]);
@@ -103,6 +105,23 @@ final class SettingsController
         }
 
         $this->back('leave', $active ? 'Leave type enabled.' : 'Leave type disabled.', 'success');
+    }
+
+    public function saveLeavePolicy(): void
+    {
+        $company = $this->app->requireCompany();
+        $this->app->requirePermission('settings.manage');
+
+        $this->app->leave->settings->save((int) $company['company_id'], $this->app->request->all());
+        $this->app->auditLogger->record(
+            (int) $company['company_id'],
+            (int) $this->app->user['id'],
+            'leave.policy.saved',
+            'leave_settings',
+            (string) $company['company_id'],
+        );
+
+        $this->back('leave', 'Leave policy saved.', 'success');
     }
 
     public function addHoliday(): void

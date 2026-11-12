@@ -191,6 +191,51 @@
     <section class="panel">
       <div class="panel-head">
         <div>
+          <h2>Carry-over and payroll bridge</h2>
+          <p class="muted">The statutory floor is a data row, not code. By default expired carry-over is flagged for HR instead of being silently forfeited.</p>
+        </div>
+      </div>
+      <form class="form-grid form-grid-4" method="post" action="/app/settings/leave-policy">
+        <input type="hidden" name="_token" value="{{ csrf_token() }}">
+        <label class="field">
+          <span>Carry-over window (months)</span>
+          <input type="number" name="carry_over_expiry_months" min="0" max="60" value="{{ leave_settings.carry_over_expiry_months }}">
+        </label>
+        <label class="field">
+          <span>Daily-rate divisor</span>
+          <input type="number" name="daily_rate_divisor" min="1" max="31" value="{{ leave_settings.daily_rate_divisor }}">
+        </label>
+        <label class="field">
+          <span>Holiday-work multiplier</span>
+          <input type="number" name="holiday_work_multiplier" min="1" max="4" step="0.01" value="{{ leave_settings.holiday_work_multiplier }}">
+        </label>
+        <div class="check-row">
+          <label><input type="checkbox" name="forfeit_excess" value="1"{% if leave_settings.forfeit_excess %} checked{% endif %}> Forfeit expired days automatically</label>
+          <label><input type="checkbox" name="multi_level_approval" value="1"{% if leave_settings.multi_level_approval %} checked{% endif %}> Manager then HR approval</label>
+          <label><input type="checkbox" name="planner_enabled" value="1"{% if leave_settings.planner_enabled %} checked{% endif %}> Leave planner</label>
+          <label><input type="checkbox" name="encashment_enabled" value="1"{% if leave_settings.encashment_enabled %} checked{% endif %}> Exit encashment</label>
+        </div>
+        <div class="form-actions"><button class="btn-primary" type="submit">Save policy</button></div>
+      </form>
+    </section>
+
+    <section class="panel">
+      <h2>Statutory rules</h2>
+      <div class="table-wrap">
+        <table class="list">
+          <thead><tr><th>Rule</th><th class="num">Value</th><th>Citation</th></tr></thead>
+          <tbody>
+            {% for rule in statutory_rules %}
+              <tr><td>{{ rule.code }}</td><td class="num mono">{{ rule.value_decimal ?? rule.value_text }}</td><td>{{ rule.citation }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div>
           <h2 id="holidays">Public holidays</h2>
           <p class="muted">Fixed statutory days are provisioned for each company; add movable feasts and company days. A public holiday is a paid non-working day, not an entitlement, so it never uses a leave balance or needs a request. The roster marks it, and any hours worked are reported separately on the timesheet.</p>
         </div>

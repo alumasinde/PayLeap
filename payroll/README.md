@@ -24,6 +24,11 @@ their own approved months without exposing another person's line. The `modules`
 table says exactly what is live. **HR announcements** are authored behind
 `settings.manage` and surface on the ESS dashboard.
 
+The leave module now also carries the Kenyan statutory working set in data, not
+code: `statutory_rules` and `leave_pay_tiers` drive accrual, sick half-pay,
+holiday premium, carry-over expiry, encashment and the payroll bridge. Monthly
+accrual and annual fixed grants are posted batches; reads never create them.
+
 No framework. Twig + PDO + PHP 8.2, Composer for autoload and Twig only.
 
 ## Naming
@@ -93,10 +98,13 @@ are stored in MySQL by default (`SESSION_DRIVER=database`); set
 | `POST /app/roster` | Assign a shift or a rest day to one person's date (`attendance.edit`) |
 | `GET /app/leave` | Leave requests filtered by status (`leave.view`); `?view=balances` shows entitlement, accrued, taken, pending and available days |
 | `POST /app/leave/{id}/decide` | Approve or reject a pending request (`leave.approve.team` for the team, `leave.approve.all` for the company); nobody decides their own, and restricted types check gender |
+| `GET /app/leave?view=planner` | HR/manager leave planner: requests, sickness, holidays and team coverage for a month |
+| `POST /app/leave/exceptions/{id}/resolve` | Resolve an expired carry-over review by forfeiting or retaining it (`leave.approve.all`) |
 | `GET /app/settings` | Company policy tabs: organisation, leave and holidays, shifts, devices (`settings.manage`) |
 | `POST /app/settings/company` | Rename the company |
 | `POST /app/settings/leave-types` | Add or update a leave type, its days, eligibility and carry-over |
 | `POST /app/settings/leave-types/{id}/toggle` | Enable or retire a leave type |
+| `POST /app/settings/leave-policy` | Save carry-over, forfeiture and multi-level approval policy |
 | `POST /app/settings/holidays` | Add a public holiday for the company |
 | `POST /app/settings/holidays/{id}/delete` | Remove a public holiday |
 | `POST /app/settings/shifts` | Add or update a shift's start, end and break |
@@ -109,6 +117,9 @@ are stored in MySQL by default (`SESSION_DRIVER=database`); set
 | `GET /ess/payslips` | Your own payslips from approved runs only (404 for anyone else's line) |
 | `GET /ess/payslips/{line}` | One of your own approved payslips |
 | `GET /ess/leave/approvals` | Team leave for a HOD or company approver (`leave.approve.team` / `leave.approve.all`), decided through the normal endpoint |
+| `GET /me/leave/planner` | Your own leave and team coverage planner |
+| `POST /me/leave/{id}/cancel` | Cancel your own pending or approved request; an approved request reverses its exact ledger batches |
+| `POST /app/employees/{id}/encash-leave` | Record annual-leave encashment at exit (`employees.edit`, `leave.approve.all` or self-service for your own exit) |
 | `POST /me/password` | Change your password; other sessions are revoked |
 | `GET /me` | The signed-in employee's own profile |
 | `GET /me/account` | Account settings; the only editable field is the password |
@@ -156,6 +167,9 @@ call `requirePermission()`.
 php tests/auth_test.php       # services: tokens, resets, CSRF, rate limits, gate
 php tests/employee_test.php   # register: numbers, validation, scope, archive
 php tests/leave_test.php      # approvals: manager scope, self-approval, linking
+php tests/leave_ledger_test.php # ledger: FIFO, expiry, reversal, reconciliation
+php tests/leave_rollover_test.php # ledger only: monthly posting, fixed grant, no writes on GET
+php tests/leave_statutory_test.php # phases 2–10: steps, sick pay, holidays, TOIL, encashment, payroll
 php tests/payroll_test.php    # runs: engine parity, totals, approval, scope
 php tests/portal_test.php     # portals: permission resolution, ESS payslip scope, HOD approvals
 php tests/smtp_test.php       # SMTP wire format against a local stub
@@ -163,7 +177,8 @@ bash tests/http_smoke.sh      # HTTP: CSRF 419, invite, register, payroll, reset
 ```
 
 `auth_test.php`, `employee_test.php`, `payroll_test.php` and `portal_test.php`
-recreate `mshahara_payroll_test` from scratch on every run.
+recreate `mshahara_payroll_test` from scratch on every run. The leave suites do
+the same, so they can be run in any order.
 
 ## Decisions
 
@@ -231,16 +246,36 @@ recreate `mshahara_payroll_test` from scratch on every run.
   `biometric`, `face` or `import`; the register shows it and the audit entry
   records it. A terminal integration writes the same row through
   `AttendanceService::mark()` and gets the same validation, tenancy and audit.
-- **Leave balances are derived, never stored.** Entitlement comes from
-  `leave_types.days_per_year`; yearly entitlement is not the same as the days
-  available today. Annual leave accrues monthly from the employment start date
-  (21 days is 1.75/month), while fixed types such as sick leave become available
-  after their qualifying period (sick leave defaults to 2 months). Settings
-  stores the rule, waiting period and day basis per type. Working-day types
-  (annual, sick) exclude weekends and company public holidays; calendar-day
-  types (maternity, paternity) count every date. Requests are checked against
-  accrued days less taken and pending days. Taken is approved days in the year
-  and pending is requested days, so a decision immediately moves the balance.
+- **The ledger is the only balance.** `leave_batches` hold grants and
+  `leave_transactions` hold accrual, usage, expiry, adjustment and reversal.
+  `LeaveBalanceService` reads the ledger; a GET never creates a batch. Yearly
+  entitlement comes from `leave_types.days_per_year`, but the available figure
+  is always the posted transactions less pending days.
+- **Accrual is posted, not inferred.** `LeaveAccrualService::postMonth()` posts
+  one monthly batch per employee at month end (the current month uses today's
+  effective date so it is visible early). Deterministic source keys make a
+  retry idempotent. `php bin/post_leave_accruals.php [company] [YYYY-MM]` runs
+  it from cron; `php bin/backfill_leave_ledger.php [company]` posts the history
+  through today for an existing company. Existing legacy openings can be
+  reconciled once with `php bin/reconcile_leave_ledger.php [company] --apply`:
+  it removes untouched fixed grants from earlier years and offsets opening
+  credits already represented by posted history. No code path creates a new
+  opening batch. Fixed types (sick, maternity,
+  paternity, pre-adoptive, compassionate) post once per leave year after their
+  waiting period; historical fixed years are not recreated when a company is
+  first populated.
+- **Usage is FIFO and reversible.** Approval consumes the oldest non-expired
+  batch first and writes `leave_request_allocations`; cancellation reverses
+  the exact batches used. Expired fixed-year batches and expired carry-over are
+  excluded from allocation even while a review flag is open.
+- **Carry-over is reviewed, not silently lost.** Carry-over expiry defaults to
+  18 months after the leave year. Expiry creates a `leave_exceptions` row for HR
+  with the days and batch; only a tenant that sets `forfeit_excess=1` writes the
+  expiry transaction automatically. HR resolves each row as forfeit or retain.
+- **Day counting follows the type.** Working-day types exclude weekends and
+  company public holidays; calendar-day types count every date. A public
+  holiday that falls on a Sunday creates an observed row on the next free day.
+  The day count is the same one the planner and timesheet use.
 - **Approval follows the reporting line.** `employees.manager_id` is the direct
   supervisor and `user_id` links that person to a login (both set on the employee
   form). A team approver (`leave.approve.team`, the HOD) sees direct reports and
@@ -249,6 +284,27 @@ recreate `mshahara_payroll_test` from scratch on every run.
   never decidable, and the dashboard badge counts only actionable requests.
   HOD leave therefore waits for their manager or HR; HR leave waits for the
   owner or another company approver.
+- **Approval can have two steps.** With `leave_settings.multi_level_approval=1`,
+  submission creates a manager step then an HR step. The manager step records
+  the decision and leaves the request pending; only the final HR step allocates
+  ledger batches. A request with no linked manager starts directly at HR.
+- **Statutory values are data.** `statutory_rules` stores the cited Employment
+  Act values (21 annual, 14 sick, 90 maternity, 14 paternity, 30 pre-adoptive,
+  7 compassionate, 18-month carry-over, 12-month sick qualifying period and
+  the rest). `leave_pay_tiers` stores the 7 full-pay then 7 half-pay sick
+  tiers. Settings and the leave page render them; leave services read them
+  instead of hard-coding a number.
+- **The payroll bridge prices leave.** `LeavePayrollService` turns approved
+  leave, the timesheet and holidays into a line adjustment: unpaid leave is
+  deducted, sick days above the full-pay tier are half paid, holiday hours
+  carry a double-time premium, recorded TOIL days are reported, and a pending
+  annual encashment is added to gross. `PayrollService` stores the breakdown on
+  the line and marks the encashment paid when the run is prepared.
+- **Planner and exit encashment are first class.** The HR and ESS planners show
+  approved leave, sickness, holidays and coverage for a month. Annual leave can
+  be quoted and encashed at exit from the employee record (and is attempted
+  automatically on archive); the quote uses the employee's salary and the
+  current ledger balance.
 - **Leave policy is data.** A leave type carries its days, paid flag, document
   rule, carry-over limit, active flag and a gender restriction (`any`, `female`,
   `male`). Balances hide restricted types from the other gender. Approval of a
@@ -260,8 +316,8 @@ recreate `mshahara_payroll_test` from scratch on every run.
   there. A public holiday is a paid non-working day, not an entitlement: no
   leave balance is consumed and no request is needed. The roster marks the
   date, and the timesheet drops the target and lost hours for it. Hours clocked
-  on a holiday are summed into a separate `Holiday hrs` column so payroll can
-  price them; the current payroll run does not yet apply a holiday premium.
+  on a holiday are summed into a separate `Holiday hrs` column; the payroll
+  bridge pays the configured holiday premium and records TOIL for the hours.
 - **Devices are registered, then feed the same rows.** `attendance_devices`
   records a terminal's kind (biometric, face, terminal), purpose (clock in/out
   or meal), serial and location. The meal break itself is the shift's

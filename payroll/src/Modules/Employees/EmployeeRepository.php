@@ -169,6 +169,22 @@ final class EmployeeRepository
     }
 
     /** @return array<string,mixed>|null */
+    public function managerFor(int $companyId, int $employeeId): ?array
+    {
+        $statement = $this->db->prepare(
+            'SELECT m.id, m.user_id, m.department_id, m.first_name, m.last_name
+             FROM employees e
+             JOIN employees m ON m.id = e.manager_id AND m.company_id = e.company_id
+             WHERE e.id = ? AND e.company_id = ?
+             LIMIT 1',
+        );
+        $statement->execute([$employeeId, $companyId]);
+        $row = $statement->fetch();
+
+        return $row === false ? null : $row;
+    }
+
+    /** @return array<string,mixed>|null */
     public function nextOfKin(int $companyId, int $employeeId): ?array
     {
         $statement = $this->db->prepare(

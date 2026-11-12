@@ -45,7 +45,16 @@
         <h3>Earnings</h3>
         <table class="list payslip-table">
           <tbody>
-            <tr><td>Basic salary</td><td class="num mono">{{ line.gross_cents|money }}</td></tr>
+            <tr><td>Basic salary</td><td class="num mono">{{ base_salary_cents|money }}</td></tr>
+            {% if line.holiday_premium_cents > 0 %}
+              <tr><td>Public holiday premium</td><td class="num mono">{{ line.holiday_premium_cents|money }}</td></tr>
+            {% endif %}
+            {% if leave and leave.encashment_cents > 0 %}
+              <tr><td>Leave encashment</td><td class="num mono">{{ leave.encashment_cents|money }}</td></tr>
+            {% endif %}
+            {% if line.leave_deduction_cents > 0 %}
+              <tr><td>Unpaid / partial-pay leave</td><td class="num mono">−{{ line.leave_deduction_cents|money }}</td></tr>
+            {% endif %}
             <tr class="total"><td>Gross pay</td><td class="num mono">{{ line.gross_cents|money }}</td></tr>
           </tbody>
         </table>
@@ -102,6 +111,26 @@
             </table>
           </div>
         {% endif %}
+      </div>
+    {% endif %}
+
+    {% if leave and leave.details %}
+      <div class="payslip-section">
+        <h3>Leave and holiday-work detail</h3>
+        <div class="table-wrap">
+          <table class="list payslip-bands">
+            <thead><tr><th>Item</th><th>Reason</th><th class="num">Amount</th></tr></thead>
+            <tbody>
+              {% for item in leave.details %}
+                <tr>
+                  <td>{{ item.type }}{% if item.days is defined %} · {{ item.days }} day(s){% endif %}{% if item.hours is defined %} · {{ item.hours }} hour(s){% endif %}</td>
+                  <td>{{ item.reason }}</td>
+                  <td class="num mono">{{ item.amount_cents|money }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
       </div>
     {% endif %}
 

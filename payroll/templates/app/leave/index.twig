@@ -16,6 +16,7 @@
   <nav class="page-tabs" aria-label="Leave views">
     <a class="{{ view == 'requests' ? 'is-active' : '' }}" href="/app/leave">Requests</a>
     <a class="{{ view == 'balances' ? 'is-active' : '' }}" href="/app/leave?view=balances">Balances</a>
+    <a class="{{ view == 'planner' ? 'is-active' : '' }}" href="/app/leave?view=planner">Planner</a>
   </nav>
 
   {% if view == 'balances' %}
@@ -71,7 +72,7 @@
           </table>
         </div>
         <p class="hint">
-          Entitlement is the yearly policy. Accrued is what the employee has earned by today; Available is accrued less approved and pending days for {{ year }}.
+          Entitlement is the yearly policy. Accrued and Available come from posted ledger transactions; Available is the ledger balance less pending days for {{ year }}. Viewing this page never changes a balance.
           {% if selected_employee and not selected_employee.gender %}
             Gender is not recorded for this employee; maternity and paternity balances are shown until it is set on the employee record.
           {% endif %}
@@ -79,6 +80,87 @@
       {% else %}
         <p class="muted">Add people to the register before checking balances.</p>
       {% endif %}
+    </section>
+
+    {% if exceptions %}
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>Carry-over review</h2>
+            <p class="muted">Expired batches are flagged for HR by default. Nothing is forfeited until someone chooses to forfeit it.</p>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="list">
+            <thead><tr><th>Employee</th><th>Type</th><th>Batch</th><th class="num">Days</th><th>Action</th></tr></thead>
+            <tbody>
+              {% for exception in exceptions %}
+                <tr>
+                  <td>{{ exception.first_name }} {{ exception.last_name }}<br><span class="muted mono">{{ exception.employee_no }}</span></td>
+                  <td>{{ exception.leave_type }}</td>
+                  <td class="mono">{{ exception.period_start|date('d/m/Y') }} – {{ exception.period_end|date('d/m/Y') }}<br><span class="muted">expires {{ exception.expiry_date|date('d/m/Y') }}</span></td>
+                  <td class="num mono">{{ exception.days|number_format(2) }}</td>
+                  <td>
+                    <div class="row-actions">
+                      <form method="post" action="/app/leave/exceptions/{{ exception.id }}/resolve">
+                        <input type="hidden" name="_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="action" value="retain">
+                        <button class="btn-ghost btn-xs" type="submit">Retain</button>
+                      </form>
+                      <form method="post" action="/app/leave/exceptions/{{ exception.id }}/resolve">
+                        <input type="hidden" name="_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="action" value="forfeit">
+                        <button class="btn-ghost btn-xs" type="submit">Forfeit</button>
+                      </form>
+                    </div>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    {% endif %}
+
+    {% if statutory_rules %}
+      <section class="panel">
+        <h2>Statutory basis</h2>
+        <div class="table-wrap">
+          <table class="list">
+            <thead><tr><th>Rule</th><th class="num">Value</th><th>Citation</th></tr></thead>
+            <tbody>
+              {% for rule in statutory_rules %}
+                <tr><td>{{ rule.code }}</td><td class="num mono">{{ rule.value_decimal ?? rule.value_text }}</td><td>{{ rule.citation }}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    {% endif %}
+  {% elseif view == 'planner' %}
+    <form class="filter-bar" method="get" action="/app/leave">
+      <input type="hidden" name="view" value="planner">
+      <label class="field inline-field"><span>Month</span><input type="number" name="month" min="1" max="12" value="{{ month }}"></label>
+      <label class="field inline-field"><span>Year</span><input type="number" name="year" min="2000" max="2100" value="{{ year }}"></label>
+      <button class="btn-primary" type="submit">Open planner</button>
+    </form>
+    <section class="panel">
+      <div class="panel-head"><div><h2>{{ planner.label }}</h2><p class="muted">{{ planner.rows|length }} request(s) touch this month.</p></div></div>
+      <div class="table-wrap">
+        <table class="list">
+          <thead><tr><th>Day</th><th>Leave</th></tr></thead>
+          <tbody>
+            {% for day in planner.days %}
+              <tr{% if day.weekend %} class="row-off"{% endif %}>
+                <td class="mono">{{ day.weekday }} {{ day.day }}</td>
+                <td>
+                  {% for item in day.leave %}<span class="shift-tag leave">{{ item.first_name }} {{ item.last_name }} · {{ item.leave_type }} · {{ item.status }}</span> {% else %}<span class="muted">—</span>{% endfor %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
     </section>
   {% else %}
     <div class="filter-row">
@@ -123,6 +205,7 @@
                   <td class="num mono">{{ request.days == request.days|round ? request.days|number_format(0) : request.days|number_format(1) }}</td>
                   <td>
                     <span class="status status-{{ request.status }}">{{ request.status|capitalize }}</span>
+                    {% if request.status == 'pending' and request.total_steps > 1 %}<br><span class="muted">Step {{ request.current_step }} of {{ request.total_steps }}</span>{% endif %}
                     {% if request.decision_note %}<br><span class="muted">{{ request.decision_note }}</span>{% endif %}
                   </td>
                   {% if can_approve %}

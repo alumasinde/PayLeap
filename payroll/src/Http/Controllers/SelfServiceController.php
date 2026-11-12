@@ -79,7 +79,7 @@ final class SelfServiceController
             $leaveAccrued += (float) $balance['accrued'];
             $leaveEntitled += (float) $balance['entitled'];
 
-            if ($balance['name'] === 'Annual leave') {
+            if (($balance['system_code'] ?? '') === 'annual' || $balance['name'] === 'Annual leave') {
                 $annualBalance = $leaveBalances[$index];
             }
         }
@@ -333,6 +333,8 @@ final class SelfServiceController
         echo $this->app->render('me/leave.twig', [
             'employee' => $employee,
             'year' => $year,
+            'leave_settings' => $this->app->leave->settings->forCompany($companyId),
+            'ledger_activity' => $this->app->leave->ledger->recentForEmployee($companyId, (int) $employee['id']),
             'balances' => $balances,
             'requests' => $requests,
             'available_days' => $available,
@@ -368,6 +370,33 @@ final class SelfServiceController
             'requests' => $this->app->leave->requests->listForCompany($companyId, 'pending', $scope),
             'pending_count' => $this->app->leave->requests->pendingCount($companyId, $scope),
             'can_approve_all' => $canApproveAll,
+        ]);
+    }
+
+    public function planner(): void
+    {
+        $company = $this->app->requireCompany();
+        $companyId = (int) $company['company_id'];
+        $employee = $this->linkedEmployee($companyId);
+        $canAll = $this->app->can('leave.approve.all');
+        $canTeam = $this->app->can('leave.approve.team');
+        $scope = $this->app->leave->service->scopeFor(
+            $companyId,
+            (int) $this->app->user['id'],
+            $canAll,
+            $canTeam,
+        );
+        $year = (int) $this->app->request->query('year', date('Y'));
+        $year = $year >= 2000 && $year <= 2100 ? $year : (int) date('Y');
+        $month = (int) $this->app->request->query('month', date('n'));
+        $month = $month >= 1 && $month <= 12 ? $month : (int) date('n');
+
+        echo $this->app->render('me/leave_planner.twig', [
+            'employee' => $employee,
+            'planner' => $this->app->leave->planner->month($companyId, $year, $month, $scope),
+            'year' => $year,
+            'month' => $month,
+            'can_approve' => $canAll || $canTeam,
         ]);
     }
 

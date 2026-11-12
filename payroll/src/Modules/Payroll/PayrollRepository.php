@@ -53,8 +53,8 @@ final class PayrollRepository
              nssf_employee_cents, shif_cents, housing_levy_employee_cents, paye_cents,
              deductions_cents, net_cents,
              nssf_employer_cents, housing_levy_employer_cents, nita_cents,
-             employer_cost_cents, breakdown)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+             employer_cost_cents, leave_deduction_cents, holiday_premium_cents, toil_days, breakdown)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
 
         foreach ($lines as $line) {
             $statement->execute([
@@ -74,6 +74,9 @@ final class PayrollRepository
                 $line['housing_levy_employer_cents'],
                 $line['nita_cents'],
                 $line['employer_cost_cents'],
+                $line['leave_deduction_cents'] ?? 0,
+                $line['holiday_premium_cents'] ?? 0,
+                $line['toil_days'] ?? 0,
                 $line['breakdown'],
             ]);
         }

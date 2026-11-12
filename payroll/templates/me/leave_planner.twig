@@ -1,0 +1,56 @@
+{% extends 'layout.twig' %}
+
+{% block title %}Leave planner — {{ app_name }}{% endblock %}
+
+{% block body %}
+  <header class="page-head page-head-row">
+    <div>
+      <span class="kicker">My account</span>
+      <h1>Leave planner</h1>
+      <p class="muted">Pending and approved leave for your team. Dates are inclusive.</p>
+    </div>
+    <form class="row-actions" method="get" action="/me/leave/planner">
+      <label class="field inline-field">
+        <span>Month</span>
+        <input type="number" name="month" min="1" max="12" value="{{ month }}">
+      </label>
+      <label class="field inline-field">
+        <span>Year</span>
+        <input type="number" name="year" min="2000" max="2100" value="{{ year }}">
+      </label>
+      <button class="btn-primary btn-sm" type="submit">Open</button>
+    </form>
+  </header>
+
+  <section class="panel">
+    <div class="panel-head">
+      <div>
+        <h2>{{ planner.label }}</h2>
+        <p class="muted">{{ planner.rows|length }} request(s) touch this month.</p>
+      </div>
+      <a class="btn-ghost btn-sm" href="/me/leave">Back to my leave</a>
+    </div>
+
+    <div class="table-wrap">
+      <table class="list planner-table">
+        <thead>
+          <tr><th>Day</th><th>Leave</th></tr>
+        </thead>
+        <tbody>
+          {% for day in planner.days %}
+            <tr{% if day.weekend %} class="row-off"{% endif %}>
+              <td class="mono">{{ day.weekday }} {{ day.day }}</td>
+              <td>
+                {% for item in day.leave %}
+                  <span class="shift-tag leave">{{ item.first_name }} {{ item.last_name }} · {{ item.leave_type }} · {{ item.status }}</span>
+                {% else %}
+                  <span class="muted">—</span>
+                {% endfor %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}
